@@ -1,0 +1,30 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
+  <!-- Android 13+ runtime notification permission (CLIENT_TICKET_PUSH §1) -->
+  <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+  <application>
+    <!-- FCM default notification channel used when a push has no explicit channel -->
+    <meta-data android:name="com.google.firebase.messaging.default_notification_channel_id" android:value="fairytales_default" />
+    <!-- Optional: set a white silhouette status-bar icon once one exists in res/drawable,
+             e.g. <meta-data android:name="com.google.firebase.messaging.default_notification_icon"
+                   android:resource="@drawable/ic_stat_push" />
+             Without it FCM falls back to the app launcher icon. -->
+    <!--Used when Application Entry is set to Activity, otherwise remove this activity block-->
+    <activity android:name="com.unity3d.player.UnityPlayerActivity" android:theme="@style/UnityThemeSelector">
+      <intent-filter>
+        <action android:name="android.intent.action.MAIN" />
+        <category android:name="android.intent.category.LAUNCHER" />
+      </intent-filter>
+      <meta-data android:name="unityplayer.UnityActivity" android:value="true" />
+    </activity>
+    <!--Used when Application Entry is set to GameActivity, otherwise remove this activity block-->
+    <activity android:name="com.unity3d.player.UnityPlayerGameActivity" android:theme="@style/BaseUnityGameActivityTheme">
+      <intent-filter>
+        <action android:name="android.intent.action.MAIN" />
+        <category android:name="android.intent.category.LAUNCHER" />
+      </intent-filter>
+      <meta-data android:name="unityplayer.UnityActivity" android:value="true" />
+      <meta-data android:name="android.app.lib_name" android:value="game" />
+    </activity>
+  </application>
+</manifest>
