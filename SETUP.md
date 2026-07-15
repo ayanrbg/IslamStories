@@ -21,13 +21,15 @@
       Firebase `.so`/`.bundle` подтянутся как текстовые заглушки.
 - [ ] Открыть проект в Unity **6000.3.7f1** (ровно эта версия). `Library/` пересоберётся сама.
 
-### 1. Bundle ID и имя (Player Settings)
-Edit → Project Settings → Player:
-- [ ] Android `applicationIdentifier`: `com.tokengc.balastories` → **свой** `com.<company>.<app>`
-- [ ] iOS `applicationIdentifier`: `com.mozz.fairyTales` → **свой** `com.<company>.<app>`
-- [ ] Company Name: `TokenGC` → своё
-- [ ] Version: `1.7.2` → `1.0.0`, iOS build number: `25` → `1`
-- [ ] Иконка и splash
+### 1. Bundle ID и имя (Player Settings) — ✅ СДЕЛАНО (кроме иконки)
+- [x] Android `applicationIdentifier` → `com.tokengc.islamstories`
+- [x] iOS `applicationIdentifier` → `com.tokengc.islamstories`
+- [x] Company Name: оставлен `TokenGC`
+- [x] Version → `1.0.0`; iOS build → `1`; AndroidBundleVersionCode → `1`
+- [ ] Иконка и splash (замени сам под новый бренд)
+
+> ⚠️ Bundle ID `com.tokengc.islamstories` теперь ДОЛЖЕН совпасть с тем, что укажешь
+> в Firebase (шаг 2) и в App Store Connect / Google Play.
 
 ### 2. Firebase (заменить файлы + новый проект)
 Текущий Firebase-проект: `bala-stories-afb46` (number `118383655401`) — НЕ твой.
