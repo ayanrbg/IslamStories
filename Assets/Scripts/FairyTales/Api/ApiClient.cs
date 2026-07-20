@@ -8,7 +8,7 @@ namespace FairyTales.Api
 {
     public class ApiClient : MonoBehaviour
     {
-        [SerializeField] private string baseUrl = "https://bala-stories.apiapp.kz:3000";
+        [SerializeField] private string baseUrl = "https://islam-stories.apiapp.kz:3003";
 
         private string _token;
 
