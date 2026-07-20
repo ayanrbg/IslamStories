@@ -13,6 +13,12 @@ namespace FairyTales.IAP
         public const string ProductMonthly = "fairytales_monthly";
         public const string ProductYearly = "fairytales_yearly";
 
+        // App Store Connect product IDs differ from the unified ids above (ASC ids
+        // cannot be renamed after creation; "fairytales_*" there is only the
+        // reference name). Google Play uses the unified ids as-is.
+        private const string AppleProductMonthly = "com.mozz.islamStories";
+        private const string AppleProductYearly = "com.mozz.islamStoriesYearly";
+
         public static IAPManager Instance { get; private set; }
 
         public bool IsInitialized => _store != null;
@@ -103,11 +109,19 @@ namespace FairyTales.IAP
                 var builder = ConfigurationBuilder.Instance(module);
                 Debug.Log("[IAP-DBG] ConfigurationBuilder created");
 
-                builder.AddProduct(ProductMonthly, ProductType.Subscription);
-                Debug.Log($"[IAP-DBG] Added product: {ProductMonthly} (Subscription)");
+                builder.AddProduct(ProductMonthly, ProductType.Subscription, new IDs
+                {
+                    { AppleProductMonthly, AppleAppStore.Name },
+                    { ProductMonthly, GooglePlay.Name },
+                });
+                Debug.Log($"[IAP-DBG] Added product: {ProductMonthly} (Subscription, apple={AppleProductMonthly})");
 
-                builder.AddProduct(ProductYearly, ProductType.Subscription);
-                Debug.Log($"[IAP-DBG] Added product: {ProductYearly} (Subscription)");
+                builder.AddProduct(ProductYearly, ProductType.Subscription, new IDs
+                {
+                    { AppleProductYearly, AppleAppStore.Name },
+                    { ProductYearly, GooglePlay.Name },
+                });
+                Debug.Log($"[IAP-DBG] Added product: {ProductYearly} (Subscription, apple={AppleProductYearly})");
 
                 Debug.Log("[IAP-DBG] Calling UnityPurchasing.Initialize()...");
                 UnityPurchasing.Initialize(this, builder);

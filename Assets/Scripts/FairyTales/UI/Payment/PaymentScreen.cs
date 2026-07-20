@@ -64,9 +64,16 @@ namespace FairyTales.UI.Payment
             if (btnTerms) btnTerms.onClick.AddListener(OnTerms);
             if (btnRestore) btnRestore.onClick.AddListener(OnRestore);
             if (btnPrivacy) btnPrivacy.onClick.AddListener(OnPrivacy);
+#if UNITY_IOS
+            // Guideline 3.1.1: premium may only be unlocked through In-App Purchase
+            // on iOS — the promo-code entry point must not exist there at all.
+            if (btnPromo) btnPromo.gameObject.SetActive(false);
+            if (promoPanel) promoPanel.SetActive(false);
+#else
             if (btnPromo) btnPromo.onClick.AddListener(() => ShowPromoPanel(true));
             if (btnPromoApply) btnPromoApply.onClick.AddListener(OnPromoApply);
             if (btnPromoClose) btnPromoClose.onClick.AddListener(() => ShowPromoPanel(false));
+#endif
         }
 
         protected override void OnPrepare()
@@ -234,13 +241,13 @@ namespace FairyTales.UI.Payment
         private void OnTerms()
         {
             ChildGatePopup.Show(() =>
-                Application.OpenURL("https://docs.google.com/document/d/15SLWdfFw3A9e4D-8BBJDY-STWj34_6bFRZznK8HVqQA/edit?usp=sharing"));
+                Application.OpenURL("https://docs.google.com/document/d/1I3Z1ti75XDantrKWCORtkolTmVfrgxTw3Tw45lg2VTY/edit?usp=sharing"));
         }
 
         private void OnPrivacy()
         {
             ChildGatePopup.Show(() =>
-                Application.OpenURL("https://docs.google.com/document/d/1oH94jmvSXyxxazAu9Dz-vAZQz3jYLLSMIPyXFZEOX0o/edit?usp=sharing"));
+                Application.OpenURL("https://docs.google.com/document/d/1SfqqaObOdnbG0W0ArddX9XUsWhWZt7LjFybnL7t_11o/edit?usp=sharing"));
         }
 
         private void ShowPromoPanel(bool show)
