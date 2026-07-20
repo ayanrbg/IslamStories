@@ -109,14 +109,14 @@ namespace FairyTales.IAP
                 var builder = ConfigurationBuilder.Instance(module);
                 Debug.Log("[IAP-DBG] ConfigurationBuilder created");
 
-                builder.AddProduct(ProductMonthly, ProductType.Subscription, new IDs
+                builder.AddProduct(ProductMonthly, ProductType.Subscription, new StoreSpecificIds
                 {
                     { AppleProductMonthly, AppleAppStore.Name },
                     { ProductMonthly, GooglePlay.Name },
                 });
                 Debug.Log($"[IAP-DBG] Added product: {ProductMonthly} (Subscription, apple={AppleProductMonthly})");
 
-                builder.AddProduct(ProductYearly, ProductType.Subscription, new IDs
+                builder.AddProduct(ProductYearly, ProductType.Subscription, new StoreSpecificIds
                 {
                     { AppleProductYearly, AppleAppStore.Name },
                     { ProductYearly, GooglePlay.Name },
