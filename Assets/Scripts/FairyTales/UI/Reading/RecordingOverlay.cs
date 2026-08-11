@@ -84,6 +84,11 @@ namespace FairyTales.UI.Reading
 
         public void Deactivate()
         {
+            // Tearing down an overlay that was never activated has nothing to undo, and its
+            // tale/lang are still null — walking the teardown path would throw and abort
+            // whatever called us (ReadingScreen.OnShown does, on every normal read).
+            if (!IsActive) return;
+
             if (_recording) FinalizeSegment();
             _recording = false;
             StopPreview();

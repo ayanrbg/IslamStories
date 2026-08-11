@@ -76,6 +76,8 @@ namespace FairyTales.UI.Narration
 
         protected override void OnShown()
         {
+            // Never stack pollers: a settled transition can deliver OnShown again.
+            if (_polling != null) StopCoroutine(_polling);
             _polling = StartCoroutine(PollAndDownload());
         }
 
@@ -157,6 +159,12 @@ namespace FairyTales.UI.Narration
 
                     if (statusText) statusText.text = Loc.Get("done");
                     if (btnDone) btnDone.gameObject.SetActive(true);
+
+                    // Go straight to reading. Waiting for a tap on "Done" left the user on
+                    // a finished progress screen with nothing playing — which is exactly
+                    // what "narration does not work" looked like. The button stays as the
+                    // manual fallback for when the detail never loaded.
+                    OpenReading();
                     yield break;
                 }
 
@@ -248,17 +256,28 @@ namespace FairyTales.UI.Narration
 
         private void OnDone()
         {
-            if (_detail != null)
-            {
-                var reading = _screens.Get<ReadingScreen>();
-                if (reading != null)
-                {
-                    reading.SetTale(_detail, NarrationMode.AI);
-                    _screens.Show<ReadingScreen>();
-                    return;
-                }
-            }
+            if (OpenReading()) return;
             _screens.Show<TaleDetailScreen>();
+        }
+
+        /// <summary>
+        /// Opens the reading screen with the freshly generated AI narration.
+        /// Returns false when there is nothing to open, so the caller can fall back.
+        /// </summary>
+        private bool OpenReading()
+        {
+            var reading = _detail != null ? _screens.Get<ReadingScreen>() : null;
+            if (reading == null)
+            {
+                RemoteLog.Event("narration_open_reading_failed",
+                    $"tale={_tale?.id}; detail={_detail != null}; " +
+                    $"pages={_detail?.pages?.Length ?? -1}");
+                return false;
+            }
+
+            reading.SetTale(_detail, NarrationMode.AI);
+            _screens.Show<ReadingScreen>();
+            return true;
         }
 
         private void OnBack() => _screens.Show<TaleDetailScreen>();

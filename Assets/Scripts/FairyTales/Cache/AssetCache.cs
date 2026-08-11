@@ -78,6 +78,9 @@ namespace FairyTales.Cache
         /// <summary>True if at least one page has been recorded for this tale+language.</summary>
         public static bool HasAnyParentNarration(string taleId, string lang)
         {
+            // No tale/language means nothing was ever recorded — Path.Combine would throw.
+            if (string.IsNullOrEmpty(taleId) || string.IsNullOrEmpty(lang)) return false;
+
             var dir = Path.Combine(Root, "parent-narration", taleId, lang);
             return Directory.Exists(dir) && Directory.GetFiles(dir, "page_*.wav").Length > 0;
         }
@@ -85,6 +88,8 @@ namespace FairyTales.Cache
         /// <summary>Deletes all recorded parent pages for a tale+language.</summary>
         public static void ClearParentNarration(string taleId, string lang)
         {
+            if (string.IsNullOrEmpty(taleId) || string.IsNullOrEmpty(lang)) return;
+
             var dir = Path.Combine(Root, "parent-narration", taleId, lang);
             if (Directory.Exists(dir)) Directory.Delete(dir, true);
         }

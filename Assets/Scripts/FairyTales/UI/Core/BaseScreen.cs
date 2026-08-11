@@ -13,6 +13,7 @@ namespace FairyTales.UI.Core
         private CanvasGroup _canvasGroup;
         private Canvas _canvas;
         private RectTransform _rect;
+        private Sequence _seq;
 
         protected CanvasGroup CanvasGroup =>
             _canvasGroup ??= GetComponent<CanvasGroup>();
@@ -25,6 +26,30 @@ namespace FairyTales.UI.Core
 
         public bool SlideEnabled => slideFromBottom;
         public float AnimDuration => animDuration;
+
+        /// <summary>True while this screen is actually drawn.</summary>
+        public bool IsVisible => Canvas.enabled;
+
+        /// <summary>
+        /// Run any in-flight show/hide animation straight to its end, callbacks included.
+        /// Screens are only hidden inside a tween's OnComplete, so an interrupted tween
+        /// would otherwise leave this screen visible on top of the next one forever.
+        /// </summary>
+        public void CompleteAnimation()
+        {
+            var seq = _seq;
+            _seq = null;
+            if (seq != null && seq.IsActive()) seq.Complete(true);
+        }
+
+        /// <summary>Drop an in-flight animation without running its callbacks — for the
+        /// immediate/finalize paths that set the end state themselves.</summary>
+        private void KillAnimation()
+        {
+            var seq = _seq;
+            _seq = null;
+            if (seq != null && seq.IsActive()) seq.Kill();
+        }
 
         /// <summary>
         /// Activate the GameObject once so coroutines work.
@@ -42,6 +67,7 @@ namespace FairyTales.UI.Core
         /// <summary>Fade-in (+ slide up if enabled). Used for standalone transitions.</summary>
         public virtual void Show(Action onComplete = null)
         {
+            CompleteAnimation();
             Canvas.enabled = true;
             OnPrepare();
             CanvasGroup.alpha = 0f;
@@ -58,15 +84,18 @@ namespace FairyTales.UI.Core
 
             seq.OnComplete(() =>
             {
+                _seq = null;
                 CanvasGroup.blocksRaycasts = true;
                 OnShown();
                 onComplete?.Invoke();
             });
+            _seq = seq;
         }
 
         /// <summary>Fade-out (+ slide up if enabled). Used for standalone transitions.</summary>
         public virtual void Hide(Action onComplete = null)
         {
+            CompleteAnimation();
             CanvasGroup.blocksRaycasts = false;
 
             var seq = DOTween.Sequence();
@@ -77,17 +106,20 @@ namespace FairyTales.UI.Core
 
             seq.OnComplete(() =>
             {
+                _seq = null;
                 StopAllCoroutines();
                 Canvas.enabled = false;
                 Rect.anchoredPosition = Vector2.zero;
                 OnHidden();
                 onComplete?.Invoke();
             });
+            _seq = seq;
         }
 
         /// <summary>Prepare screen before coordinated slide (activate, set alpha, position).</summary>
         public void PrepareBelow()
         {
+            KillAnimation();
             Canvas.enabled = true;
             OnPrepare();
             CanvasGroup.alpha = 1f;
@@ -98,6 +130,7 @@ namespace FairyTales.UI.Core
         /// <summary>Finalize after coordinated slide-in completed.</summary>
         public void FinalizeShown()
         {
+            KillAnimation();
             Rect.anchoredPosition = Vector2.zero;
             CanvasGroup.blocksRaycasts = true;
             OnShown();
@@ -106,6 +139,7 @@ namespace FairyTales.UI.Core
         /// <summary>Finalize after coordinated slide-out completed.</summary>
         public void FinalizeHidden()
         {
+            KillAnimation();
             StopAllCoroutines();
             CanvasGroup.alpha = 0f;
             CanvasGroup.blocksRaycasts = false;
@@ -116,6 +150,7 @@ namespace FairyTales.UI.Core
 
         public void ShowImmediate()
         {
+            KillAnimation();
             gameObject.SetActive(true);
             Canvas.enabled = true;
             OnPrepare();
@@ -128,6 +163,7 @@ namespace FairyTales.UI.Core
 
         public void HideImmediate()
         {
+            KillAnimation();
             StopAllCoroutines();
             CanvasGroup.alpha = 0f;
             CanvasGroup.blocksRaycasts = false;

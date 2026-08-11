@@ -136,7 +136,13 @@ namespace FairyTales.UI.Reading
 
         protected override void OnShown()
         {
-            if (_tale == null || _tale.pages == null) return;
+            if (_tale == null || _tale.pages == null)
+            {
+                // Silent dead end: the screen opens but nothing renders and nothing plays.
+                RemoteLog.Event("reading_open_empty",
+                    $"tale={_tale?.id}; pages={_tale?.pages?.Length ?? -1}; mode={_mode}");
+                return;
+            }
 
             if (_recordingMode && recordingOverlay)
                 recordingOverlay.Activate(_tale.id, Loc.Lang,

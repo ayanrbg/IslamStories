@@ -18,7 +18,7 @@ namespace FairyTales.UI.Core
         private readonly Dictionary<System.Type, BaseScreen> _screens = new();
         private BaseScreen _current;
         private bool _transitioning;
-        private float _transitionStart;
+        private Sequence _slideSeq;
 
         private void Awake()
         {
@@ -72,15 +72,40 @@ namespace FairyTales.UI.Core
             Loc.ApplyLocale(Loc.Lang);
         }
 
+        /// <summary>
+        /// Run any transition still in flight straight to its end, callbacks included, so
+        /// the screens are in a settled state before a new one starts. Dropping the request
+        /// instead (the old behaviour) lost the navigation and could strand the outgoing
+        /// screen visible on top of the incoming one, since screens are only hidden inside
+        /// a tween's OnComplete.
+        /// </summary>
+        private void SettleTransition()
+        {
+            if (!_transitioning) return;
+
+            var seq = _slideSeq;
+            _slideSeq = null;
+            if (seq != null && seq.IsActive()) seq.Complete(true);
+
+            // Independent-animation path: no shared sequence, finish each screen's own.
+            foreach (var screen in _screens.Values) screen.CompleteAnimation();
+
+            _transitioning = false;
+        }
+
+        /// <summary>
+        /// Last-resort invariant: exactly one screen is drawn. Guards against a screen left
+        /// visible by a path that never completed.
+        /// </summary>
+        private void HideAllExcept(BaseScreen keep)
+        {
+            foreach (var screen in _screens.Values)
+                if (screen != keep && screen.IsVisible) screen.HideImmediate();
+        }
+
         public void Show<T>() where T : BaseScreen
         {
-            // Safety: reset stuck _transitioning flag after 3 seconds
-            if (_transitioning && Time.unscaledTime - _transitionStart > 3f)
-            {
-                Debug.LogWarning("[ScreenManager] _transitioning stuck — force-resetting");
-                _transitioning = false;
-            }
-            if (_transitioning) return;
+            SettleTransition();
 
             if (!_screens.TryGetValue(typeof(T), out var next))
             {
@@ -92,27 +117,12 @@ namespace FairyTales.UI.Core
 
             var prev = _current;
             _current = next;
-
-            // Both slide-enabled → coordinated swipe-up (move as one unit)
-            if (prev != null && prev.SlideEnabled && next.SlideEnabled)
-            {
-                CoordinatedSlide(prev, next);
-                return;
-            }
-
-            // Fallback: independent animations
-            if (prev != null) prev.Hide();
-            next.Show();
+            BeginTransition(prev, next);
         }
 
         public void Show(System.Type screenType)
         {
-            if (_transitioning && Time.unscaledTime - _transitionStart > 3f)
-            {
-                Debug.LogWarning("[ScreenManager] _transitioning stuck — force-resetting");
-                _transitioning = false;
-            }
-            if (_transitioning) return;
+            SettleTransition();
 
             if (!_screens.TryGetValue(screenType, out var next))
                 return;
@@ -121,15 +131,31 @@ namespace FairyTales.UI.Core
 
             var prev = _current;
             _current = next;
+            BeginTransition(prev, next);
+        }
 
+        /// <summary>
+        /// Single entry point for a screen swap. Both paths mark the manager as
+        /// transitioning and end by asserting that only the incoming screen is drawn.
+        /// </summary>
+        private void BeginTransition(BaseScreen prev, BaseScreen next)
+        {
             if (prev != null && prev.SlideEnabled && next.SlideEnabled)
             {
+                // Both slide-enabled → coordinated swipe-up (move as one unit)
                 CoordinatedSlide(prev, next);
                 return;
             }
 
-            if (prev != null) prev.Hide();
-            next.Show();
+            // Fallback: independent animations. This path used to leave _transitioning
+            // unset, so a second Show() could start on top of it and strand both screens.
+            _transitioning = true;
+            prev?.Hide();
+            next.Show(onComplete: () =>
+            {
+                _transitioning = false;
+                HideAllExcept(next);
+            });
         }
 
         // Gap (canvas units) kept between the two screens during a coordinated slide.
@@ -138,7 +164,6 @@ namespace FairyTales.UI.Core
         private void CoordinatedSlide(BaseScreen prev, BaseScreen next)
         {
             _transitioning = true;
-            _transitionStart = Time.unscaledTime;
             var duration = next.AnimDuration;
 
             prev.Rect.anchoredPosition = Vector2.zero;
@@ -152,10 +177,13 @@ namespace FairyTales.UI.Core
             seq.Join(next.Rect.DOAnchorPosY(0f, duration).SetEase(Ease.InOutCubic));
             seq.OnComplete(() =>
             {
+                _slideSeq = null;
                 prev.FinalizeHidden();
                 next.FinalizeShown();
                 _transitioning = false;
+                HideAllExcept(next);
             });
+            _slideSeq = seq;
         }
 
         /// <summary>
@@ -164,35 +192,34 @@ namespace FairyTales.UI.Core
         /// </summary>
         public void ShowOver<T>() where T : BaseScreen
         {
-            if (_transitioning && Time.unscaledTime - _transitionStart > 3f)
-            {
-                Debug.LogWarning("[ScreenManager] _transitioning stuck (ShowOver) — force-resetting");
-                _transitioning = false;
-            }
-            if (_transitioning) return;
+            SettleTransition();
+
             if (!_screens.TryGetValue(typeof(T), out var next)) return;
             if (next == _current) return;
 
             var prev = _current;
             _current = next;
             _transitioning = true;
-            _transitionStart = Time.unscaledTime;
 
             next.Show(onComplete: () =>
             {
                 prev?.HideImmediate();
                 _transitioning = false;
+                HideAllExcept(next);
             });
         }
 
         public void ShowImmediate<T>() where T : BaseScreen
         {
+            SettleTransition();
+
             if (!_screens.TryGetValue(typeof(T), out var next)) return;
             if (next == _current) return;
 
             _current?.HideImmediate();
             _current = next;
             next.ShowImmediate();
+            HideAllExcept(next);
         }
 
         public T Get<T>() where T : BaseScreen
