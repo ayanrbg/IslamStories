@@ -276,12 +276,17 @@ namespace FairyTales.UI.Library
             bool bundled = BundledTaleLoader.IsBundled(_tale.id);
             string[] pages = bundled && _detail?.pages != null ? _detail.pages : null;
 
+            RemoteLog.Event("narration_start",
+                $"tale={_tale.id}; voice={voice}; narratorGender={narratorGender}; " +
+                $"lang={Loc.Lang}; bundled={bundled}; pages={pages?.Length ?? -1}; " +
+                $"status={_narrationStatus}");
+
             bool started = false;
             yield return _narration.NarrateAll(_tale.id, childName, gender,
                 onSuccess: _ => started = true,
                 onError: e =>
                 {
-                    Debug.LogWarning($"[TaleDetail] NarrateAll failed: {e}");
+                    RemoteLog.Event("narration_start_fail", $"tale={_tale.id}; err={e}");
                     Toast.Show(Loc.Get("narration_error"));
                 },
                 voice: voice, lang: Loc.Lang, pages: pages,

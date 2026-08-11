@@ -3,6 +3,7 @@ using System.Collections;
 using System.IO;
 using UnityEngine;
 using UnityEngine.Networking;
+using FairyTales.Diagnostics;
 
 namespace FairyTales.Audio
 {
@@ -64,7 +65,11 @@ namespace FairyTales.Audio
 
         private IEnumerator LoadAndPlay(byte[] data)
         {
-            if (data == null || data.Length == 0) yield break;
+            if (data == null || data.Length == 0)
+            {
+                RemoteLog.Event("narration_no_data", $"null={data == null}");
+                yield break;
+            }
 
             var (ext, audioType) = DetectFormat(data);
             var path = Path.Combine(Application.temporaryCachePath, $"narration.{ext}");
@@ -78,8 +83,11 @@ namespace FairyTales.Audio
             // suspended. Reading the field back after a yield would then NRE.
             var req = UnityWebRequestMultimedia.GetAudioClip(uri, audioType);
             _activeRequest = req;
-            // Enable streaming so playback starts before full decode finishes
-            ((DownloadHandlerAudioClip)req.downloadHandler).streamAudio = true;
+            // Stream so playback starts before full decode finishes — but only for
+            // formats where Unity actually supports it. Streaming an MPEG clip on iOS
+            // yields a zero-length clip that never plays (server narration is MP3).
+            var stream = audioType != AudioType.MPEG;
+            ((DownloadHandlerAudioClip)req.downloadHandler).streamAudio = stream;
             yield return req.SendWebRequest();
 
             // Superseded while loading → abandon this request quietly.
@@ -91,6 +99,8 @@ namespace FairyTales.Audio
 
             if (req.result != UnityWebRequest.Result.Success)
             {
+                RemoteLog.Event("narration_decode_fail",
+                    $"fmt={ext}; bytes={data.Length}; stream={stream}; err={req.error}");
                 DisposeRequest();
                 yield break;
             }
@@ -98,6 +108,11 @@ namespace FairyTales.Audio
             var clip = DownloadHandlerAudioClip.GetContent(req);
             if (clip == null || clip.length < 0.01f)
             {
+                // The iOS MP3-streaming failure mode lands exactly here: decode "succeeds"
+                // but the clip is empty, so playback is silent with nothing else to show.
+                RemoteLog.Event("narration_empty_clip",
+                    $"fmt={ext}; bytes={data.Length}; stream={stream}; " +
+                    $"len={(clip == null ? -1f : clip.length)}");
                 DisposeRequest();
                 yield break;
             }
@@ -107,9 +122,16 @@ namespace FairyTales.Audio
 
             if (!_source.isPlaying)
             {
+                RemoteLog.Event("narration_not_playing",
+                    $"fmt={ext}; bytes={data.Length}; len={clip.length}; " +
+                    $"vol={_source.volume}; listener={AudioListener.volume}; " +
+                    $"paused={AudioListener.pause}");
                 DisposeRequest();
                 yield break;
             }
+
+            RemoteLog.Event("narration_playing",
+                $"fmt={ext}; bytes={data.Length}; len={clip.length}; stream={stream}");
 
             yield return WaitForEnd();
 

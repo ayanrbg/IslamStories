@@ -158,6 +158,14 @@ namespace FairyTales.UI.Reading
                 if (pageNavigator.CurrentPage >= pageNavigator.TotalPages - 1)
                     _reachedLastPage = true;
                 CheckComplete(pageNavigator.CurrentPage);
+
+                // Once per opened tale, not per page: tells us whether narration was even
+                // supposed to sound (mode None is silent by design) and if a player exists.
+                RemoteLog.Event("narration_session",
+                    $"tale={_tale.id}; mode={_mode}; lang={Loc.Lang}; " +
+                    $"player={_narrationPlayer != null}; service={_narrationService != null}; " +
+                    $"startPage={_startPage}");
+
                 PlayNarration(_startPage);
             }
 
@@ -292,6 +300,8 @@ namespace FairyTales.UI.Reading
         {
             var wav = AssetCache.LoadParentNarration(_tale.id, Loc.Lang, page);
             if (wav != null) _narrationPlayer.PlayFromBytes(wav);
+            else RemoteLog.Event("narration_parent_missing",
+                $"tale={_tale.id}; page={page}; lang={Loc.Lang}");
         }
 
         private IEnumerator PlayDefaultNarration(int page)
@@ -321,13 +331,17 @@ namespace FairyTales.UI.Reading
             string pageText = _tale.pages != null && page < _tale.pages.Length
                 ? _tale.pages[page] : null;
 
+            RemoteLog.Event("narration_tts_request",
+                $"tale={_tale.id}; page={page}; lang={lang}; textLen={pageText?.Length ?? -1}");
+
             yield return _narrationService.NarratePage(_tale.id, page,
                 onSuccess: data =>
                 {
                     AssetCache.Save(AssetCache.NarrationKey(_tale.id, lang, page), data);
                     _narrationPlayer.PlayFromBytes(data);
                 },
-                onError: e => { } /* RELEASE: Debug.LogWarning($"[Reading] TTS failed p{page}: {e}") */,
+                onError: e => RemoteLog.Event("narration_tts_fail",
+                    $"tale={_tale.id}; page={page}; lang={lang}; err={e}"),
                 voice: "narrator", lang: lang, text: pageText);
         }
 
@@ -340,6 +354,8 @@ namespace FairyTales.UI.Reading
             var cached = AssetCache.Load(cacheKey);
             if (cached != null)
             {
+                RemoteLog.Event("narration_ai_cache_hit",
+                    $"tale={_tale.id}; page={page}; lang={lang}; bytes={cached.Length}");
                 _narrationPlayer.PlayFromBytes(cached);
                 yield break;
             }
@@ -347,9 +363,13 @@ namespace FairyTales.UI.Reading
             // Fallback: download from server and cache
             if (_narrationService == null)
             {
+                RemoteLog.Event("narration_ai_no_service", $"tale={_tale.id}; page={page}");
                 StartCoroutine(PlayDefaultNarration(page));
                 yield break;
             }
+
+            RemoteLog.Event("narration_ai_download",
+                $"tale={_tale.id}; page={page}; lang={lang}");
 
             yield return _narrationService.DownloadNarratedPage(_tale.id, page,
                 onSuccess: bytes =>
@@ -357,7 +377,12 @@ namespace FairyTales.UI.Reading
                     AssetCache.Save(cacheKey, bytes);
                     _narrationPlayer.PlayFromBytes(bytes);
                 },
-                onError: e => StartCoroutine(PlayDefaultNarration(page)));
+                onError: e =>
+                {
+                    RemoteLog.Event("narration_ai_download_fail",
+                        $"tale={_tale.id}; page={page}; lang={lang}; err={e}");
+                    StartCoroutine(PlayDefaultNarration(page));
+                });
         }
 
         private void UpdateNavButtons()

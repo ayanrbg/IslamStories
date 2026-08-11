@@ -4,6 +4,7 @@ using UnityEngine.UI;
 using TMPro;
 using FairyTales.Api;
 using FairyTales.Cache;
+using FairyTales.Diagnostics;
 using FairyTales.Models;
 using FairyTales.UI.Core;
 using FairyTales.UI.Library;
@@ -114,12 +115,16 @@ namespace FairyTales.UI.Narration
                     },
                     onError: e =>
                     {
-                        Debug.LogWarning($"[NarrationProgress] Poll error: {e}");
+                        RemoteLog.Event("narration_poll_fail",
+                            $"tale={_tale?.id}; err={e}");
                         error = true;
                     });
 
                 if (error)
                 {
+                    RemoteLog.Event("narration_generation_error",
+                        $"tale={_tale?.id}; pagesReady={pagesReady}; total={_totalPages}");
+
                     // Clear partially downloaded files so stale audio isn't reused
                     if (_tale != null) AssetCache.ClearAiNarration(_tale.id);
 
@@ -140,7 +145,12 @@ namespace FairyTales.UI.Narration
                     yield return DownloadReadyPages(_totalPages);
                     UpdateProgress();
 
-                    // Save meta only after all pages downloaded successfully
+                    // Save meta only after all pages downloaded successfully. A short count
+                    // here means the cache stays "invalid" and the next Listen regenerates.
+                    RemoteLog.Event("narration_generation_done",
+                        $"tale={_tale?.id}; downloaded={_downloadedPages}; total={_totalPages}; " +
+                        $"voice={_voice}; narratorGender={_narratorGender}");
+
                     if (_downloadedPages >= _totalPages && _tale != null)
                         AssetCache.SaveAiNarrationMeta(_tale.id, _voice,
                             _narratorGender, _childName, _childGender);
@@ -176,7 +186,8 @@ namespace FairyTales.UI.Narration
                     },
                     onError: e =>
                     {
-                        Debug.LogWarning($"[NarrationProgress] Download page {p} failed: {e}");
+                        RemoteLog.Event("narration_page_download_fail",
+                            $"tale={_tale?.id}; page={p}; lang={lang}; err={e}");
                         pageDone = true; // skip, will retry next poll
                     });
 
