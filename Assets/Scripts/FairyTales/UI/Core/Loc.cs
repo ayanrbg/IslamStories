@@ -78,7 +78,14 @@ namespace FairyTales.UI.Core
             ["per_year"] = new() { ["ru"] = "год", ["kz"] = "жыл", ["en"] = "yr", ["uz"] = "yil" },
             ["start_trial"] = new() { ["ru"] = "Попробовать бесплатно", ["kz"] = "Тегін байқап көру", ["en"] = "Try for free", ["uz"] = "Bepul sinab ko'rish" },
             ["subscribe"] = new() { ["ru"] = "Подписаться", ["kz"] = "Жазылу", ["en"] = "Subscribe", ["uz"] = "Obuna bo'lish" },
+            // Guideline 3.1.2(c): the billed amount must stay the most prominent pricing
+            // element, so trial wording is confined to this subordinate note.
+            ["trial_note"] = new() { ["ru"] = "Пробный период бесплатно, затем {0}", ["kz"] = "Сынақ кезеңі тегін, кейін {0}", ["en"] = "Free trial, then {0}", ["uz"] = "Sinov davri bepul, keyin {0}" },
+            ["auto_renew_ios"] = new() { ["ru"] = "Подписка продлевается автоматически. Отменить можно в настройках Apple ID в любой момент.", ["kz"] = "Жазылым автоматты түрде жаңарады. Кез келген уақытта Apple ID баптауларынан бас тартуға болады.", ["en"] = "Subscription renews automatically. Cancel anytime in your Apple ID settings.", ["uz"] = "Obuna avtomatik yangilanadi. Istalgan vaqtda Apple ID sozlamalarida bekor qilish mumkin." },
+            ["auto_renew_android"] = new() { ["ru"] = "Подписка продлевается автоматически. Отменить можно в настройках Google Play в любой момент.", ["kz"] = "Жазылым автоматты түрде жаңарады. Кез келген уақытта Google Play баптауларынан бас тартуға болады.", ["en"] = "Subscription renews automatically. Cancel anytime in your Google Play settings.", ["uz"] = "Obuna avtomatik yangilanadi. Istalgan vaqtda Google Play sozlamalarida bekor qilish mumkin." },
             ["iap_not_ready"] = new() { ["ru"] = "Магазин загружается...", ["kz"] = "Дүкен жүктелуде...", ["en"] = "Store loading...", ["uz"] = "Do'kon yuklanmoqda..." },
+            ["iap_unavailable"] = new() { ["ru"] = "Магазин временно недоступен", ["kz"] = "Дүкен уақытша қолжетімсіз", ["en"] = "Store temporarily unavailable", ["uz"] = "Do'kon vaqtincha mavjud emas" },
+            ["retry"] = new() { ["ru"] = "Повторить", ["kz"] = "Қайталау", ["en"] = "Retry", ["uz"] = "Qayta urinish" },
             ["purchase_success"] = new() { ["ru"] = "Подписка оформлена!", ["kz"] = "Жазылым рәсімделді!", ["en"] = "Subscription activated!", ["uz"] = "Obuna faollashtirildi!" },
             ["purchase_failed"] = new() { ["ru"] = "Ошибка покупки. Попробуйте ещё раз", ["kz"] = "Сатып алу қатесі. Қайталап көріңіз", ["en"] = "Purchase failed. Please try again", ["uz"] = "Xarid xatosi. Qaytadan urinib ko'ring" },
             ["restore_success"] = new() { ["ru"] = "Покупки восстановлены!", ["kz"] = "Сатып алулар қалпына келтірілді!", ["en"] = "Purchases restored!", ["uz"] = "Xaridlar tiklandi!" },

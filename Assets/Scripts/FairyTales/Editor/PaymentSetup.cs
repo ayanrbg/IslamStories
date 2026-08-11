@@ -16,6 +16,7 @@ namespace FairyTales.Editor
         private static readonly Color BadgeColor = new(0.9f, 0.25f, 0.2f);
         private static readonly Color OldPriceColor = new(0.7f, 0.5f, 0.5f);
         private static readonly Color LinkColor = new(0.65f, 0.55f, 0.85f);
+        private static readonly Color NoteColor = new(0.72f, 0.68f, 0.8f);
 
         [MenuItem("FairyTales/Setup Payment UI")]
         public static void Setup()
@@ -76,10 +77,15 @@ namespace FairyTales.Editor
                 new Vector2(0f, 0f), new Vector2(0.47f, 1f),
                 "449 ₽/мес", null, null);
 
-            // Yearly card
+            // Yearly card. The old price and badge below are placeholders only —
+            // PaymentScreen recomputes both from live store prices and hides them when
+            // the yearly plan is not actually cheaper.
             var yearly = CreatePlanCard(cards.transform, "CardYearly",
                 new Vector2(0.53f, 0f), new Vector2(1f, 1f),
                 "2 490 ₽/год", "5388 ₽/год", "-55%");
+            var yearlyOldPrice = yearly.transform.Find("OldPrice");
+            var badge = yearly.transform.Find("Badge");
+            var badgeText = badge ? badge.Find("Text") : null;
 
             // Selection outlines
             var monthlySelect = CreateSelectionBorder(
@@ -88,9 +94,41 @@ namespace FairyTales.Editor
                 yearly.transform, "Selection");
 
             // ── CTA button ──
+            // Guideline 3.1.2(c): no free-trial promise on the CTA — it would outshout the
+            // billed amount on the plan cards. Short static label, fixed button size.
             var btnTrial = CreateCtaButton(root, "BtnTrial",
-                "Попробовать 3 дня бесплатно",
+                "Подписаться",
                 new Vector2(0.08f, 0.28f), new Vector2(0.92f, 0.39f));
+
+            // Trial wording lives here — subordinate in size, position and color to the
+            // billed amount above. Never promote it to the CTA.
+            var trialNote = CreateTMP(root, "TrialNote",
+                "Пробный период бесплатно, затем 2 490 ₽/год",
+                16, FontStyles.Normal, TextAlignmentOptions.Center,
+                new Vector2(0.08f, 0.22f), new Vector2(0.92f, 0.27f));
+            trialNote.GetComponent<TextMeshProUGUI>().color = NoteColor;
+
+            // Auto-renewal disclosure required next to the subscription terms.
+            var autoRenew = CreateTMP(root, "AutoRenewNote",
+                "Подписка продлевается автоматически. Отменить можно в настройках Apple ID в любой момент.",
+                14, FontStyles.Normal, TextAlignmentOptions.Center,
+                new Vector2(0.06f, 0.11f), new Vector2(0.94f, 0.2f));
+            autoRenew.GetComponent<TextMeshProUGUI>().color = NoteColor;
+
+            // ── Store unavailable state ──
+            // Sits ABOVE the CTA, never over it: the purchase button must stay tappable
+            // even while the store is down, so nothing may cover it.
+            var storeError = CreatePanel(root, "StoreError",
+                new Vector2(0.08f, 0.40f), new Vector2(0.92f, 0.47f));
+            var storeErrorText = CreateTMP(storeError.transform, "Text",
+                "Магазин временно недоступен",
+                18, FontStyles.Normal, TextAlignmentOptions.Center,
+                new Vector2(0f, 0f), new Vector2(0.72f, 1f));
+            storeErrorText.GetComponent<TextMeshProUGUI>().color = NoteColor;
+            var btnRetryStore = CreateLinkButton(storeError.transform, "BtnRetry",
+                "Повторить",
+                new Vector2(0.74f, 0f), new Vector2(1f, 1f));
+            storeError.SetActive(false);
 
             // ── Bottom links ──
             var btnTerms = CreateLinkButton(root, "BtnTerms",
@@ -121,6 +159,23 @@ namespace FairyTales.Editor
                 btnPrivacy.GetComponent<Button>();
             so.FindProperty("monthlySelect").objectReferenceValue = monthlySelect;
             so.FindProperty("yearlySelect").objectReferenceValue = yearlySelect;
+            if (yearlyOldPrice)
+                so.FindProperty("txtYearlyOldPrice").objectReferenceValue =
+                    yearlyOldPrice.GetComponent<TextMeshProUGUI>();
+            if (badgeText)
+                so.FindProperty("txtDiscountBadge").objectReferenceValue =
+                    badgeText.GetComponent<TextMeshProUGUI>();
+            if (badge)
+                so.FindProperty("discountBadge").objectReferenceValue = badge.gameObject;
+            so.FindProperty("txtTrialNote").objectReferenceValue =
+                trialNote.GetComponent<TextMeshProUGUI>();
+            so.FindProperty("txtAutoRenew").objectReferenceValue =
+                autoRenew.GetComponent<TextMeshProUGUI>();
+            so.FindProperty("storeErrorPanel").objectReferenceValue = storeError;
+            so.FindProperty("txtStoreError").objectReferenceValue =
+                storeErrorText.GetComponent<TextMeshProUGUI>();
+            so.FindProperty("btnRetryStore").objectReferenceValue =
+                btnRetryStore.GetComponent<Button>();
             so.ApplyModifiedProperties();
 
             Undo.RegisterCreatedObjectUndo(screen.gameObject,
