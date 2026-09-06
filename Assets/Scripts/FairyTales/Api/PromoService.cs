@@ -13,7 +13,7 @@ namespace FairyTales.Api
         public IEnumerator CheckPromo(string code,
             Action<PromoCheckResponse> onSuccess, Action<string> onError = null)
         {
-            var body = JsonUtility.ToJson(new PromoCheckRequest { code = code, app = "BALA_STORIES" });
+            var body = JsonUtility.ToJson(new PromoCheckRequest { code = code });
             Debug.Log($"[Promo] CheckPromo request: code={code}, body={body}, hasToken={_api.HasToken}");
             string resultJson = null;
             string resultErr = null;
@@ -80,11 +80,14 @@ namespace FairyTales.Api
             PlayerPrefs.Save();
         }
 
+        // No "app" field on purpose. Both backends destructure only { code } and then
+        // hardcode their own app id ("BALA_STORIES" / "ISLAMIC_TALES") when they call the
+        // upstream promo service. A client-side app id is never read, and carrying the
+        // twin's value here read as a live bug every time someone diffed the two repos.
         [Serializable]
         private class PromoCheckRequest
         {
             public string code;
-            public string app = "BALA_STORIES";
         }
 
         /// <summary>
