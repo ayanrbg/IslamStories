@@ -79,18 +79,24 @@ namespace FairyTales.Cache
 
             if (detail == null) yield break;
 
+            // A translation may omit totalPages or disagree with its own page list —
+            // trust whichever is larger so no illustration is silently skipped.
+            int pageCount = Mathf.Max(detail.totalPages, detail.pages?.Length ?? 0);
+            if (pageCount == 0) yield break;
+
             // Progress: plain pages = 1 download, gendered pages = 2 (boy + girl).
-            // (totalPages - g) + 2*g == totalPages + g, so the formula is unchanged.
+            // (pageCount - g) + 2*g == pageCount + g, so the formula is unchanged.
             int genderedCount = detail.genderedPages?.Length ?? 0;
-            int totalSteps = detail.totalPages + genderedCount;
-            if (tale.hasDefaultNarration) totalSteps += detail.totalPages;
+            int totalSteps = pageCount + genderedCount;
+            if (tale.hasDefaultNarration) totalSteps += pageCount;
             int step = 0;
+            bool complete = true;
 
             // Illustrations — gender-agnostic: download BOTH variants for gendered
             // pages so switching the child's gender later is handled purely on-client
             // from cache. Gendered pages have no plain page_N on the server, so we
             // request boy/girl directly instead.
-            for (int p = 0; p < detail.totalPages; p++)
+            for (int p = 0; p < pageCount; p++)
             {
                 bool isGendered = detail.genderedPages != null
                     && Array.IndexOf(detail.genderedPages, p) >= 0;
@@ -117,21 +123,51 @@ namespace FairyTales.Cache
                         $"Illustrations/{id}/page_{p}");
                     onProgress?.Invoke(++step, totalSteps);
                 }
+
+                if (!HasAnyVariant(id, p)) complete = false;
             }
 
-            // Default narration
+            // Default narration. Ask first WHICH language the server actually has:
+            // a silent fallback to another one would be cached under our lang key
+            // and then read the wrong language over the text forever.
             if (tale.hasDefaultNarration)
             {
-                for (int p = 0; p < detail.totalPages; p++)
+                DefaultNarrationInfo info = null;
+                yield return _api.Get($"/api/tales/{id}/default-narration?lang={lang}",
+                    json => info = JsonConvert.DeserializeObject<DefaultNarrationInfo>(json),
+                    _ => { });
+                bool langOk = info != null && info.available
+                    && (string.IsNullOrEmpty(info.lang) || info.lang == lang);
+
+                for (int p = 0; p < pageCount; p++)
                 {
-                    yield return DownloadFile(
-                        $"/api/tales/{id}/default-narration/{p}?lang={lang}",
-                        AssetCache.NarrationKey(id, lang, p), onError);
+                    if (langOk)
+                        yield return DownloadFile(
+                            $"/api/tales/{id}/default-narration/{p}?lang={lang}",
+                            AssetCache.NarrationKey(id, lang, p), onError);
                     onProgress?.Invoke(++step, totalSteps);
                 }
             }
 
-            AssetCache.MarkTaleReady(id);
+            // Only mark ready when every page really got an illustration. A partial
+            // download (server 404 for a page, connection dropped) would otherwise be
+            // treated as complete forever and those slides would stay blank — instead
+            // the next open re-runs the download and tops up only what's missing.
+            if (complete) AssetCache.MarkTaleReady(id);
+        }
+
+        /// <summary>True if page p has an illustration in any variant — plain, boy or girl.</summary>
+        private static bool HasAnyVariant(string taleId, int page)
+        {
+            if (AssetCache.Exists(AssetCache.IllustrationKey(taleId, page))
+                || AssetCache.Exists(AssetCache.IllustrationKey(taleId, page, "boy"))
+                || AssetCache.Exists(AssetCache.IllustrationKey(taleId, page, "girl")))
+                return true;
+
+            var res = $"Illustrations/{taleId}/page_{page}";
+            return Resources.Load<Sprite>(res) != null
+                || Resources.Load<Sprite>($"{res}_boy") != null
+                || Resources.Load<Sprite>($"{res}_girl") != null;
         }
 
         /// Downloads default narration audio for a tale.
@@ -146,6 +182,10 @@ namespace FairyTales.Cache
                 e => { } /* RELEASE: Debug.LogWarning($"[Download] narration info {taleId}: {e}") */);
 
             if (info == null || !info.available || info.pages == null || info.pages.Length == 0)
+                yield break;
+
+            // Never file another language's audio under this one's key.
+            if (!string.IsNullOrEmpty(info.lang) && info.lang != lang)
                 yield break;
 
             for (int i = 0; i < info.pages.Length; i++)

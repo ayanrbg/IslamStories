@@ -512,8 +512,16 @@ namespace FairyTales.UI.Payment
             {
                 FinishPurchaseAttempt();
 
+                // The store never complained, yet the purchase did not go through: the
+                // store took the payment and the server would not confirm the receipt.
+                // "Try again" is the wrong advice — a second purchase is refused as a
+                // duplicate, restoring is what recovers it.
                 if (!success && !_failureReported)
-                    Toast.Show(Loc.Get("purchase_failed"));
+                {
+                    RemoteLog.Event("paywall_purchase_failed",
+                        $"productId={productId}; source={Source}; reason=not_validated");
+                    Toast.Show(Loc.Get("purchase_not_activated"));
+                }
 
                 if (success)
                 {
@@ -634,6 +642,11 @@ namespace FairyTales.UI.Payment
             btnPromo.gameObject.SetActive(false);
 #else
             btnPromo.gameObject.SetActive(!PromoService.WasUsed);
+
+            // The icon carries a caption now: the gift popup tells the invited friend to
+            // tap a button by this exact name, so it has to follow the app language.
+            var label = btnPromo.GetComponentInChildren<TextMeshProUGUI>(true);
+            if (label) label.text = Loc.Get("promo_code");
 #endif
         }
 
@@ -699,6 +712,19 @@ namespace FairyTales.UI.Payment
                     else if (response.type == "tale")
                     {
                         OnTalesUnlocked(code, response);
+                    }
+                    else if (response.type == "referral")
+                    {
+                        // The invited friend's side of "book as a gift": nothing unlocks
+                        // here, the tale opens on the INVITER's account. Say thank you and
+                        // close the field — otherwise they wait for a book that was never
+                        // theirs. The paywall stays open: nothing was purchased.
+                        PromoService.MarkUsed(code);
+                        Analytics.Log("promo_redeem", ("success", true));
+                        LogPromoEntered("referral", 0, response.bloggerName);
+                        Toast.Show(Loc.Get("promo_referral_ok"));
+                        ShowPromoPanel(false);
+                        UpdatePromoButton();
                     }
                     else
                     {

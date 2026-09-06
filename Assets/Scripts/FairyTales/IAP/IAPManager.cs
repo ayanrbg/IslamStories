@@ -393,6 +393,11 @@ namespace FairyTales.IAP
             // editor would always end with "not active" and premium would stay off.
             // Grant locally so the paywall flow stays testable outside a device build.
             Debug.Log("[IAP-DBG] Editor: fake purchase — granting premium locally, skipping server validation");
+            // Expiry and source first: setting IsSubscribed raises OnSubscriptionChanged,
+            // and listeners render the "active until …" label straight from these.
+            PremiumExpiresUtc = DateTime.UtcNow.AddYears(1);
+            PlayerPrefs.SetString("ft_premium_source", "editor");
+            PlayerPrefs.Save();
             IsSubscribed = true;
             _purchaseCallback?.Invoke(true);
             _purchaseCallback = null;

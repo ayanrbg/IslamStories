@@ -40,7 +40,8 @@ namespace FairyTales.UI.Onboarding
 
         protected override void OnPrepare()
         {
-            SetProgress(0f, Loc.Get("preparing_library"));
+            // Single static caption for the whole startup sequence.
+            SetProgress(0f, Loc.Get("download.tales"));
         }
 
         protected override void OnShown()
@@ -69,13 +70,13 @@ namespace FairyTales.UI.Onboarding
             var userId = AuthService.GetOrCreateUserId();
 
             // Step 1 — Register (non-blocking)
-            SetProgress(0.1f, Loc.Get("loading"));
+            SetProgress(0.1f);
             yield return _auth.Register(userId, childName, gender, lang,
                 onSuccess: _ => { },
                 onError: e => { } /* RELEASE: Debug.LogWarning($"[Loading] Register: {e}") */);
 
             // Step 2 — Fetch tales (server → bundled fallback)
-            SetProgress(0.3f, Loc.Get("loading"));
+            SetProgress(0.3f);
             TaleSummary[] tales = null;
             yield return _tales.GetTales(lang,
                 onSuccess: t => tales = t,
@@ -90,7 +91,7 @@ namespace FairyTales.UI.Onboarding
                 float step = 0.6f / tales.Length;
                 for (int i = 0; i < tales.Length; i++)
                 {
-                    SetProgress(0.3f + step * i, Loc.Get("loading"));
+                    SetProgress(0.3f + step * i);
 
                     if (BundledTaleLoader.IsBundled(tales[i].id)) continue;
 
@@ -100,7 +101,7 @@ namespace FairyTales.UI.Onboarding
                 }
             }
 
-            SetProgress(1f, Loc.Get("done_excl"));
+            SetProgress(1f);
             yield return new WaitForSeconds(0.3f);
 
             OnLoadingComplete?.Invoke();
@@ -133,10 +134,10 @@ namespace FairyTales.UI.Onboarding
             }
         }
 
-        private void SetProgress(float value, string text)
+        private void SetProgress(float value, string text = null)
         {
             if (progressBar) progressBar.value = value;
-            if (statusText) statusText.text = text;
+            if (statusText && text != null) statusText.text = text;
         }
 
     }

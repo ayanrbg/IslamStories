@@ -13,6 +13,7 @@ namespace FairyTales.Cache
     public static class BundledTaleLoader
     {
         private const string Folder = "BundledTales";
+        private const string FallbackLang = "ru";
 
         // Set of tale IDs bundled in StreamingAssets, loaded from manifest.json at startup.
         // Used on Android where File.Exists can't probe inside the APK.
@@ -59,14 +60,34 @@ namespace FairyTales.Cache
             // wrongly shown as already downloaded (manifest loads early at startup).
             return _bundledIds != null && _bundledIds.Contains(taleId);
 #else
-            var path = Path.Combine(Application.streamingAssetsPath, Folder, taleId, TaleFileName(Loc.Lang));
-            return File.Exists(path);
+            // Illustrations are shared across languages, so a tale stays bundled even
+            // if the current language's text is missing (LoadTaleJson falls back).
+            var dir = Path.Combine(Application.streamingAssetsPath, Folder, taleId);
+            return File.Exists(Path.Combine(dir, TaleFileName(Loc.Lang)))
+                || File.Exists(Path.Combine(dir, TaleFileName(FallbackLang)));
 #endif
         }
 
+        /// <summary>
+        /// Loads the tale text for the current language, falling back to the default
+        /// one. A translation that is missing or malformed must not leave the tale
+        /// unreadable — better the wrong language than a dead screen.
+        /// </summary>
         public static IEnumerator LoadTaleJson(string taleId, Action<TaleDetail> cb)
         {
-            var url = GetUrl(taleId, TaleFileName(Loc.Lang));
+            TaleDetail detail = null;
+            yield return LoadTaleJsonForLang(taleId, Loc.Lang, d => detail = d);
+
+            if (detail == null && Loc.Lang != FallbackLang)
+                yield return LoadTaleJsonForLang(taleId, FallbackLang, d => detail = d);
+
+            cb?.Invoke(detail);
+        }
+
+        private static IEnumerator LoadTaleJsonForLang(string taleId, string lang,
+            Action<TaleDetail> cb)
+        {
+            var url = GetUrl(taleId, TaleFileName(lang));
             using var req = UnityWebRequest.Get(url);
             yield return req.SendWebRequest();
 
@@ -76,9 +97,23 @@ namespace FairyTales.Cache
                 yield break;
             }
 
-            var detail = JsonConvert.DeserializeObject<TaleDetail>(req.downloadHandler.text);
-            if (detail != null && detail.totalPages == 0 && detail.pages != null)
+            TaleDetail detail = null;
+            try
+            {
+                detail = JsonConvert.DeserializeObject<TaleDetail>(req.downloadHandler.text);
+            }
+            catch (JsonException)
+            {
+                // RELEASE: Debug.LogWarning($"[BundledTaleLoader] Malformed {TaleFileName(lang)} for {taleId}");
+            }
+
+            // A translation with no pages is as useless as no file at all.
+            if (detail != null && (detail.pages == null || detail.pages.Length == 0))
+                detail = null;
+
+            if (detail != null && detail.totalPages != detail.pages.Length)
                 detail.totalPages = detail.pages.Length;
+
             cb?.Invoke(detail);
         }
 
@@ -154,20 +189,6 @@ namespace FairyTales.Cache
         public static IEnumerator LoadCover(string taleId, Action<Sprite> cb)
         {
             yield return LoadSprite(taleId, "cover.jpg", cb);
-        }
-
-        public static IEnumerator LoadPage(string taleId, int page, Action<Sprite> cb)
-        {
-            yield return LoadSprite(taleId, $"page_{page}.jpg", cb);
-        }
-
-        public static IEnumerator LoadPageGendered(string taleId, int page,
-            string gender, Action<Sprite> cb)
-        {
-            Sprite result = null;
-            yield return LoadSprite(taleId, $"page_{page}_{gender}.jpg", s => result = s);
-            if (result != null) { cb?.Invoke(result); yield break; }
-            yield return LoadSprite(taleId, $"page_{page}.jpg", cb);
         }
 
         private static string GetUrl(string taleId, string file)

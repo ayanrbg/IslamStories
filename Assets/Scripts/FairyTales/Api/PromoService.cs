@@ -60,6 +60,7 @@ namespace FairyTales.Api
                 {
                     case 409: return "promo_already_used";   // this account already spent its one code
                     case 410: return "promo_exhausted";      // code hit its redemption limit
+                    case 403: return "promo_self";           // own referral code — nobody was invited
                     case 404: return "promo_not_found";
                 }
             }
@@ -96,7 +97,7 @@ namespace FairyTales.Api
         [UnityEngine.Scripting.Preserve]
         public class PromoCheckResponse
         {
-            public string type;          // premium | blogger | tale
+            public string type;          // premium | blogger | tale | referral
             public int durationDays;
             public string bloggerName;
             public string message;

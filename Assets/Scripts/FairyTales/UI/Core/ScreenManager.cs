@@ -20,6 +20,15 @@ namespace FairyTales.UI.Core
         private bool _transitioning;
         private Sequence _slideSeq;
 
+        // Latest navigation asked for while a transition was in flight. Replayed once
+        // that transition finishes on its own, so no animation is ever cut short.
+        private System.Type _pendingType;
+        private bool _pendingOver;
+
+        // Wall-clock guard: a tween killed from outside never fires its OnComplete, which
+        // would leave _transitioning stuck and dead-end every later navigation.
+        private float _transitionDeadline;
+
         private void Awake()
         {
             Cache.AssetCache.MigrateIfNeeded();
@@ -76,7 +85,12 @@ namespace FairyTales.UI.Core
 
         public void Show(System.Type screenType)
         {
-            SettleTransition();
+            if (IsBusy())
+            {
+                _pendingType = screenType;
+                _pendingOver = false;
+                return;
+            }
 
             if (!_screens.TryGetValue(screenType, out var next))
             {
@@ -89,6 +103,39 @@ namespace FairyTales.UI.Core
             var prev = _current;
             _current = next;
             BeginTransition(prev, next);
+        }
+
+        /// <summary>
+        /// True while a transition is still playing and should be left alone. Past its
+        /// deadline the transition is force-settled instead, so a tween that was killed
+        /// without running its callbacks can't freeze navigation for good.
+        /// </summary>
+        private bool IsBusy()
+        {
+            if (!_transitioning) return false;
+            if (Time.unscaledTime < _transitionDeadline) return true;
+
+            SettleTransition();
+            return false;
+        }
+
+        /// <summary>Marks a transition as started and blocks input on every screen for its duration.</summary>
+        private void MarkTransitionStarted(float duration)
+        {
+            _transitioning = true;
+            _transitionDeadline = Time.unscaledTime + duration + 0.5f;
+            foreach (var screen in _screens.Values) screen.SetInputEnabled(false);
+        }
+
+        /// <summary>Runs the navigation that was requested mid-transition, now that the screens are settled.</summary>
+        private void FlushPending()
+        {
+            var type = _pendingType;
+            if (type == null) return;
+
+            _pendingType = null;
+            if (_pendingOver) ShowOver(type);
+            else Show(type);
         }
 
         /// <summary>
@@ -106,12 +153,13 @@ namespace FairyTales.UI.Core
 
             // Fallback: independent animations. This path used to leave _transitioning
             // unset, so a second Show() could start on top of it and strand both screens.
-            _transitioning = true;
+            MarkTransitionStarted(Mathf.Max(next.AnimDuration, prev != null ? prev.AnimDuration : 0f));
             if (prev != null) prev.Hide();
             next.Show(onComplete: () =>
             {
                 _transitioning = false;
                 HideAllExcept(next);
+                FlushPending();
             });
         }
 
@@ -121,10 +169,20 @@ namespace FairyTales.UI.Core
         /// instead (the old behaviour) lost the navigation and could strand the outgoing
         /// screen visible on top of the incoming one, since screens are only hidden inside
         /// a tween's OnComplete.
+        ///
+        /// This snaps the animation, so it is only for paths that are immediate by contract
+        /// or for the stuck-transition guard — never for ordinary navigation, which queues
+        /// itself and waits instead.
         /// </summary>
         private void SettleTransition()
         {
             if (!_transitioning) return;
+
+            // Drop the queued navigation before snapping: Complete(true) runs the tween's
+            // OnComplete synchronously, and a FlushPending() from in there would start a new
+            // transition that the rest of this method then tears down. Every caller of this
+            // has a newer destination in hand anyway.
+            _pendingType = null;
 
             var seq = _slideSeq;
             _slideSeq = null;
@@ -134,6 +192,14 @@ namespace FairyTales.UI.Core
             foreach (var screen in _screens.Values) screen.CompleteAnimation();
 
             _transitioning = false;
+
+            // A tween killed from outside never runs its OnComplete, so the input block it
+            // was meant to lift can outlive it. Restore the visible screen by hand.
+            if (_current != null)
+            {
+                _current.SetInputEnabled(true);
+                HideAllExcept(_current);
+            }
         }
 
         /// <summary>
@@ -151,8 +217,8 @@ namespace FairyTales.UI.Core
 
         private void CoordinatedSlide(BaseScreen prev, BaseScreen next)
         {
-            _transitioning = true;
             var duration = next.AnimDuration;
+            MarkTransitionStarted(duration);
 
             prev.Rect.anchoredPosition = Vector2.zero;
             next.PrepareBelow();
@@ -170,6 +236,7 @@ namespace FairyTales.UI.Core
                 next.FinalizeShown();
                 _transitioning = false;
                 HideAllExcept(next);
+                FlushPending();
             });
             _slideSeq = seq;
         }
@@ -178,26 +245,36 @@ namespace FairyTales.UI.Core
         /// Slide next screen in on top of current, then hide current instantly.
         /// No overlap flicker — prev stays as background until next fully covers it.
         /// </summary>
-        public void ShowOver<T>() where T : BaseScreen
+        public void ShowOver<T>() where T : BaseScreen => ShowOver(typeof(T));
+
+        public void ShowOver(System.Type screenType)
         {
-            SettleTransition();
-            if (!_screens.TryGetValue(typeof(T), out var next)) return;
+            if (IsBusy())
+            {
+                _pendingType = screenType;
+                _pendingOver = true;
+                return;
+            }
+
+            if (!_screens.TryGetValue(screenType, out var next)) return;
             if (next == _current) return;
 
             var prev = _current;
             _current = next;
-            _transitioning = true;
+            MarkTransitionStarted(next.AnimDuration);
 
             next.Show(onComplete: () =>
             {
                 prev?.HideImmediate();
                 _transitioning = false;
                 HideAllExcept(next);
+                FlushPending();
             });
         }
 
         public void ShowImmediate<T>() where T : BaseScreen
         {
+            // Immediate by contract: snaps whatever is in flight instead of waiting for it.
             SettleTransition();
             if (!_screens.TryGetValue(typeof(T), out var next)) return;
             if (next == _current) return;

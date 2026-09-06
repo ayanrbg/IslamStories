@@ -25,6 +25,11 @@ namespace FairyTales.UI.Library
         [SerializeField] private GameObject comingSoonBadge;
         [SerializeField] private TMP_Text comingSoonText;
 
+        [Header("Gift (invite a friend)")]
+        [Tooltip("Badge shown on a gift tale while it is still locked. Replace freely — the card only toggles it on and off.")]
+        [SerializeField] private GameObject giftBadge;
+        [SerializeField] private TMP_Text giftBadgeText;
+
         [Header("Download UI (inside overlay)")]
         [SerializeField] private Image circleFill;
         [SerializeField] private Image downloadArrow;
@@ -39,6 +44,7 @@ namespace FairyTales.UI.Library
         private bool _isDownloading;
         private bool _downloadFailed;
         private bool _isComingSoon;
+        private bool _isGift;
         private Coroutine _downloadCoroutine;
 
         public bool IsDownloaded => _isDownloaded;
@@ -54,6 +60,9 @@ namespace FairyTales.UI.Library
             _isComingSoon = tale.comingSoon;
             // Coming-soon tales are never lockable/downloadable — they have no pages.
             _isLocked = isLocked && !_isComingSoon;
+            // Only worth advertising while the tale is still locked — once the friend
+            // has redeemed the code it is an ordinary tale.
+            _isGift = tale.gift && _isLocked;
             _isDownloaded = isDownloaded;
             _isDownloading = false;
             _downloadFailed = false;
@@ -90,6 +99,9 @@ namespace FairyTales.UI.Library
 
         private void UpdateOverlay()
         {
+            if (giftBadge) giftBadge.SetActive(_isGift && !_isComingSoon);
+            if (giftBadgeText && _isGift) giftBadgeText.text = Loc.Get("gift_badge");
+
             // Coming soon: badge only, no lock/download UI.
             if (comingSoonBadge) comingSoonBadge.SetActive(_isComingSoon);
             if (_isComingSoon)
@@ -101,12 +113,15 @@ namespace FairyTales.UI.Library
             }
 
             bool needsDownload = !_isDownloaded && !_isLocked;
-            bool showOverlay = _isLocked || needsDownload;
+            // A gift tale is locked but must not look locked: the badge is the invitation,
+            // and a dimmed cover with a padlock reads as "you can't have this".
+            bool showLock = _isLocked && !_isGift;
+            bool showOverlay = showLock || needsDownload;
 
             if (overlay) overlay.SetActive(showOverlay);
 
             // Lock
-            if (lockIcon) lockIcon.SetActive(_isLocked);
+            if (lockIcon) lockIcon.SetActive(showLock);
 
             // Download: idle (circle full + arrow + size)
             bool idle = needsDownload && !_isDownloading;
@@ -138,7 +153,7 @@ namespace FairyTales.UI.Library
         private void OnClick()
         {
             Analytics.Log("tale_card_click", ("tale_id", _tale.id),
-                ("is_free", _tale.free), ("coming_soon", _isComingSoon));
+                ("is_free", _tale.free), ("coming_soon", _isComingSoon), ("is_gift", _isGift));
 
             // Coming soon → non-interactive (no open, no download, no narrate).
             if (_isComingSoon)

@@ -32,6 +32,13 @@ namespace FairyTales.UI.Core
         public bool IsVisible => Canvas.enabled;
 
         /// <summary>
+        /// Gate clicks without touching visibility. Held off for every screen while a
+        /// transition plays, so a tap on a screen that is still sliding can't kick off
+        /// a second transition on top of the first.
+        /// </summary>
+        public void SetInputEnabled(bool enabled) => CanvasGroup.blocksRaycasts = enabled;
+
+        /// <summary>
         /// Run any in-flight show/hide animation straight to its end, callbacks included.
         /// A screen is only hidden inside its tween's OnComplete, so an interrupted tween
         /// would otherwise leave this screen visible on top of the next one forever.
