@@ -13,12 +13,15 @@ namespace FairyTales.Audio
 
         /// <summary>
         /// Returns cached audio bytes for default narration, or null.
+        /// Pass the language the page TEXT is in — it is not always Loc.Lang, and
+        /// reading a different key than the one the caller writes would replay the
+        /// wrong language forever.
         /// Note: uses sync File.ReadAllBytes — call from coroutine context
         /// so the next frame can absorb the cost.
         /// </summary>
-        public byte[] GetPageBytes(string taleId, int page)
+        public byte[] GetPageBytes(string taleId, int page, string lang = null)
         {
-            return AssetCache.Load(AssetCache.NarrationKey(taleId, Loc.Lang, page));
+            return AssetCache.LoadAudio(AssetCache.NarrationKey(taleId, lang ?? Loc.Lang, page));
         }
 
         /// <summary>
@@ -52,15 +55,15 @@ namespace FairyTales.Audio
             return clip;
         }
 
-        public bool HasNarration(string taleId, int page)
+        public bool HasNarration(string taleId, int page, string lang = null)
         {
-            return AssetCache.Exists(AssetCache.NarrationKey(taleId, Loc.Lang, page))
+            return AssetCache.HasAudio(AssetCache.NarrationKey(taleId, lang ?? Loc.Lang, page))
                 || GetPage(taleId, page) != null;
         }
 
-        public bool HasAnyNarration(string taleId)
+        public bool HasAnyNarration(string taleId, string lang = null)
         {
-            return HasNarration(taleId, 0);
+            return HasNarration(taleId, 0, lang);
         }
     }
 }

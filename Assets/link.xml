@@ -1,0 +1,26 @@
+<!--
+  IL2CPP managed stripping vs Newtonsoft.
+
+  Newtonsoft serializes by reflecting over a type's members. If the linker decides
+  nothing references those members, it strips their metadata and JsonConvert emits
+  "{}" — silently, at runtime, on device only. That is exactly what shipped in Bala
+  2.6: the narrate body went out as 2 bytes, the server saw no narratorGender and
+  spoke male no matter which voice the user picked. The Editor (Mono, no stripping)
+  ran the same code correctly, so nothing caught it before release.
+
+  The request payloads are now named classes carrying [Preserve], which is the real
+  fix. This file is the belt to that pair of braces: it keeps every request/response
+  model intact even if someone raises the stripping level later.
+-->
+<linker>
+  <!-- Wildcard on type fullname, the form Unity documents and the one the Firebase
+       link.xml in this project already uses. <namespace> is an ILLink element Unity
+       does not promise to honour — and a rule that is silently ignored is worse than
+       no rule at all. -->
+  <assembly fullname="Assembly-CSharp">
+    <type fullname="FairyTales.Models.*" preserve="all" />
+    <!-- Response models that live next to their service rather than in Models —
+         PromoService.PromoCheckResponse is read by JsonUtility reflection. -->
+    <type fullname="FairyTales.Api.*" preserve="all" />
+  </assembly>
+</linker>

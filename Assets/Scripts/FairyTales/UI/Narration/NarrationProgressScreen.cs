@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
@@ -21,7 +22,8 @@ namespace FairyTales.UI.Narration
         [SerializeField] private Button btnBack;
         [SerializeField] private Button btnRetry;
 
-        [SerializeField] private float pollInterval = 3f;
+        [Tooltip("How many pages are narrated in parallel (server used to batch by 5).")]
+        [SerializeField] private int parallelRequests = 4;
 
         private ScreenManager _screens;
         private NarrationService _narration;
@@ -32,11 +34,19 @@ namespace FairyTales.UI.Narration
         private string _narratorGender;
         private string _childName;
         private string _childGender;
+        private string _lang;
         private Coroutine _polling;
-        private Coroutine _downloading;
+        private readonly List<Coroutine> _workers = new();
+        private int _running;
         private int _downloadedPages;
         private int _totalPages;
         private bool _generationDone;
+
+        /// <summary>
+        /// True while a book is being narrated. Read by NarrationConfig: a remote
+        /// cache reset must not delete pages out from under a running job.
+        /// </summary>
+        public static bool IsGenerating { get; private set; }
 
         private void Awake()
         {
@@ -76,9 +86,10 @@ namespace FairyTales.UI.Narration
 
         protected override void OnShown()
         {
-            // Never stack pollers: a settled transition can deliver OnShown again.
+            // Never stack generators: a settled transition can deliver OnShown again.
             if (_polling != null) StopCoroutine(_polling);
-            _polling = StartCoroutine(PollAndDownload());
+            StopWorkers();
+            _polling = StartCoroutine(GenerateNarration());
         }
 
         protected override void OnHidden()
@@ -88,122 +99,129 @@ namespace FairyTales.UI.Narration
                 StopCoroutine(_polling);
                 _polling = null;
             }
-            if (_downloading != null)
-            {
-                StopCoroutine(_downloading);
-                _downloading = null;
-            }
+            StopWorkers();
         }
 
-        private IEnumerator PollAndDownload()
+        private void StopWorkers()
         {
-            int pagesReady = 0;
-
-            while (true)
-            {
-                bool done = false;
-                bool error = false;
-
-                yield return _narration.GetNarrationStatus(_tale.id,
-                    onSuccess: s =>
-                    {
-                        _totalPages = s.totalPages;
-                        pagesReady = s.pagesReady;
-
-                        if (s.status == "done")
-                            done = true;
-                        else if (s.status == "error")
-                            error = true;
-                    },
-                    onError: e =>
-                    {
-                        RemoteLog.Event("narration_poll_fail",
-                            $"tale={_tale?.id}; err={e}");
-                        error = true;
-                    });
-
-                if (error)
-                {
-                    RemoteLog.Event("narration_generation_error",
-                        $"tale={_tale?.id}; pagesReady={pagesReady}; total={_totalPages}");
-
-                    // Clear partially downloaded files so stale audio isn't reused
-                    if (_tale != null) AssetCache.ClearAiNarration(_tale.id);
-
-                    if (statusText) statusText.text = Loc.Get("error");
-                    if (btnRetry) btnRetry.gameObject.SetActive(true);
-                    yield break;
-                }
-
-                // Download pages that are ready but not yet cached
-                yield return DownloadReadyPages(pagesReady);
-
-                UpdateProgress();
-
-                if (done)
-                {
-                    _generationDone = true;
-                    // Download any remaining pages
-                    yield return DownloadReadyPages(_totalPages);
-                    UpdateProgress();
-
-                    // Save meta only after all pages downloaded successfully. A short count
-                    // here means the cache stays "invalid" and the next Listen regenerates.
-                    RemoteLog.Event("narration_generation_done",
-                        $"tale={_tale?.id}; downloaded={_downloadedPages}; total={_totalPages}; " +
-                        $"voice={_voice}; narratorGender={_narratorGender}");
-
-                    if (_downloadedPages >= _totalPages && _tale != null)
-                        AssetCache.SaveAiNarrationMeta(_tale.id, _voice,
-                            _narratorGender, _childName, _childGender);
-
-                    if (statusText) statusText.text = Loc.Get("done");
-                    if (btnDone) btnDone.gameObject.SetActive(true);
-
-                    // Go straight to reading. Waiting for a tap on "Done" left the user on
-                    // a finished progress screen with nothing playing — which is exactly
-                    // what "narration does not work" looked like. The button stays as the
-                    // manual fallback for when the detail never loaded.
-                    OpenReading();
-                    yield break;
-                }
-
-                yield return new WaitForSeconds(pollInterval);
-            }
+            foreach (var w in _workers)
+                if (w != null) StopCoroutine(w);
+            _workers.Clear();
+            _running = 0;
+            IsGenerating = false;
         }
 
-        private IEnumerator DownloadReadyPages(int readyCount)
+        /// <summary>
+        /// Narrates the book page by page, sending the CLIENT's already personalized
+        /// text for the CURRENT language. The old flow started a server-side
+        /// narrate-all job and then pulled /narration/{page}, which carries no
+        /// language — after switching languages the server replayed the previous
+        /// language's audio (kz voice over ru text). Sending the text removes any
+        /// server-side state: what you read is exactly what gets spoken.
+        /// </summary>
+        private IEnumerator GenerateNarration()
         {
-            var lang = Loc.Lang;
+            // The language of the pages we are about to send, which is not always
+            // Loc.Lang — a tale without that translation shows another language.
+            IsGenerating = true;
+            var lang = _lang = TaleText.SpokenLang(_detail);
+            var pages = _detail?.pages ?? _pages;
 
-            for (int p = _downloadedPages; p < readyCount; p++)
+            if (_tale == null || pages == null || pages.Length == 0)
             {
-                var key = AssetCache.AiNarrationKey(_tale.id, lang, p);
-                if (AssetCache.Exists(key))
-                {
-                    _downloadedPages = p + 1;
-                    continue;
-                }
-
-                bool pageDone = false;
-                yield return _narration.DownloadNarratedPage(_tale.id, p,
-                    onSuccess: data =>
-                    {
-                        AssetCache.Save(key, data);
-                        pageDone = true;
-                    },
-                    onError: e =>
-                    {
-                        RemoteLog.Event("narration_page_download_fail",
-                            $"tale={_tale?.id}; page={p}; lang={lang}; err={e}");
-                        pageDone = true; // skip, will retry next poll
-                    });
-
-                if (pageDone)
-                    _downloadedPages = p + 1;
-
-                UpdateProgress();
+                RemoteLog.Event("narration_generation_error",
+                    $"tale={_tale?.id}; lang={lang}; detail={_detail != null}; " +
+                    $"pages={pages?.Length ?? -1}");
+                ShowError();
+                yield break;
             }
+
+            _totalPages = pages.Length;
+            UpdateProgress();
+
+            int batch = Mathf.Max(1, parallelRequests);
+            for (int i = 0; i < _totalPages; i += batch)
+            {
+                int end = Mathf.Min(i + batch, _totalPages);
+                for (int p = i; p < end; p++)
+                {
+                    _running++;
+                    _workers.Add(StartCoroutine(NarrateOne(p, pages[p], lang)));
+                }
+                while (_running > 0) yield return null;
+                _workers.Clear();
+            }
+
+            _generationDone = true;
+            IsGenerating = false;
+            UpdateProgress();
+
+            // A short count still matters: those pages fall back to on-demand narration
+            // during reading, with the delay that implies.
+            RemoteLog.Event("narration_generation_done",
+                $"tale={_tale.id}; lang={lang}; downloaded={_downloadedPages}; total={_totalPages}; " +
+                $"narrator={UserProfile.NarratorGender}; tag={UserProfile.CacheTag}");
+
+            if (_downloadedPages == 0)
+            {
+                ShowError();
+                yield break;
+            }
+
+            // Meta records which params this audio belongs to, complete or not: a run
+            // that lost two pages to the network used to be thrown away entirely and
+            // paid for again from page one.
+            AssetCache.SaveAiNarrationMeta(_tale.id, lang, UserProfile.CacheTag,
+                _voice, complete: _downloadedPages >= _totalPages);
+
+            if (statusText) statusText.text = Loc.Get("done");
+            if (btnDone) btnDone.gameObject.SetActive(true);
+
+            // Go straight to reading. Waiting for a tap on "Done" left the user on a
+            // finished progress screen with nothing playing — which is exactly what
+            // "narration does not work" looked like. The button stays as the manual
+            // fallback for when the detail never loaded.
+            OpenReading();
+        }
+
+        private IEnumerator NarrateOne(int page, string rawText, string lang)
+        {
+            var key = AssetCache.AiNarrationKey(_tale.id, lang, page, UserProfile.CacheTag);
+            // HasAudio, not Exists: a zero-length file from a failed earlier run would
+            // otherwise count as done and leave that page silent in the finished book.
+            if (AssetCache.HasAudio(key))
+            {
+                _downloadedPages++;
+                _running--;
+                UpdateProgress();
+                yield break;
+            }
+
+            yield return _narration.NarratePage(_tale.id, page,
+                onSuccess: data =>
+                {
+                    if (AssetCache.SaveAudio(key, data)) _downloadedPages++;
+                    else RemoteLog.Event("narration_page_bad_audio",
+                        $"tale={_tale.id}; page={page}; bytes={data?.Length ?? 0}");
+                },
+                onError: e => RemoteLog.Event("narration_page_download_fail",
+                    $"tale={_tale.id}; page={page}; lang={lang}; err={e}"),
+                voice: _voice ?? "narrator", lang: lang,
+                text: TaleText.Resolve(rawText), narratorGender: _narratorGender);
+
+            _running--;
+            UpdateProgress();
+        }
+
+        private void ShowError()
+        {
+            IsGenerating = false;
+            // Only this narrator's folder — a failed female run must not delete the
+            // male take the user already has.
+            if (_tale != null)
+                AssetCache.ClearAiNarration(_tale.id, _lang ?? Loc.Lang, UserProfile.CacheTag);
+            if (statusText) statusText.text = Loc.Get("error");
+            if (btnRetry) btnRetry.gameObject.SetActive(true);
         }
 
         private void UpdateProgress()
@@ -220,38 +238,16 @@ namespace FairyTales.UI.Narration
 
         private void OnRetry()
         {
+            if (_tale == null) return;
             if (btnRetry) btnRetry.gameObject.SetActive(false);
-            StartCoroutine(RetryNarration());
-        }
-
-        private IEnumerator RetryNarration()
-        {
-            if (_tale == null) yield break;
-
-            var childName = PlayerPrefs.GetString("ft_childName", "");
-            var gender = PlayerPrefs.GetString("ft_gender", "male");
-            bool hasClone = PlayerPrefs.GetInt("ft_voiceCloned", 0) == 1;
-            string voice = hasClone ? null : "narrator";
-
             if (statusText) statusText.text = Loc.Get("loading");
             if (progressBar) progressBar.value = 0f;
             if (pagesText) pagesText.text = "";
             _downloadedPages = 0;
             _generationDone = false;
 
-            bool started = false;
-            yield return _narration.NarrateAll(_tale.id, childName, gender,
-                onSuccess: _ => started = true,
-                onError: e =>
-                {
-                    Debug.LogWarning($"[NarrationProgress] Retry failed: {e}");
-                    if (statusText) statusText.text = Loc.Get("error");
-                    if (btnRetry) btnRetry.gameObject.SetActive(true);
-                },
-                voice: voice, lang: Loc.Lang, pages: _pages);
-
-            if (started)
-                _polling = StartCoroutine(PollAndDownload());
+            StopWorkers();
+            _polling = StartCoroutine(GenerateNarration());
         }
 
         private void OnDone()

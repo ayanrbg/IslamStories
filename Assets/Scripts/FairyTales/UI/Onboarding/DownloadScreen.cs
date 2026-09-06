@@ -46,7 +46,8 @@ namespace FairyTales.UI.Onboarding
         protected override void OnPrepare()
         {
             if (progressBar) progressBar.value = 0f;
-            if (statusText) statusText.text = Loc.Get("download.preparing");
+            // Single static caption for the whole download — no per-tale titles.
+            if (statusText) statusText.text = Loc.Get("download.tales");
         }
 
         protected override void OnShown()
@@ -72,7 +73,6 @@ namespace FairyTales.UI.Onboarding
             for (int i = 0; i < _tales.Length; i++)
             {
                 var tale = _tales[i];
-                if (statusText) statusText.text = $"{Loc.Get("download.loading")} {tale.title}";
                 if (progressBar) progressBar.value = (float)step / totalSteps;
 
                 yield return _downloader.DownloadCover(tale);
@@ -86,7 +86,6 @@ namespace FairyTales.UI.Onboarding
                 var tale = _tales[i];
                 if (!tale.hasDefaultNarration) continue;
 
-                if (statusText) statusText.text = $"{Loc.Get("download.narration")} {tale.title}";
                 if (progressBar) progressBar.value = (float)step / totalSteps;
 
                 yield return _downloader.DownloadDefaultNarration(tale.id, lang,
@@ -95,7 +94,6 @@ namespace FairyTales.UI.Onboarding
             }
 
             if (progressBar) progressBar.value = 1f;
-            if (statusText) statusText.text = Loc.Get("download.done");
             yield return new WaitForSeconds(0.3f);
 
             _screens.Show<Library.LibraryScreen>();
@@ -103,9 +101,6 @@ namespace FairyTales.UI.Onboarding
 
         private IEnumerator DownloadSingleTale()
         {
-            if (statusText)
-                statusText.text = $"{Loc.Get("download.loading")} {_singleTale.title}";
-
             string error = null;
             yield return _downloader.DownloadTaleContent(_singleTale,
                 (step, total) => UpdateProgress(step, total),
@@ -114,7 +109,6 @@ namespace FairyTales.UI.Onboarding
             // RELEASE: if (error != null) Debug.LogError($"[Download] Failed: {error}");
 
             if (progressBar) progressBar.value = 1f;
-            if (statusText) statusText.text = Loc.Get("download.done");
             yield return new WaitForSeconds(0.3f);
 
             _onComplete?.Invoke();
@@ -124,12 +118,6 @@ namespace FairyTales.UI.Onboarding
         {
             if (progressBar)
                 progressBar.value = (float)step / totalSteps;
-
-            if (statusText)
-            {
-                var mb = _downloader.BytesDownloaded / (1024f * 1024f);
-                statusText.text = $"{mb:F1} MB — {step}/{totalSteps}";
-            }
         }
     }
 }

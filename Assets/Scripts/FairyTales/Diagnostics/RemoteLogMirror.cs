@@ -203,6 +203,8 @@ namespace FairyTales.Diagnostics
         private void ApplyConfig(string json)
         {
             if (string.IsNullOrEmpty(json)) return;
+            // The same response also carries narration controls (see NarrationConfig).
+            NarrationConfig.Apply(json);
             try
             {
                 var cfg = JsonUtility.FromJson<Config>(json);

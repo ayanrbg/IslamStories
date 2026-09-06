@@ -72,6 +72,49 @@ namespace FairyTales.UI.Core
             Loc.ApplyLocale(Loc.Lang);
         }
 
+        public void Show<T>() where T : BaseScreen => Show(typeof(T));
+
+        public void Show(System.Type screenType)
+        {
+            SettleTransition();
+
+            if (!_screens.TryGetValue(screenType, out var next))
+            {
+                // RELEASE: Debug.LogError($"[ScreenManager] Screen not found: {screenType.Name}");
+                return;
+            }
+
+            if (next == _current) return;
+
+            var prev = _current;
+            _current = next;
+            BeginTransition(prev, next);
+        }
+
+        /// <summary>
+        /// Single entry point for a screen swap. Both paths mark the manager as
+        /// transitioning and end by asserting that only the incoming screen is drawn.
+        /// </summary>
+        private void BeginTransition(BaseScreen prev, BaseScreen next)
+        {
+            // Both slide-enabled → coordinated swipe-up (move as one unit)
+            if (prev != null && prev.SlideEnabled && next.SlideEnabled)
+            {
+                CoordinatedSlide(prev, next);
+                return;
+            }
+
+            // Fallback: independent animations. This path used to leave _transitioning
+            // unset, so a second Show() could start on top of it and strand both screens.
+            _transitioning = true;
+            if (prev != null) prev.Hide();
+            next.Show(onComplete: () =>
+            {
+                _transitioning = false;
+                HideAllExcept(next);
+            });
+        }
+
         /// <summary>
         /// Run any transition still in flight straight to its end, callbacks included, so
         /// the screens are in a settled state before a new one starts. Dropping the request
@@ -101,61 +144,6 @@ namespace FairyTales.UI.Core
         {
             foreach (var screen in _screens.Values)
                 if (screen != keep && screen.IsVisible) screen.HideImmediate();
-        }
-
-        public void Show<T>() where T : BaseScreen
-        {
-            SettleTransition();
-
-            if (!_screens.TryGetValue(typeof(T), out var next))
-            {
-                // RELEASE: Debug.LogError($"[ScreenManager] Screen not found: {typeof(T).Name}");
-                return;
-            }
-
-            if (next == _current) return;
-
-            var prev = _current;
-            _current = next;
-            BeginTransition(prev, next);
-        }
-
-        public void Show(System.Type screenType)
-        {
-            SettleTransition();
-
-            if (!_screens.TryGetValue(screenType, out var next))
-                return;
-
-            if (next == _current) return;
-
-            var prev = _current;
-            _current = next;
-            BeginTransition(prev, next);
-        }
-
-        /// <summary>
-        /// Single entry point for a screen swap. Both paths mark the manager as
-        /// transitioning and end by asserting that only the incoming screen is drawn.
-        /// </summary>
-        private void BeginTransition(BaseScreen prev, BaseScreen next)
-        {
-            if (prev != null && prev.SlideEnabled && next.SlideEnabled)
-            {
-                // Both slide-enabled → coordinated swipe-up (move as one unit)
-                CoordinatedSlide(prev, next);
-                return;
-            }
-
-            // Fallback: independent animations. This path used to leave _transitioning
-            // unset, so a second Show() could start on top of it and strand both screens.
-            _transitioning = true;
-            prev?.Hide();
-            next.Show(onComplete: () =>
-            {
-                _transitioning = false;
-                HideAllExcept(next);
-            });
         }
 
         // Gap (canvas units) kept between the two screens during a coordinated slide.
@@ -193,7 +181,6 @@ namespace FairyTales.UI.Core
         public void ShowOver<T>() where T : BaseScreen
         {
             SettleTransition();
-
             if (!_screens.TryGetValue(typeof(T), out var next)) return;
             if (next == _current) return;
 
@@ -212,7 +199,6 @@ namespace FairyTales.UI.Core
         public void ShowImmediate<T>() where T : BaseScreen
         {
             SettleTransition();
-
             if (!_screens.TryGetValue(typeof(T), out var next)) return;
             if (next == _current) return;
 

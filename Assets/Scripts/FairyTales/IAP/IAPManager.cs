@@ -11,14 +11,14 @@ namespace FairyTales.IAP
 {
     public class IAPManager : MonoBehaviour, IDetailedStoreListener
     {
-        public const string ProductMonthly = "fairytales_monthly";
-        public const string ProductYearly = "fairytales_yearly";
+        public const string ProductMonthly = AppConfig.ProductMonthly;
+        public const string ProductYearly = AppConfig.ProductYearly;
 
-        // App Store Connect product IDs differ from the unified ids above (ASC ids
-        // cannot be renamed after creation; "fairytales_*" there is only the
-        // reference name). Google Play uses the unified ids as-is.
-        private const string AppleProductMonthly = "com.mozz.islamStories";
-        private const string AppleProductYearly = "com.mozz.islamStoriesYearly";
+        // App Store Connect product IDs. ASC ids cannot be renamed after creation, so
+        // they are not guaranteed to match the unified ids above. Google Play uses the
+        // unified ids as-is.
+        private const string AppleProductMonthly = AppConfig.AppleProductMonthly;
+        private const string AppleProductYearly = AppConfig.AppleProductYearly;
 
         public static IAPManager Instance { get; private set; }
 

@@ -69,6 +69,10 @@ namespace FairyTales.UI.Library
 
         private void Select(string voice, string narratorGender)
         {
+            // Persist the pick here too — this panel is a second entry point and
+            // callers downstream read the profile, not the callback argument.
+            UserProfile.NarratorGender = narratorGender;
+
             var cb = _onSelected;
             _onSelected = null;
             SlideOut(() => cb?.Invoke(voice, narratorGender));

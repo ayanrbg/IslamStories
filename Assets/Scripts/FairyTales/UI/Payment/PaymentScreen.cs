@@ -127,6 +127,7 @@ namespace FairyTales.UI.Payment
             SelectPlan(true);
             UpdatePrices();
             if (promoPanel) promoPanel.SetActive(false);
+            UpdatePromoButton();
 
             if (txtAutoRenew)
             {
@@ -611,13 +612,29 @@ namespace FairyTales.UI.Payment
         private void OnTerms()
         {
             ChildGatePopup.Show(() =>
-                Application.OpenURL("https://docs.google.com/document/d/1I3Z1ti75XDantrKWCORtkolTmVfrgxTw3Tw45lg2VTY/edit?usp=sharing"));
+                Application.OpenURL(AppConfig.TermsUrl));
         }
 
         private void OnPrivacy()
         {
             ChildGatePopup.Show(() =>
-                Application.OpenURL("https://docs.google.com/document/d/1SfqqaObOdnbG0W0ArddX9XUsWhWZt7LjFybnL7t_11o/edit?usp=sharing"));
+                Application.OpenURL(AppConfig.PrivacyUrl));
+        }
+
+        /// <summary>
+        /// A promo code is redeemable once per account, so a second attempt can only end
+        /// in a 409 — hide the entry point instead of letting the user hit that wall.
+        /// Never hidden for subscribers: paying does not disqualify anyone from a code.
+        /// On iOS it stays hidden either way (Guideline 3.1.1, see Awake).
+        /// </summary>
+        private void UpdatePromoButton()
+        {
+            if (!btnPromo) return;
+#if UNITY_IOS
+            btnPromo.gameObject.SetActive(false);
+#else
+            btnPromo.gameObject.SetActive(!PromoService.WasUsed);
+#endif
         }
 
         private void ShowPromoPanel(bool show)
@@ -658,20 +675,40 @@ namespace FairyTales.UI.Payment
                 {
                     if (btnPromoApply) btnPromoApply.interactable = true;
 
+                    // A 200 with a body we can't read would otherwise fall through every
+                    // branch below and leave the user staring at a button that did nothing.
+                    if (response == null || string.IsNullOrEmpty(response.type))
+                    {
+                        SetPromoError(Loc.Get("promo_not_found"));
+                        return;
+                    }
+
                     if (response.type == "premium")
                     {
                         PlayerPrefs.SetString("ft_premium_source", "promo");
                         PlayerPrefs.Save();
                         IAPManager.Instance.IsSubscribed = true;
+                        PromoService.MarkUsed(code);
                         Analytics.Log("promo_redeem", ("success", true));
+                        LogPromoEntered("premium", 0, response.bloggerName);
                         _purchased = true;
                         Toast.Show(response.message ?? Loc.Get("purchase_success"));
                         ShowPromoPanel(false);
                         OnClose();
                     }
-                    else if (response.type == "blogger")
+                    else if (response.type == "tale")
                     {
-                        SetPromoError(response.message ?? response.bloggerName);
+                        OnTalesUnlocked(code, response);
+                    }
+                    else
+                    {
+                        // "blogger" and anything a future server adds: show what it said
+                        // rather than swallowing the answer.
+                        PromoService.MarkUsed(code);
+                        Analytics.Log("promo_redeem", ("success", true));
+                        LogPromoEntered(response.type, 0, response.bloggerName);
+                        var text = response.message ?? response.bloggerName;
+                        SetPromoError(string.IsNullOrEmpty(text) ? Loc.Get("promo_code") : text);
                     }
                 },
                 error =>
@@ -680,16 +717,55 @@ namespace FairyTales.UI.Payment
                     Analytics.Log("promo_redeem", ("success", false));
                     Debug.LogWarning($"[Promo] CheckPromo error: {error}");
 
-                    var err = error?.ToLowerInvariant() ?? "";
-                    if (err.Contains("already"))
-                        SetPromoError(Loc.Get("promo_already_used"));
-                    else if (err.Contains("not found") || err.Contains("invalid"))
-                        SetPromoError(Loc.Get("promo_not_found"));
-                    else
-                        SetPromoError(Loc.Get("promo_no_connection"));
+                    var key = PromoService.ErrorKey(error);
+                    // 409 means this account already spent its one code — stop offering
+                    // the field, the server will refuse every further attempt too. Redraw
+                    // right away: the screen is already open, so waiting for the next
+                    // OnPrepare would let the user walk into the same 409 again.
+                    if (key == "promo_already_used")
+                    {
+                        PromoService.MarkUsed(code);
+                        UpdatePromoButton();
+                    }
+                    SetPromoError(Loc.Get(key));
                 }
             ));
         }
+
+        /// <summary>
+        /// A blogger code opened a set of tales. The lock is drawn by the app from the
+        /// catalog's `unlocked` flag, so the library must re-read the catalog — otherwise
+        /// the tales stay locked on screen until the next cold start.
+        /// </summary>
+        private void OnTalesUnlocked(string code, PromoService.PromoCheckResponse response)
+        {
+            var count = response.taleIds?.Length ?? 0;
+            PromoService.MarkUsed(code);
+            LogPromoEntered("tale", count, response.bloggerName);
+
+            // Our own translation wins: the server's `message` is Russian whatever the
+            // app language is. It is only used when the count is missing.
+            Toast.Show(count > 0
+                ? Loc.Format("promo_tales_unlocked", count)
+                : response.message ?? Loc.Get("promo_code"));
+
+            ShowPromoPanel(false);
+            UpdatePromoButton();
+
+            var library = _screens != null ? _screens.Get<Library.LibraryScreen>() : null;
+            if (library != null) library.ApplyPromoUnlocks(response.taleIds);
+
+            // The paywall ended in a success, not a dismissal — and the user is sent to
+            // the library rather than back to where they came from, because the whole
+            // point of the code is the tales that just became available.
+            _purchased = true;
+            ReturnTo = null;
+            OnClose();
+        }
+
+        private static void LogPromoEntered(string codeType, int talesUnlocked, string blogger)
+            => Analytics.Log("promo_entered", ("code_type", codeType),
+                ("tales_unlocked", talesUnlocked), ("blogger", blogger ?? ""));
 
         private void SetButtonsInteractable(bool interactable)
         {

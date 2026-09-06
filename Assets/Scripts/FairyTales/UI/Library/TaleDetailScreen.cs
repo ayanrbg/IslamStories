@@ -46,18 +46,15 @@ namespace FairyTales.UI.Library
 
         private ScreenManager _screens;
         private TalesService _tales;
-        private NarrationService _narration;
         private BackgroundMusicManager _musicManager;
         private TaleSummary _tale;
         private TaleDetail _detail;
-        private string _narrationStatus; // "done","ready","processing","error",null
 
         private void Awake()
         {
             _screens = GetComponentInParent<ScreenManager>();
             var api = FindAnyObjectByType<ApiClient>();
             _tales = new TalesService(api);
-            _narration = new NarrationService(api);
             _musicManager = FindAnyObjectByType<BackgroundMusicManager>();
 
             if (btnRead) btnRead.onClick.AddListener(OnRead);
@@ -76,14 +73,12 @@ namespace FairyTales.UI.Library
         {
             _tale = tale;
             _detail = null;
-            _narrationStatus = null;
 
             // Start loading immediately so content is ready before transition animation
             if (titleText) titleText.text = _tale?.title ?? "";
             if (pageCountText) pageCountText.text = "";
             LoadIllustration();
             StartCoroutine(LoadDetailAndPersonalize());
-            StartCoroutine(LoadNarrationStatus());
         }
 
         private void LoadIllustration()
@@ -150,6 +145,12 @@ namespace FairyTales.UI.Library
                 {
                     _detail = JsonConvert.DeserializeObject<TaleDetail>(
                         System.Text.Encoding.UTF8.GetString(cached));
+
+                    // A cached translation with no usable text would stick forever
+                    // (the cache is never refreshed) — drop it and ask the server.
+                    if (_detail != null && (_detail.pages == null || _detail.pages.Length == 0))
+                        _detail = null;
+
                     if (_detail != null)
                     {
                         if (_detail.totalPages == 0 && _detail.pages != null)
@@ -186,7 +187,7 @@ namespace FairyTales.UI.Library
                 if (localText)
                 {
                     for (int i = 0; i < _detail.pages.Length; i++)
-                        _detail.pages[i] = _detail.pages[i].Replace("{childName}", childName);
+                        _detail.pages[i] = TaleText.ResolveName(_detail.pages[i]);
                 }
                 else
                 {
@@ -196,15 +197,6 @@ namespace FairyTales.UI.Library
                         onError: _ => { }, lang: Loc.Lang);
                 }
             }
-        }
-
-        private IEnumerator LoadNarrationStatus()
-        {
-            if (_tale == null) yield break;
-
-            yield return _narration.GetNarrationStatus(_tale.id,
-                onSuccess: s => _narrationStatus = s.status,
-                onError: _ => _narrationStatus = null);
         }
 
         private void OnRead()
@@ -243,69 +235,62 @@ namespace FairyTales.UI.Library
         {
             ShowMainPanel();
 
-            var childName = PlayerPrefs.GetString("ft_childName", "");
-            var childGender = PlayerPrefs.GetString("ft_gender", "male");
+            // Remember the narrator: reading later re-narrates missing pages and the
+            // default mode does TTS of its own — both must use the same voice.
+            UserProfile.NarratorGender = narratorGender;
+
+            if (_detail?.pages == null)
+            {
+                RemoteLog.Event("narration_start_fail",
+                    $"tale={_tale?.id}; voice={voice}; reason=detail_not_loaded");
+                Toast.Show(Loc.Get("loading"));
+                return;
+            }
+
+            var childName = UserProfile.ChildName;
+            var childGender = UserProfile.ChildGender;
+
+            // Keyed by the language of the TEXT we are about to narrate, which is
+            // not always Loc.Lang (a missing translation falls back).
+            var lang = TaleText.SpokenLang(_detail);
+
+            // NarratorGender is already stored above, so the tag reflects this choice.
+            bool cached = AssetCache.IsAiNarrationCached(_tale.id, lang, UserProfile.CacheTag);
+
+            RemoteLog.Event("narration_start",
+                $"tale={_tale.id}; voice={voice}; narratorGender={narratorGender}; " +
+                $"lang={lang}; pages={_detail.pages.Length}; cached={cached}; " +
+                $"tag={UserProfile.CacheTag}; name={UserProfile.ChildName}; " +
+                $"childGender={childGender}; epoch={PlayerPrefs.GetInt("ft_narrationEpoch", 0)}; " +
+                $"purged={PlayerPrefs.GetInt("ft_ai_narration_v2", 0)}; " +
+                $"legacyFiles={AssetCache.LegacyAudioCount()}");
 
             // Check if AI narration is already cached with the same params
-            if (AssetCache.IsAiNarrationCached(_tale.id, Loc.Lang,
-                    voice, narratorGender, childName, childGender)
-                && _detail != null)
+            if (cached)
             {
                 EnsureDownloadedThen(NarrationMode.AI);
                 return;
             }
 
-            // Narration is processing on server — show progress, don't restart
-            if (_narrationStatus == "processing")
+            // Nothing to clear: audio for other params lives under its own tag folder,
+            // so switching the narrator no longer throws away the take you may switch
+            // back to. Pages from an interrupted run with THESE params are reused —
+            // the progress screen skips what it already has.
+            ShowProgressScreen(voice, narratorGender, childName, childGender);
+        }
+
+        private void ShowProgressScreen(string voice, string narratorGender,
+            string childName, string childGender)
+        {
+            var progress = _screens.Get<NarrationProgressScreen>();
+            if (progress == null)
             {
-                ShowProgressScreen();
+                RemoteLog.Event("narration_start_fail",
+                    $"tale={_tale?.id}; reason=no_progress_screen");
                 return;
             }
 
-            StartCoroutine(StartNarrationWithVoice(voice, narratorGender));
-        }
-
-        private IEnumerator StartNarrationWithVoice(string voice, string narratorGender)
-        {
-            var childName = PlayerPrefs.GetString("ft_childName", "");
-            var gender = PlayerPrefs.GetString("ft_gender", "male");
-
-            // Clear old AI narration cache — params changed
-            AssetCache.ClearAiNarration(_tale.id);
-
-            bool bundled = BundledTaleLoader.IsBundled(_tale.id);
-            string[] pages = bundled && _detail?.pages != null ? _detail.pages : null;
-
-            RemoteLog.Event("narration_start",
-                $"tale={_tale.id}; voice={voice}; narratorGender={narratorGender}; " +
-                $"lang={Loc.Lang}; bundled={bundled}; pages={pages?.Length ?? -1}; " +
-                $"status={_narrationStatus}");
-
-            bool started = false;
-            yield return _narration.NarrateAll(_tale.id, childName, gender,
-                onSuccess: _ => started = true,
-                onError: e =>
-                {
-                    RemoteLog.Event("narration_start_fail", $"tale={_tale.id}; err={e}");
-                    Toast.Show(Loc.Get("narration_error"));
-                },
-                voice: voice, lang: Loc.Lang, pages: pages,
-                narratorGender: narratorGender);
-
-            if (!started) yield break;
-
-            ShowProgressScreen(voice, narratorGender, childName, gender);
-        }
-
-        private void ShowProgressScreen(string voice = null, string narratorGender = null,
-            string childName = null, string childGender = null)
-        {
-            var progress = _screens.Get<NarrationProgressScreen>();
-            if (progress == null) return;
-
-            bool bundled = BundledTaleLoader.IsBundled(_tale.id);
-            string[] pages = bundled && _detail?.pages != null ? _detail.pages : null;
-            progress.SetContext(_tale, _detail, pages, voice, narratorGender,
+            progress.SetContext(_tale, _detail, _detail?.pages, voice, narratorGender,
                 childName, childGender);
             _screens.Show<NarrationProgressScreen>();
         }
@@ -383,7 +368,7 @@ namespace FairyTales.UI.Library
             }
 
             // 2. Nothing recorded yet → prompt the parent to record via "Озвучить"
-            if (!AssetCache.HasAnyParentNarration(_tale.id, Loc.Lang))
+            if (!AssetCache.HasAnyParentNarration(_tale.id, TaleText.SpokenLang(_detail)))
             {
                 Toast.Show(Loc.Get("record_voice_first"));
                 return;

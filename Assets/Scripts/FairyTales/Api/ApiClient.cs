@@ -8,7 +8,9 @@ namespace FairyTales.Api
 {
     public class ApiClient : MonoBehaviour
     {
-        [SerializeField] private string baseUrl = "https://islam-stories.apiapp.kz:3003";
+        // Scene-serialized: this initializer only seeds NEW instances, the live value
+        // comes from the ApiClient object in the scene. Keep both in step.
+        [SerializeField] private string baseUrl = AppConfig.BaseUrl;
 
         private string _token;
 

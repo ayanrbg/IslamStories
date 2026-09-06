@@ -49,6 +49,7 @@ namespace FairyTales.UI.Reading
         private TaleDetail _tale;
         private TaleSummary _taleSummary;
         private NarrationMode _mode = NarrationMode.Default;
+        private Coroutine _narrationRoutine;
         private bool _recordingMode;
         private Models.Draft _recordingDraft;
         private int _startPage;
@@ -145,9 +146,9 @@ namespace FairyTales.UI.Reading
             }
 
             if (_recordingMode && recordingOverlay)
-                recordingOverlay.Activate(_tale.id, Loc.Lang,
+                recordingOverlay.Activate(_tale.id, SpokenLang,
                     pageNavigator, _narrationPlayer);
-            else if (recordingOverlay)
+            else if (recordingOverlay && recordingOverlay.IsActive)
                 recordingOverlay.Deactivate();
 
             pageNavigator.OnPageChanged += OnPageChanged;
@@ -168,7 +169,7 @@ namespace FairyTales.UI.Reading
                 // Once per opened tale, not per page: tells us whether narration was even
                 // supposed to sound (mode None is silent by design) and if a player exists.
                 RemoteLog.Event("narration_session",
-                    $"tale={_tale.id}; mode={_mode}; lang={Loc.Lang}; " +
+                    $"tale={_tale.id}; mode={_mode}; lang={SpokenLang}; " +
                     $"player={_narrationPlayer != null}; service={_narrationService != null}; " +
                     $"startPage={_startPage}");
 
@@ -200,6 +201,9 @@ namespace FairyTales.UI.Reading
             }
 
             if (_narrationPlayer) _narrationPlayer.Stop();
+            // Leaving the screen must also cancel a pending request — otherwise the
+            // answer arrived later and started playing over the library.
+            StopNarrationRoutine();
             if (recordingOverlay && recordingOverlay.IsActive)
                 recordingOverlay.Deactivate();
             SetRecordingUI(false);
@@ -279,6 +283,11 @@ namespace FairyTales.UI.Reading
             if (_tale == null) return;
             _narrationPlayer.Stop();
 
+            // A narration request can take up to a minute. Without cancelling the
+            // previous one, flipping pages left several requests in flight and the
+            // slowest answer played last — over a page it did not belong to.
+            StopNarrationRoutine();
+
             if (_mode == NarrationMode.None) return;
 
             Analytics.Log("narration_play", ("tale_id", _tale.id),
@@ -286,12 +295,29 @@ namespace FairyTales.UI.Reading
                 ("page_index", page));
 
             if (_mode == NarrationMode.AI)
-                StartCoroutine(PlayAiNarration(page));
+                _narrationRoutine = StartCoroutine(PlayAiNarration(page));
             else if (_mode == NarrationMode.Default)
-                StartCoroutine(PlayDefaultNarration(page));
+                _narrationRoutine = StartCoroutine(PlayDefaultNarration(page));
             else if (_mode == NarrationMode.Parent)
                 PlayParentNarration(page);
         }
+
+        private void StopNarrationRoutine()
+        {
+            if (_narrationRoutine == null) return;
+            StopCoroutine(_narrationRoutine);
+            _narrationRoutine = null;
+        }
+
+        /// <summary>The page is still the one the user is looking at.</summary>
+        private bool IsCurrent(int page)
+            => IsVisible && pageNavigator != null
+               && pageNavigator.CurrentPage == page;
+
+        // Every narration path keys on the language of the text on screen, not on
+        // the UI language: a tale without the current translation falls back to
+        // another one, and the audio must follow the words, not the menu.
+        private string SpokenLang => TaleText.SpokenLang(_tale);
 
         private static string VoiceTypeTag(NarrationMode mode) => mode switch
         {
@@ -304,19 +330,25 @@ namespace FairyTales.UI.Reading
         // didn't record simply stay silent.
         private void PlayParentNarration(int page)
         {
-            var wav = AssetCache.LoadParentNarration(_tale.id, Loc.Lang, page);
+            var wav = AssetCache.LoadParentNarration(_tale.id, SpokenLang, page);
             if (wav != null) _narrationPlayer.PlayFromBytes(wav);
             else RemoteLog.Event("narration_parent_missing",
-                $"tale={_tale.id}; page={page}; lang={Loc.Lang}");
+                $"tale={_tale.id}; page={page}; lang={SpokenLang}");
         }
 
         private IEnumerator PlayDefaultNarration(int page)
         {
-            var lang = Loc.Lang;
+            var lang = SpokenLang;
 
-            var bytes = _defaultNarration.GetPageBytes(_tale.id, page);
+            var bytes = _defaultNarration.GetPageBytes(_tale.id, page, lang);
             if (bytes != null)
             {
+                // This folder is voice-agnostic. Nothing writes to it any more, and
+                // PurgeLegacyAiNarration empties it once — so if this line ever shows
+                // up in the logs, an old male take is being replayed and the purge did
+                // not run on that device.
+                RemoteLog.Event("narration_prerecorded_hit",
+                    $"tale={_tale.id}; page={page}; lang={lang}; bytes={bytes.Length}");
                 _narrationPlayer.PlayFromBytes(bytes);
                 yield break;
             }
@@ -330,65 +362,107 @@ namespace FairyTales.UI.Reading
                 yield break;
             }
 
-            // No local audio — generate TTS on server (narrator voice)
-            if (_narrationService == null) yield break;
+            // Previously generated TTS for the CURRENT narrator voice.
+            var narrator = UserProfile.NarratorGender;
+            var ttsKey = AssetCache.TtsNarrationKey(_tale.id, lang, page, UserProfile.CacheTag);
+            var ttsCached = AssetCache.LoadAudio(ttsKey);
+            if (ttsCached != null)
+            {
+                _narrationPlayer.PlayFromBytes(ttsCached);
+                yield break;
+            }
 
-            // Pass page text for bundled tales (server may not have them)
-            string pageText = _tale.pages != null && page < _tale.pages.Length
-                ? _tale.pages[page] : null;
+            // No local audio — generate TTS on server (narrator voice)
+            if (_narrationService == null)
+            {
+                RemoteLog.Event("narration_ai_no_service",
+                    $"tale={_tale.id}; page={page}; lang={lang}; mode={_mode}");
+                yield break;
+            }
 
             RemoteLog.Event("narration_tts_request",
-                $"tale={_tale.id}; page={page}; lang={lang}; textLen={pageText?.Length ?? -1}");
+                $"tale={_tale.id}; page={page}; lang={lang}; narrator={narrator}");
+
+            // Send the exact text on screen — fully resolved, so TTS never reads
+            // raw {childName} / {m:|f:} markup and always matches the current language.
+            string pageText = PageTextForSpeech(page);
 
             yield return _narrationService.NarratePage(_tale.id, page,
                 onSuccess: data =>
                 {
-                    AssetCache.Save(AssetCache.NarrationKey(_tale.id, lang, page), data);
-                    _narrationPlayer.PlayFromBytes(data);
+                    if (!AssetCache.SaveAudio(ttsKey, data))
+                    {
+                        RemoteLog.Event("narration_tts_bad_audio",
+                            $"tale={_tale.id}; page={page}; bytes={data?.Length ?? 0}");
+                        return;
+                    }
+                    if (IsCurrent(page)) _narrationPlayer.PlayFromBytes(data);
                 },
                 onError: e => RemoteLog.Event("narration_tts_fail",
                     $"tale={_tale.id}; page={page}; lang={lang}; err={e}"),
-                voice: "narrator", lang: lang, text: pageText);
+                voice: "narrator", lang: lang, text: pageText,
+                narratorGender: narrator);
         }
+
+        private string PageTextForSpeech(int page)
+            => _tale.pages != null && page < _tale.pages.Length
+                ? TaleText.Resolve(_tale.pages[page])
+                : null;
 
         private IEnumerator PlayAiNarration(int page)
         {
-            var lang = Loc.Lang;
+            var lang = SpokenLang;
 
             // Check local AI narration cache first
-            var cacheKey = AssetCache.AiNarrationKey(_tale.id, lang, page);
-            var cached = AssetCache.Load(cacheKey);
+            var tag = UserProfile.CacheTag;
+            var cacheKey = AssetCache.AiNarrationKey(_tale.id, lang, page, tag);
+            var cached = AssetCache.LoadAudio(cacheKey);
             if (cached != null)
             {
                 RemoteLog.Event("narration_ai_cache_hit",
-                    $"tale={_tale.id}; page={page}; lang={lang}; bytes={cached.Length}");
+                    $"tale={_tale.id}; page={page}; lang={lang}; bytes={cached.Length}; " +
+                    $"narrator={UserProfile.NarratorGender}; tag={tag}");
                 _narrationPlayer.PlayFromBytes(cached);
                 yield break;
             }
 
-            // Fallback: download from server and cache
+            // Cache miss (page skipped during generation): narrate it on demand from
+            // the client's own text. Never GET /narration/{page} — that endpoint has
+            // no lang and serves whatever job ran last, which is how kz audio ended
+            // up playing over ru text after a language switch.
             if (_narrationService == null)
             {
-                RemoteLog.Event("narration_ai_no_service", $"tale={_tale.id}; page={page}");
-                StartCoroutine(PlayDefaultNarration(page));
+                RemoteLog.Event("narration_ai_no_service",
+                    $"tale={_tale.id}; page={page}; lang={lang}");
+                _narrationRoutine = StartCoroutine(PlayDefaultNarration(page));
                 yield break;
             }
 
-            RemoteLog.Event("narration_ai_download",
-                $"tale={_tale.id}; page={page}; lang={lang}");
-
-            yield return _narrationService.DownloadNarratedPage(_tale.id, page,
+            var meta = AssetCache.LoadAiNarrationMeta(_tale.id, lang, tag);
+            yield return _narrationService.NarratePage(_tale.id, page,
                 onSuccess: bytes =>
                 {
-                    AssetCache.Save(cacheKey, bytes);
-                    _narrationPlayer.PlayFromBytes(bytes);
+                    RemoteLog.Event("narration_ai_download",
+                        $"tale={_tale.id}; page={page}; lang={lang}; bytes={bytes?.Length ?? 0}; " +
+                        $"narrator={UserProfile.NarratorGender}; tag={tag}");
+                    if (!AssetCache.SaveAudio(cacheKey, bytes))
+                    {
+                        RemoteLog.Event("narration_ai_bad_audio",
+                            $"tale={_tale.id}; page={page}; bytes={bytes?.Length ?? 0}");
+                        return;
+                    }
+                    if (IsCurrent(page)) _narrationPlayer.PlayFromBytes(bytes);
                 },
                 onError: e =>
                 {
                     RemoteLog.Event("narration_ai_download_fail",
                         $"tale={_tale.id}; page={page}; lang={lang}; err={e}");
-                    StartCoroutine(PlayDefaultNarration(page));
-                });
+                    _narrationRoutine = StartCoroutine(PlayDefaultNarration(page));
+                },
+                // No narratorGender argument: we are inside this tag's folder, so the
+                // current profile IS what this audio must be — NarrationService fills it.
+                voice: string.IsNullOrEmpty(meta.voice) ? "narrator" : meta.voice,
+                lang: lang, text: PageTextForSpeech(page));
         }
 
         private void UpdateNavButtons()
@@ -417,7 +491,7 @@ namespace FairyTales.UI.Reading
             {
                 if (recordingOverlay && recordingOverlay.IsActive)
                     recordingOverlay.Deactivate();
-                if (_tale != null && AssetCache.HasAnyParentNarration(_tale.id, Loc.Lang))
+                if (_tale != null && AssetCache.HasAnyParentNarration(_tale.id, SpokenLang))
                     Toast.Show(Loc.Get("voice_saved"));
                 _screens.Show<Library.TaleDetailScreen>();
                 return;

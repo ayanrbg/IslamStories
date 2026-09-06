@@ -13,7 +13,6 @@ namespace FairyTales.UI.Core
         private CanvasGroup _canvasGroup;
         private Canvas _canvas;
         private RectTransform _rect;
-        private Sequence _seq;
 
         protected CanvasGroup CanvasGroup =>
             _canvasGroup ??= GetComponent<CanvasGroup>();
@@ -27,12 +26,14 @@ namespace FairyTales.UI.Core
         public bool SlideEnabled => slideFromBottom;
         public float AnimDuration => animDuration;
 
+        private Sequence _seq;
+
         /// <summary>True while this screen is actually drawn.</summary>
         public bool IsVisible => Canvas.enabled;
 
         /// <summary>
         /// Run any in-flight show/hide animation straight to its end, callbacks included.
-        /// Screens are only hidden inside a tween's OnComplete, so an interrupted tween
+        /// A screen is only hidden inside its tween's OnComplete, so an interrupted tween
         /// would otherwise leave this screen visible on top of the next one forever.
         /// </summary>
         public void CompleteAnimation()
@@ -42,8 +43,10 @@ namespace FairyTales.UI.Core
             if (seq != null && seq.IsActive()) seq.Complete(true);
         }
 
-        /// <summary>Drop an in-flight animation without running its callbacks — for the
-        /// immediate/finalize paths that set the end state themselves.</summary>
+        /// <summary>
+        /// Drop an in-flight animation without running its callbacks — for the
+        /// immediate/finalize paths that set the end state themselves.
+        /// </summary>
         private void KillAnimation()
         {
             var seq = _seq;

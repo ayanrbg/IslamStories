@@ -39,6 +39,8 @@ namespace FairyTales.UI.Library
         private TaleSummary[] _loadedTales;
         private string _loadedLang;
         private bool _registered;
+        private int _loadGeneration;
+        private bool _needsReload;
         private void Awake()
         {
             _screens = GetComponentInParent<ScreenManager>();
@@ -81,6 +83,8 @@ namespace FairyTales.UI.Library
 
             // If tales are already loaded, sort + rebuild the grid NOW, before the
             // slide-in animation starts, so the user never sees cards reorder.
+            // A pending reload still draws the list we have — it is better than an empty
+            // grid while the request is in flight, and LoadTales redraws when it lands.
             if (_loadedTales != null)
                 BuildGridImmediate();
             else
@@ -119,7 +123,7 @@ namespace FairyTales.UI.Library
 
             // Cached list was already sorted + rebuilt in OnPrepare (before the
             // slide-in), so nothing more to do here.
-            if (_loadedTales != null)
+            if (_loadedTales != null && !_needsReload)
                 yield break;
 
             yield return LoadTales();
@@ -129,23 +133,43 @@ namespace FairyTales.UI.Library
         {
             var lang = PlayerPrefs.GetString("ft_lang", "ru");
 
+            // A load already in flight when a promo code lands would answer with the
+            // pre-code catalog and put the locks straight back on. Whoever asked last wins.
+            var generation = ++_loadGeneration;
+            var previous = _loadedTales;
+
             TaleSummary[] serverTales = null;
             yield return _tales.GetTales(lang,
                 onSuccess: tales => serverTales = tales,
                 onError: e => { } /* RELEASE: Debug.LogWarning($"[Library] Server: {e}") */);
 
+            if (generation != _loadGeneration) yield break;
+
             if (serverTales != null)
             {
+                // Only a real answer clears the flag: a failed request must be retried the
+                // next time the library is shown, not silently accepted as up to date.
+                _needsReload = false;
                 // Server is authoritative for the catalog — purge tales it removed and
                 // drop hidden/removed ones from the grid. Only runs on a FRESH server
                 // response, never on the offline bundled fallback (avoids false purges).
                 ReconcileLibrary(serverTales);
                 _loadedTales = VisibleTales(serverTales);
+                SaveUnlocked(_loadedTales);
+            }
+            else if (previous != null)
+            {
+                // Server unreachable but we already had its catalog — keep it. Falling back
+                // to the bundled manifest here would shrink a full library down to the few
+                // tales shipped in the app, which is what a refresh after a promo code would
+                // otherwise do the moment the network drops.
+                _loadedTales = previous;
             }
             else
             {
-                // Offline fallback: use bundled manifest (no reconciliation).
+                // Cold start with no network: bundled manifest is all there is.
                 yield return BundledTaleLoader.LoadManifest(lang, tales => _loadedTales = tales);
+                ApplyCachedUnlocked(_loadedTales);
             }
 
             if (_loadedTales == null) yield break;
@@ -206,6 +230,37 @@ namespace FairyTales.UI.Library
                     // RELEASE: Debug.Log($"[Library] Purged removed tale {t.id}");
                 }
             }
+        }
+
+        // The bundled manifest knows nothing about promo unlocks, so an offline start
+        // would re-lock tales the user already opened with a code. Remembered from the
+        // last server catalog and BOUND TO THE USER ID that received it — `unlocked` is
+        // personal and must never leak to another profile.
+        private const string UnlockedKey = "ft_unlocked_tales";
+        private const string UnlockedOwnerKey = "ft_unlocked_owner";
+
+        private static void SaveUnlocked(TaleSummary[] tales)
+        {
+            var ids = new List<string>();
+            foreach (var t in tales)
+                if (t != null && t.unlocked) ids.Add(t.id);
+
+            PlayerPrefs.SetString(UnlockedKey, string.Join(",", ids));
+            PlayerPrefs.SetString(UnlockedOwnerKey, AuthService.GetOrCreateUserId());
+            PlayerPrefs.Save();
+        }
+
+        private static void ApplyCachedUnlocked(TaleSummary[] tales)
+        {
+            if (tales == null) return;
+            if (PlayerPrefs.GetString(UnlockedOwnerKey, "") != AuthService.GetOrCreateUserId()) return;
+
+            var ids = PlayerPrefs.GetString(UnlockedKey, "");
+            if (string.IsNullOrEmpty(ids)) return;
+
+            var set = new HashSet<string>(ids.Split(','));
+            foreach (var t in tales)
+                if (t != null && set.Contains(t.id)) t.unlocked = true;
         }
 
         /// <summary>Catalog minus hidden/removed tales, preserving order.</summary>
@@ -289,7 +344,7 @@ namespace FairyTales.UI.Library
 
         private void InitCard(TaleCard card, TaleSummary tale, bool subscribed)
         {
-            bool locked = !tale.free && !subscribed;
+            bool locked = tale.IsLocked(subscribed);
             bool downloaded = AssetCache.IsTaleDownloaded(tale.id);
             card.Init(tale, locked, downloaded, _api, OnCardClick);
         }
@@ -298,18 +353,39 @@ namespace FairyTales.UI.Library
         private static int SortGroup(TaleSummary tale, bool subscribed)
         {
             if (tale.comingSoon) return 3;
-            bool accessible = tale.free || subscribed;
-            if (!accessible) return 2;
+            if (tale.IsLocked(subscribed)) return 2;
             return AssetCache.IsTaleDownloaded(tale.id) ? 0 : 1;
         }
 
         /// <summary>Call when name/gender changes to force reload on next show.</summary>
-        public void MarkNeedsRefresh() => _loadedTales = null;
+        public void MarkNeedsRefresh()
+        {
+            _needsReload = true;
+            _loadGeneration++; // discard whatever an in-flight load is about to return
+        }
+
+        /// <summary>
+        /// A promo code just opened these tales. The server confirmed it, so mark them
+        /// straight away instead of waiting for the refreshed catalog — that way the locks
+        /// come off even if the network drops before the reload lands.
+        /// </summary>
+        public void ApplyPromoUnlocks(string[] taleIds)
+        {
+            if (_loadedTales != null && taleIds != null)
+            {
+                foreach (var tale in _loadedTales)
+                    if (System.Array.IndexOf(taleIds, tale.id) >= 0) tale.unlocked = true;
+
+                SaveUnlocked(_loadedTales);
+            }
+
+            MarkNeedsRefresh();
+        }
 
         private void OnCardClick(TaleSummary tale)
         {
             bool subscribed = IAPManager.Instance != null && IAPManager.Instance.IsSubscribed;
-            if (!tale.free && !subscribed)
+            if (tale.IsLocked(subscribed))
             {
                 // gate first, then paywall (back to library)
                 PaymentScreen.Open(_screens, source: "tale_locked");
@@ -337,7 +413,7 @@ namespace FairyTales.UI.Library
         {
             ChildGatePopup.Show(() =>
             {
-                var email = "support@fairytales.app";
+                var email = AppConfig.SupportEmail;
                 var subject = Uri.EscapeDataString(Loc.Get("email_subject"));
                 Application.OpenURL($"mailto:{email}?subject={subject}");
             });

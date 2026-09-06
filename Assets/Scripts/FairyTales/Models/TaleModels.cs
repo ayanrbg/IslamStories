@@ -12,6 +12,12 @@ namespace FairyTales.Models
         public string file;
         public bool hasDefaultNarration;
         public bool free;
+        /// <summary>
+        /// Unlocked for THIS user (blogger promo code or an admin grant). Personal —
+        /// never cache it across userIds. Unrelated to <see cref="free"/>, which is a
+        /// catalog property shared by everyone.
+        /// </summary>
+        public bool unlocked;
         public string coverUrl;
         public bool bundled;
         public long downloadSize;
@@ -26,6 +32,9 @@ namespace FairyTales.Models
 
         public bool IsRemoved => status == "removed";
         public bool IsHidden => status == "hidden" || status == "removed";
+
+        /// <summary>The single lock formula: paid tale, no subscription, not personally unlocked.</summary>
+        public bool IsLocked(bool subscribed) => !free && !subscribed && !unlocked;
 
         /// <summary>
         /// Returns the title for the given language, falling back to <see cref="title"/>.
@@ -74,6 +83,26 @@ namespace FairyTales.Models
         public string narratorGender;
         public string lang;
         public string[] pages; // client pages for bundled tales
+    }
+
+    /// <summary>
+    /// Body of POST /tales/{id}/narrate. A named class ON PURPOSE: the same payload
+    /// built from an anonymous type serialized to "{}" on device (build 2.6, iOS).
+    /// Newtonsoft reflects over the type's properties, and IL2CPP managed stripping
+    /// drops the metadata of an anonymous type nothing else references — so every
+    /// field vanished, the server saw no narratorGender and spoke male whatever the
+    /// user picked. In the Editor (Mono, no stripping) the identical code was fine,
+    /// which is why it survived testing. [Preserve] keeps this one safe even if the
+    /// stripping level is raised later.
+    /// </summary>
+    [Serializable]
+    [UnityEngine.Scripting.Preserve]
+    public class NarratePayload
+    {
+        public string text;
+        public string narratorGender;
+        public string name;
+        public string gender;
     }
 
     [Serializable]

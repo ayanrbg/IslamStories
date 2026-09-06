@@ -70,10 +70,8 @@ namespace FairyTales.UI.Core
             ["rerecord"] = new() { ["ru"] = "Перезаписать", ["kz"] = "Қайта жазу", ["en"] = "Re-record", ["uz"] = "Qayta yozish" },
             ["error"] = new() { ["ru"] = "Ошибка", ["kz"] = "Қате", ["en"] = "Error", ["uz"] = "Xato" },
             ["drafts_limit"] = new() { ["ru"] = "Максимум 3 черновика", ["kz"] = "Ең көбі 3 жоба", ["en"] = "Maximum 3 drafts", ["uz"] = "Maksimum 3 ta qoralama" },
-            ["download.preparing"] = new() { ["ru"] = "Подготовка к загрузке...", ["kz"] = "Жүктеуге дайындалуда...", ["en"] = "Preparing download...", ["uz"] = "Yuklashga tayyorlanmoqda..." },
-            ["download.loading"] = new() { ["ru"] = "Загружаем:", ["kz"] = "Жүктелуде:", ["en"] = "Downloading:", ["uz"] = "Yuklanmoqda:" },
-            ["download.narration"] = new() { ["ru"] = "Загружаем озвучку:", ["kz"] = "Дыбыстау жүктелуде:", ["en"] = "Downloading narration:", ["uz"] = "Ovoz yuklanmoqda:" },
-            ["download.done"] = new() { ["ru"] = "Загрузка завершена!", ["kz"] = "Жүктеу аяқталды!", ["en"] = "Download complete!", ["uz"] = "Yuklash tugadi!" },
+            ["download.tales"] = new() { ["ru"] = "Загрузка сказок", ["kz"] = "Ертегілер жүктелуде", ["en"] = "Downloading tales", ["uz"] = "Ertaklar yuklanmoqda" },
+            ["download.narration"] = new() { ["ru"] = "Загружаем озвучку...", ["kz"] = "Дыбыстау жүктелуде...", ["en"] = "Downloading narration...", ["uz"] = "Ovoz yuklanmoqda..." },
             ["per_month"] = new() { ["ru"] = "мес", ["kz"] = "ай", ["en"] = "mo", ["uz"] = "oy" },
             ["per_year"] = new() { ["ru"] = "год", ["kz"] = "жыл", ["en"] = "yr", ["uz"] = "yil" },
             ["start_trial"] = new() { ["ru"] = "Попробовать бесплатно", ["kz"] = "Тегін байқап көру", ["en"] = "Try for free", ["uz"] = "Bepul sinab ko'rish" },
@@ -120,6 +118,8 @@ namespace FairyTales.UI.Core
             ["promo_not_found"] = new() { ["ru"] = "Промокод не найден", ["kz"] = "Промокод табылмады", ["en"] = "Promo code not found", ["uz"] = "Promokod topilmadi" },
             ["promo_already_used"] = new() { ["ru"] = "Промокод уже использован", ["kz"] = "Промокод бұрын қолданылған", ["en"] = "Promo code already used", ["uz"] = "Promokod allaqachon ishlatilgan" },
             ["promo_no_connection"] = new() { ["ru"] = "Нет соединения", ["kz"] = "Байланыс жоқ", ["en"] = "No connection", ["uz"] = "Aloqa yo'q" },
+            ["promo_exhausted"] = new() { ["ru"] = "Промокод больше не действует", ["kz"] = "Промокод енді жарамсыз", ["en"] = "This promo code is no longer valid", ["uz"] = "Promokod endi amal qilmaydi" },
+            ["promo_tales_unlocked"] = new() { ["ru"] = "Промокод применён — открыто сказок: {0}", ["kz"] = "Промокод қолданылды — ашылған ертегілер: {0}", ["en"] = "Promo code applied — tales unlocked: {0}", ["uz"] = "Promokod qo'llanildi — ochilgan ertaklar: {0}" },
         };
 
         /// <summary>All supported app languages — used to download every translation.</summary>

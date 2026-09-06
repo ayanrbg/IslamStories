@@ -27,7 +27,11 @@ namespace FairyTales.Api
 
             if (resultJson != null)
             {
-                var response = JsonUtility.FromJson<PromoCheckResponse>(resultJson);
+                PromoCheckResponse response = null;
+                // FromJson throws on an empty or malformed body. Uncaught, it kills the
+                // coroutine mid-callback and leaves the Apply button disabled forever.
+                try { response = JsonUtility.FromJson<PromoCheckResponse>(resultJson); }
+                catch (Exception e) { Debug.LogWarning($"[Promo] bad response: {e.Message} json={resultJson}"); }
                 onSuccess?.Invoke(response);
             }
             else
@@ -36,11 +40,43 @@ namespace FairyTales.Api
             }
         }
 
-        public IEnumerator Purchase(string code,
-            Action<string> onSuccess, Action<string> onError = null)
+        // /api/promo/purchase is gone on purpose: the server now stores the user→blogger
+        // link itself and sees every payment (receipt validation + Apple S2S), so the
+        // client no longer has to remember a code and report the purchase back.
+
+        /// <summary>
+        /// Raw ApiClient error ("[409] … — {…}") → Loc key. Keyed on the HTTP status,
+        /// which is the stable part of the contract: on 404 the server's `error` field
+        /// holds a Russian sentence, not a machine code, so the body can't be trusted
+        /// to classify. Anything without a status is a network failure.
+        /// </summary>
+        public static string ErrorKey(string error)
         {
-            var body = JsonUtility.ToJson(new PromoCheckRequest { code = code, app = "BALA_STORIES" });
-            yield return _api.PostJson("/api/promo/purchase", body, onSuccess, onError);
+            var e = error ?? "";
+            var end = e.IndexOf(']');
+            if (end > 1 && e[0] == '[' && int.TryParse(e.Substring(1, end - 1), out var code))
+            {
+                switch (code)
+                {
+                    case 409: return "promo_already_used";   // this account already spent its one code
+                    case 410: return "promo_exhausted";      // code hit its redemption limit
+                    case 404: return "promo_not_found";
+                }
+            }
+            return "promo_no_connection";
+        }
+
+        // A code is redeemable once per account — the rule lives on the server (409).
+        // This flag only keeps the UI from offering a field that can no longer succeed.
+        private const string UsedKey = "ft_promo_used";
+
+        public static bool WasUsed => !string.IsNullOrEmpty(UsedCode);
+        public static string UsedCode => PlayerPrefs.GetString(UsedKey, "");
+
+        public static void MarkUsed(string code)
+        {
+            PlayerPrefs.SetString(UsedKey, code);
+            PlayerPrefs.Save();
         }
 
         [Serializable]
@@ -50,13 +86,21 @@ namespace FairyTales.Api
             public string app = "BALA_STORIES";
         }
 
+        /// <summary>
+        /// [Preserve] on purpose: IL2CPP managed stripping is on Medium for both stores,
+        /// and a response model read by reflection is exactly what got emptied on device
+        /// in build 2.6 (see <see cref="Models.NarratePayload"/>). Editor/Mono would never
+        /// catch it.
+        /// </summary>
         [Serializable]
+        [UnityEngine.Scripting.Preserve]
         public class PromoCheckResponse
         {
-            public string type;
+            public string type;          // premium | blogger | tale
             public int durationDays;
             public string bloggerName;
             public string message;
+            public string[] taleIds;     // type == "tale": what the code opened
         }
     }
 }

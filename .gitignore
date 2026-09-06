@@ -85,3 +85,10 @@ Assets/Plugins/Android/FirebaseApp.androidlib/res/values/google-services.xml
 
 # JetBrains Rider / IntelliJ project config
 .idea/
+
+# Claude Code / MCP tooling. Assets/Plugins/NuGet is 18 MB of DLLs that the
+# com.ivanmurzak.unity.mcp UPM package resolves on import — regenerated, not source.
+.claude/
+.mcp.json
+/[Aa]ssets/[Pp]lugins/NuGet/
+/[Aa]ssets/[Pp]lugins/NuGet.meta

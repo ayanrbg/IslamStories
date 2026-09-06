@@ -22,6 +22,8 @@ namespace FairyTales.Cache
         /// Call once at startup to wipe stale cache after format change.
         public static void MigrateIfNeeded()
         {
+            PurgeLegacyAiNarration();
+
             var key = "cache_version";
             if (PlayerPrefs.GetInt(key, 0) >= CacheVersion) return;
             ClearAll();
@@ -78,21 +80,25 @@ namespace FairyTales.Cache
         /// <summary>True if at least one page has been recorded for this tale+language.</summary>
         public static bool HasAnyParentNarration(string taleId, string lang)
         {
-            // No tale/language means nothing was ever recorded — Path.Combine would throw.
-            if (string.IsNullOrEmpty(taleId) || string.IsNullOrEmpty(lang)) return false;
-
-            var dir = Path.Combine(Root, "parent-narration", taleId, lang);
-            return Directory.Exists(dir) && Directory.GetFiles(dir, "page_*.wav").Length > 0;
+            var dir = ParentNarrationDir(taleId, lang);
+            return dir != null && Directory.Exists(dir)
+                && Directory.GetFiles(dir, "page_*.wav").Length > 0;
         }
 
         /// <summary>Deletes all recorded parent pages for a tale+language.</summary>
         public static void ClearParentNarration(string taleId, string lang)
         {
-            if (string.IsNullOrEmpty(taleId) || string.IsNullOrEmpty(lang)) return;
-
-            var dir = Path.Combine(Root, "parent-narration", taleId, lang);
-            if (Directory.Exists(dir)) Directory.Delete(dir, true);
+            var dir = ParentNarrationDir(taleId, lang);
+            if (dir != null && Directory.Exists(dir)) Directory.Delete(dir, true);
         }
+
+        // Path.Combine throws on a null segment, and callers legitimately ask about a
+        // tale that was never set (RecordingOverlay before Activate) — answer "nothing
+        // recorded" instead of blowing up the caller's call stack.
+        private static string ParentNarrationDir(string taleId, string lang)
+            => string.IsNullOrEmpty(taleId) || string.IsNullOrEmpty(lang)
+                ? null
+                : Path.Combine(Root, "parent-narration", taleId, lang);
 
         // ── Keys ─────────────────────────────────────────────
         public static string CoverKey(string taleId)
@@ -110,67 +116,131 @@ namespace FairyTales.Cache
         public static string NarrationKey(string taleId, string lang, int page)
             => $"narration/{taleId}/{lang}/page_{page}.mp3";
 
-        public static string AiNarrationKey(string taleId, string lang, int page)
-            => $"ai-narration/{taleId}/{lang}/page_{page}.mp3";
+        // The profile tag (name + child gender + narrator gender) is part of the PATH,
+        // not just of a meta file next to it. A meta check only catches params the
+        // client changed; it cannot catch audio that is wrong for params it never
+        // changed — e.g. a server bug that answered a female request with male takes.
+        // Separate folders make replaying another voice structurally impossible.
+        public static string AiNarrationKey(string taleId, string lang, int page,
+            string profileTag)
+            => $"ai-narration/{taleId}/{lang}/{profileTag}/page_{page}.mp3";
 
-        private static string AiNarrationMetaKey(string taleId)
-            => $"ai-narration/{taleId}/meta.json";
+        // On-demand TTS for tales with no pre-recorded narration. Keyed by the
+        // profile tag (name + child gender + narrator): sharing NarrationKey with the
+        // downloaded audio replayed the first take forever, whatever changed after.
+        public static string TtsNarrationKey(string taleId, string lang, int page,
+            string profileTag)
+            => $"tts-narration/{taleId}/{lang}/{profileTag}/page_{page}.mp3";
 
-        /// <summary>
-        /// Saves the voice/child params used for AI narration so we can detect changes.
-        /// </summary>
-        public static void SaveAiNarrationMeta(string taleId, string voice,
-            string narratorGender, string childName, string childGender)
+        // Meta sits inside the tag folder, so it can only ever describe audio made
+        // with those very params. It now carries what the path cannot: was the book
+        // finished, and which voice id produced it.
+        private static string AiNarrationMetaKey(string taleId, string lang, string profileTag)
+            => $"ai-narration/{taleId}/{lang}/{profileTag}/meta.json";
+
+        public static void SaveAiNarrationMeta(string taleId, string lang, string profileTag,
+            string voice, bool complete)
         {
             var json = JsonUtility.ToJson(new AiNarrationMeta
             {
                 voice = voice ?? "",
-                narratorGender = narratorGender ?? "",
-                childName = childName ?? "",
-                childGender = childGender ?? ""
+                complete = complete
             });
-            Save(AiNarrationMetaKey(taleId), System.Text.Encoding.UTF8.GetBytes(json));
+            Save(AiNarrationMetaKey(taleId, lang, profileTag),
+                System.Text.Encoding.UTF8.GetBytes(json));
+        }
+
+        /// <summary>Params the cached AI narration was generated with (empty if none).</summary>
+        public static AiNarrationMeta LoadAiNarrationMeta(string taleId, string lang,
+            string profileTag)
+        {
+            var bytes = Load(AiNarrationMetaKey(taleId, lang, profileTag));
+            return bytes == null
+                ? default
+                : JsonUtility.FromJson<AiNarrationMeta>(
+                    System.Text.Encoding.UTF8.GetString(bytes));
         }
 
         /// <summary>
-        /// Returns true if AI narration exists AND was generated with matching params.
+        /// A complete book for exactly these params. No param comparison needed —
+        /// the folder IS the params.
         /// </summary>
-        public static bool IsAiNarrationCached(string taleId, string lang,
-            string voice, string narratorGender, string childName, string childGender)
+        public static bool IsAiNarrationCached(string taleId, string lang, string profileTag)
+            => HasAudio(AiNarrationKey(taleId, lang, 0, profileTag))
+               && LoadAiNarrationMeta(taleId, lang, profileTag).complete;
+
+        /// <summary>
+        /// Drops every cached narrator audio for all tales, so the next play regenerates
+        /// it. "narration" is included on purpose: no tale ships pre-recorded audio
+        /// (hasDefaultNarration is false for all 11 and /default-narration is a 404),
+        /// so that folder holds nothing but TTS an older build wrote there — and
+        /// PlayDefaultNarration reads it FIRST, ahead of any voice check. If
+        /// pre-recorded narration ever ships, take that folder back out: the client
+        /// only downloads it while fetching a tale and would not restore it here.
+        /// </summary>
+        public static void ClearGeneratedNarration()
         {
-            // Must have at least page 0
-            if (!Exists(AiNarrationKey(taleId, lang, 0)))
-                return false;
-
-            var metaBytes = Load(AiNarrationMetaKey(taleId));
-            if (metaBytes == null) return false;
-
-            var meta = JsonUtility.FromJson<AiNarrationMeta>(
-                System.Text.Encoding.UTF8.GetString(metaBytes));
-
-            return meta.voice == (voice ?? "")
-                && meta.narratorGender == (narratorGender ?? "")
-                && meta.childName == (childName ?? "")
-                && meta.childGender == (childGender ?? "");
+            foreach (var sub in new[] { "ai-narration", "tts-narration", "narration" })
+            {
+                var dir = Path.Combine(Root, sub);
+                if (Directory.Exists(dir)) Directory.Delete(dir, true);
+            }
         }
 
         /// <summary>
-        /// Deletes all cached AI narration files for a tale.
+        /// Deletes cached AI narration for one language (or the whole tale when lang is null).
         /// </summary>
-        public static void ClearAiNarration(string taleId)
+        public static void ClearAiNarration(string taleId, string lang = null,
+            string profileTag = null)
         {
-            var dir = Path.Combine(Root, "ai-narration", taleId);
+            var dir = string.IsNullOrEmpty(lang)
+                ? Path.Combine(Root, "ai-narration", taleId)
+                : string.IsNullOrEmpty(profileTag)
+                    ? Path.Combine(Root, "ai-narration", taleId, lang)
+                    : Path.Combine(Root, "ai-narration", taleId, lang, profileTag);
             if (Directory.Exists(dir))
                 Directory.Delete(dir, true);
         }
 
+        /// <summary>
+        /// Deletes audio written by builds that keyed AI narration by language alone
+        /// (mp3 straight inside .../{lang}/). Those files carry no record of which
+        /// narrator made them, and some of them ARE the male-under-female takes the
+        /// server handed out before 14.08.2026 — there is no way to tell which, so
+        /// they all go. Runs once; new audio lives one folder deeper.
+        /// </summary>
+        private static void PurgeLegacyAiNarration()
+        {
+            const string flag = "ft_ai_narration_v2";
+            if (PlayerPrefs.GetInt(flag, 0) == 1) return;
+
+            // Two folders, both landmines: ai-narration/{tale}/{lang}/*.mp3 is the old
+            // AI layout (may contain male-under-female takes), and narration/{tale}/
+            // {lang}/*.mp3 is the TTS fallback of builds that never sent narratorGender
+            // — every file there is male, and PlayDefaultNarration reads it FIRST,
+            // ahead of any voice check.
+            foreach (var sub in new[] { "ai-narration", "narration" })
+            {
+                var root = Path.Combine(Root, sub);
+                if (!Directory.Exists(root)) continue;
+                // Exactly {tale}/{lang}/*.* — files one level deeper belong to the new
+                // tag folders and must survive.
+                foreach (var taleDir in Directory.GetDirectories(root))
+                    foreach (var langDir in Directory.GetDirectories(taleDir))
+                        foreach (var f in Directory.GetFiles(langDir))
+                            File.Delete(f);
+            }
+            PlayerPrefs.SetInt(flag, 1);
+            PlayerPrefs.Save();
+        }
+
         [Serializable]
-        private struct AiNarrationMeta
+        public struct AiNarrationMeta
         {
             public string voice;
-            public string narratorGender;
-            public string childName;
-            public string childGender;
+            // False when the run was cut short — the pages present are still valid
+            // and reusable, the book just isn't fully narrated yet.
+            public bool complete;
         }
 
         // ── Queries ──────────────────────────────────────────
@@ -231,10 +301,72 @@ namespace FairyTales.Cache
             File.WriteAllBytes(path, data);
         }
 
+        /// <summary>
+        /// Saves narration audio, refusing anything that is not playable. A 200 with
+        /// an empty body or a JSON error page used to land in the cache as-is, and
+        /// from then on that page was silent forever: the file exists, so nothing
+        /// ever re-requests it. Returns false when the payload was rejected.
+        /// </summary>
+        public static bool SaveAudio(string key, byte[] data)
+        {
+            if (!LooksLikeAudio(data)) return false;
+            Save(key, data);
+            return true;
+        }
+
+        public static bool LooksLikeAudio(byte[] d)
+        {
+            if (d == null || d.Length < 512) return false;
+            return (d[0] == 'O' && d[1] == 'g' && d[2] == 'g' && d[3] == 'S')   // ogg
+                || (d[0] == 'R' && d[1] == 'I' && d[2] == 'F' && d[3] == 'F')   // wav
+                || (d[0] == 'I' && d[1] == 'D' && d[2] == '3')                  // mp3 tag
+                || (d[0] == 0xFF && (d[1] & 0xE0) == 0xE0);                     // mp3 frame
+        }
+
         public static byte[] Load(string key)
         {
             var path = GetPath(key);
             return File.Exists(path) ? File.ReadAllBytes(path) : null;
+        }
+
+        /// <summary>
+        /// Cached audio, or null when the file is missing or unplayable — a truncated
+        /// download or a cached error page is deleted here so the page is requested
+        /// again instead of staying silent for the life of the install.
+        /// </summary>
+        public static byte[] LoadAudio(string key)
+        {
+            var data = Load(key);
+            if (data == null) return null;
+            if (LooksLikeAudio(data)) return data;
+            Delete(key);
+            return null;
+        }
+
+        /// <summary>
+        /// How many voice-agnostic mp3 an old build left behind ({tale}/{lang}/*.mp3
+        /// in either narration folder). Anything above 0 after a launch means the
+        /// purge did not run — and that a male take can still win the race.
+        /// </summary>
+        public static int LegacyAudioCount()
+        {
+            int n = 0;
+            foreach (var sub in new[] { "ai-narration", "narration" })
+            {
+                var root = Path.Combine(Root, sub);
+                if (!Directory.Exists(root)) continue;
+                foreach (var taleDir in Directory.GetDirectories(root))
+                    foreach (var langDir in Directory.GetDirectories(taleDir))
+                        n += Directory.GetFiles(langDir).Length;
+            }
+            return n;
+        }
+
+        /// <summary>Cheap "is there usable audio" check — no full read.</summary>
+        public static bool HasAudio(string key)
+        {
+            var path = GetPath(key);
+            return File.Exists(path) && new FileInfo(path).Length >= 512;
         }
 
         /// <summary>Async sprite load via UnityWebRequest (file I/O off main thread).</summary>
@@ -310,7 +442,8 @@ namespace FairyTales.Cache
         {
             if (string.IsNullOrEmpty(taleId)) return;
 
-            foreach (var sub in new[] { "illustrations", "tales-text", "narration", "ai-narration", "parent-narration" })
+            foreach (var sub in new[] { "illustrations", "tales-text", "narration",
+                         "ai-narration", "tts-narration", "parent-narration" })
             {
                 var dir = Path.Combine(Root, sub, taleId);
                 if (Directory.Exists(dir)) Directory.Delete(dir, true);
