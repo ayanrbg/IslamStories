@@ -130,6 +130,20 @@ namespace FairyTales.UI.Library
         }
 
         /// <summary>
+        /// Coming back from the background is the other moment a gift can have landed —
+        /// the friend redeems the code while the app is not running, and the credit is
+        /// never pushed to us. Deliberately not tied to the notification: push delivery is
+        /// guaranteed by nobody, and the book already exists by the time it would arrive.
+        /// </summary>
+        private void OnApplicationFocus(bool focused)
+        {
+            if (!focused || !IsVisible) return;
+
+            _needsReload = true;
+            if (isActiveAndEnabled) StartCoroutine(LoadTales());
+        }
+
+        /// <summary>
         /// A gift tale still waiting on a friend makes the catalog worth re-reading every
         /// time the library opens: the unlock happens server-side when the friend types the
         /// code, and nothing pushes it to us.

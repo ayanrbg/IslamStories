@@ -85,7 +85,7 @@ namespace FairyTales.Editor
             var panelRt = (RectTransform)panel;
             var panelImg = Ensure<Image>(panel.gameObject);
             CopyImage(gatePanel, panelImg);
-            if (layout) Center(panelRt, new Vector2(900f, 1040f));
+            if (layout) Center(panelRt, new Vector2(900f, 1240f));
 
             // Close (top-right corner of the panel)
             var close = FindChild(panel, "BtnClose") ?? NewUI("BtnClose", panel).transform;
@@ -133,23 +133,30 @@ namespace FairyTales.Editor
                 code.color = new Color32(0x3D, 0x1E, 0x73, 0xFF);
             }
 
-            // Copy button
-            var copy = FindChild(panel, "BtnCopy") ?? NewUI("BtnCopy", panel).transform;
-            var copyRt = (RectTransform)copy;
-            var copyImg = Ensure<Image>(copy.gameObject);
-            CopyImage(promoApply, copyImg);
-            Ensure<Button>(copy.gameObject);
-            Ensure<ButtonScaleEffect>(copy.gameObject);
-            if (layout)
-            {
-                copyRt.anchorMin = copyRt.anchorMax = new Vector2(0.5f, 1f);
-                copyRt.pivot = new Vector2(0.5f, 1f);
-                copyRt.sizeDelta = new Vector2(460f, 130f);
-                copyRt.anchoredPosition = new Vector2(0f, -830f);
-            }
-
+            // Copy and Share sit side by side: copying is for dictating the code, sharing
+            // is for forwarding it in a messenger, and most people do the second.
+            var copy = Action(panel, "BtnCopy", promoApply, layout, x: -195f);
             var copyLabel = Text(copy, "Label", titleFont, titleMat, 46f, Loc.Get("copy"), layout);
             if (layout) Stretch(copyLabel.rectTransform);
+
+            var share = Action(panel, "BtnShare", promoApply, layout, x: 195f);
+            var shareLabel = Text(share, "Label", titleFont, titleMat, 46f, Loc.Get("share"), layout);
+            if (layout) Stretch(shareLabel.rectTransform);
+
+            // Same row, centred: it replaces the pair when there is no code to act on.
+            var retry = Action(panel, "BtnRetry", promoApply, layout, x: 0f);
+            var retryLabel = Text(retry, "Label", titleFont, titleMat, 46f, Loc.Get("retry"), layout);
+            if (layout) Stretch(retryLabel.rectTransform);
+
+            // Counters. Two numbers that legitimately disagree, plus a neutral note shown
+            // only when they do — see GiftPopup.SetCounters.
+            var counters = Text(panel, "Counters", titleFont, titleMat, 38f,
+                Loc.Format("gift_counters", 0, 0), layout);
+            if (layout) TopStretch(counters.rectTransform, top: 990f, height: 110f, margin: 60f);
+
+            var countersNote = Text(panel, "CountersNote", titleFont, titleMat, 30f,
+                Loc.Get("gift_counters_note"), layout);
+            if (layout) TopStretch(countersNote.rectTransform, top: 1110f, height: 70f, margin: 60f);
 
             var so = new SerializedObject(popup);
             so.FindProperty("canvasGroup").objectReferenceValue = cg;
@@ -159,6 +166,12 @@ namespace FairyTales.Editor
             so.FindProperty("txtCode").objectReferenceValue = code;
             so.FindProperty("btnCopy").objectReferenceValue = copy.GetComponent<Button>();
             so.FindProperty("txtCopyLabel").objectReferenceValue = copyLabel;
+            so.FindProperty("btnShare").objectReferenceValue = share.GetComponent<Button>();
+            so.FindProperty("txtShareLabel").objectReferenceValue = shareLabel;
+            so.FindProperty("btnRetry").objectReferenceValue = retry.GetComponent<Button>();
+            so.FindProperty("txtRetryLabel").objectReferenceValue = retryLabel;
+            so.FindProperty("txtCounters").objectReferenceValue = counters;
+            so.FindProperty("txtCountersNote").objectReferenceValue = countersNote;
             so.FindProperty("btnClose").objectReferenceValue = close.GetComponent<Button>();
             so.ApplyModifiedPropertiesWithoutUndo();
 
@@ -301,6 +314,34 @@ namespace FairyTales.Editor
             target.color = src.color;
             target.type = src.type;
             target.pixelsPerUnitMultiplier = src.pixelsPerUnitMultiplier;
+        }
+
+        /// <summary>
+        /// Finds or creates one of the buttons on the action row, styled after an existing
+        /// button in the scene. Positioned when the popup is new OR when this particular
+        /// button is — otherwise a button added by a later version of this script would
+        /// land at the panel's centre on top of everything else.
+        /// </summary>
+        private static Transform Action(Transform panel, string name, Transform styleDonor,
+            bool layout, float x)
+        {
+            var existing = FindChild(panel, name);
+            var made = existing == null;
+            var t = existing != null ? existing : NewUI(name, panel).transform;
+
+            CopyImage(styleDonor, Ensure<Image>(t.gameObject));
+            Ensure<Button>(t.gameObject);
+            Ensure<ButtonScaleEffect>(t.gameObject);
+
+            if (layout || made)
+            {
+                var rt = (RectTransform)t;
+                rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 1f);
+                rt.pivot = new Vector2(0.5f, 1f);
+                rt.sizeDelta = new Vector2(370f, 130f);
+                rt.anchoredPosition = new Vector2(x, -830f);
+            }
+            return t;
         }
 
         /// <summary>

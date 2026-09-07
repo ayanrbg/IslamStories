@@ -122,7 +122,11 @@ namespace FairyTales.UI.Core
             ["promo_exhausted"] = new() { ["ru"] = "Промокод больше не действует", ["kz"] = "Промокод енді жарамсыз", ["en"] = "This promo code is no longer valid", ["uz"] = "Promokod endi amal qilmaydi" },
             ["promo_tales_unlocked"] = new() { ["ru"] = "Промокод применён — открыто сказок: {0}", ["kz"] = "Промокод қолданылды — ашылған ертегілер: {0}", ["en"] = "Promo code applied — tales unlocked: {0}", ["uz"] = "Promokod qo'llanildi — ochilgan ertaklar: {0}" },
             ["promo_self"] = new() { ["ru"] = "Это ваш собственный промокод", ["kz"] = "Бұл сіздің жеке промокодыңыз", ["en"] = "That's your own promo code", ["uz"] = "Bu sizning shaxsiy promokodingiz" },
-            ["promo_referral_ok"] = new() { ["ru"] = "Промокод принят. Спасибо!", ["kz"] = "Промокод қабылданды. Рахмет!", ["en"] = "Promo code accepted. Thank you!", ["uz"] = "Promokod qabul qilindi. Rahmat!" },
+            // Has to say the BOOK WENT TO THE FRIEND. "Promo code accepted" on its own
+            // sends the person hunting for a new book in their own library.
+            ["promo_referral_ok"] = new() { ["ru"] = "Спасибо! Ваш друг получил книгу в подарок.", ["kz"] = "Рахмет! Досыңыз сыйлыққа кітап алды.", ["en"] = "Thank you! Your friend got a book as a gift.", ["uz"] = "Rahmat! Do'stingiz sovg'aga kitob oldi." },
+            ["promo_too_many"] = new() { ["ru"] = "Слишком много попыток, попробуйте позже", ["kz"] = "Тым көп әрекет, кейінірек қайталаңыз", ["en"] = "Too many attempts, try again later", ["uz"] = "Juda ko'p urinish, keyinroq qayta urinib ko'ring" },
+            ["promo_service_down"] = new() { ["ru"] = "Сервис временно недоступен", ["kz"] = "Қызмет уақытша қолжетімсіз", ["en"] = "Service temporarily unavailable", ["uz"] = "Xizmat vaqtincha mavjud emas" },
             // "Book as a gift" — invite a friend, the friend enters your code, the tale opens for you.
             ["gift_badge"] = new() { ["ru"] = "Книга в подарок!", ["kz"] = "Сыйлыққа кітап!", ["en"] = "Free book!", ["uz"] = "Kitob sovg'aga!" },
             ["gift_title"] = new() { ["ru"] = "Получите книгу бесплатно!", ["kz"] = "Кітапты тегін алыңыз!", ["en"] = "Get this book for free!", ["uz"] = "Kitobni bepul oling!" },
@@ -136,6 +140,17 @@ namespace FairyTales.UI.Core
             ["gift_code_copied"] = new() { ["ru"] = "Промокод скопирован", ["kz"] = "Промокод көшірілді", ["en"] = "Promo code copied", ["uz"] = "Promokod nusxalandi" },
             ["gift_code_error"] = new() { ["ru"] = "Код недоступен", ["kz"] = "Код қолжетімсіз", ["en"] = "Code unavailable", ["uz"] = "Kod mavjud emas" },
             ["gift_earned"] = new() { ["ru"] = "Друг ввёл ваш промокод — книга открыта!", ["kz"] = "Досыңыз промокодыңызды енгізді — кітап ашылды!", ["en"] = "A friend entered your promo code — the book is yours!", ["uz"] = "Do'stingiz promokodingizni kiritdi — kitob ochildi!" },
+            // {0} = friends who redeemed the code, {1} = books actually credited. The two
+            // legitimately disagree (one gift tale exists, plus anti-abuse caps), so they
+            // are always printed as two separate numbers — never one value twice.
+            ["gift_counters"] = new() { ["ru"] = "Пригласили друзей: {0}\nКниг получено: {1}", ["kz"] = "Шақырылған достар: {0}\nАлынған кітаптар: {1}", ["en"] = "Friends invited: {0}\nBooks received: {1}", ["uz"] = "Taklif qilingan do'stlar: {0}\nOlingan kitoblar: {1}" },
+            // Shown only when the two numbers differ. The app is not told WHY they differ,
+            // so this stays neutral and promises nothing.
+            ["gift_counters_note"] = new() { ["ru"] = "Остальные приглашения мы сохранили.", ["kz"] = "Қалған шақыруларды сақтап қойдық.", ["en"] = "Your other invites are saved.", ["uz"] = "Qolgan takliflaringiz saqlanadi." },
+            ["gift_stats_stale"] = new() { ["ru"] = "Счётчики не обновились", ["kz"] = "Есептегіштер жаңарған жоқ", ["en"] = "Counters are out of date", ["uz"] = "Hisoblagichlar yangilanmadi" },
+            ["share"] = new() { ["ru"] = "Поделиться", ["kz"] = "Бөлісу", ["en"] = "Share", ["uz"] = "Ulashish" },
+            // {0} = the personal code, {1} = the app name as it appears in the store.
+            ["gift_share_text"] = new() { ["ru"] = "Мой промокод в приложении «{1}»: {0}\nВведи его в приложении — и мне откроется книга в подарок.", ["kz"] = "«{1}» қосымшасындағы промокодым: {0}\nОны қосымшаға енгіз — маған сыйлыққа кітап ашылады.", ["en"] = "My promo code in \"{1}\": {0}\nEnter it in the app and I get a book as a gift.", ["uz"] = "\"{1}\" ilovasidagi promokodim: {0}\nUni ilovaga kiriting — menga sovg'aga kitob ochiladi." },
         };
 
         /// <summary>All supported app languages — used to download every translation.</summary>

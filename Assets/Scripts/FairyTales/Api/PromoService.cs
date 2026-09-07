@@ -62,6 +62,8 @@ namespace FairyTales.Api
                     case 410: return "promo_exhausted";      // code hit its redemption limit
                     case 403: return "promo_self";           // own referral code — nobody was invited
                     case 404: return "promo_not_found";
+                    case 429: return "promo_too_many";       // 10 wrong tries in an hour — never retry, it burns the limit
+                    case 503: return "promo_service_down";   // promo service not configured on the server
                 }
             }
             return "promo_no_connection";
