@@ -1,6 +1,6 @@
 using System;
-using System.Text.RegularExpressions;
 using DG.Tweening;
+using FairyTales.UI.Core;
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
@@ -16,9 +16,6 @@ namespace FairyTales.UI.Reading
         private AspectRatioFitter _arf;
         private Image _bufferImage;
         private AspectRatioFitter _bufferArf;
-
-        private static readonly Regex GenderTag =
-            new(@"\{m:([^|]*)\|f:([^}]*)\}", RegexOptions.Compiled);
 
         private string _taleId;
         private string[] _pages;
@@ -188,7 +185,9 @@ namespace FairyTales.UI.Reading
 
             if (pageText)
             {
-                pageText.text = ResolveGender(_pages[page]);
+                // Resolve name too: pages coming straight from a cache/server path
+                // may still carry a raw {childName} placeholder.
+                pageText.text = TaleText.Resolve(_pages[page]);
                 pageText.alpha = 1f;
             }
 
@@ -253,12 +252,6 @@ namespace FairyTales.UI.Reading
             pageText.enableAutoSizing = true;
             pageText.fontSizeMin = _baseFontSize * 0.3f;
             pageText.fontSizeMax = _baseFontSize * scale;
-        }
-
-        private string ResolveGender(string text)
-        {
-            bool isMale = _gender == "male";
-            return GenderTag.Replace(text, m => isMale ? m.Groups[1].Value : m.Groups[2].Value);
         }
     }
 }

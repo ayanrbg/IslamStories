@@ -41,13 +41,28 @@ namespace FairyTales.UI.Reading
             return Cache.TryGetValue(Key(taleId, page), out var s) ? s : null;
         }
 
+        /// <summary>
+        /// Variants to try, in order — null means the plain "page_N" file.
+        /// Whether a page is gendered comes from the current language's JSON, but
+        /// the files on disk were fetched using whichever translation drove the
+        /// download. A translation whose genderedPages list disagrees must not
+        /// leave the page blank, so both layouts are always attempted.
+        /// </summary>
+        private static string[] Variants(bool gendered, string gp)
+            => gendered ? new[] { gp, null } : new[] { null, gp };
+
+        private static string DiskKey(string taleId, int page, string variant)
+            => variant == null
+                ? AssetCache.IllustrationKey(taleId, page)
+                : AssetCache.IllustrationKey(taleId, page, variant);
+
         /// <summary>Async load: memory → AssetCache → Resources → StreamingAssets.</summary>
         public static IEnumerator GetPageAsync(
             string taleId, int page, Action<Sprite> cb,
             string gender = null, int[] genderedPages = null)
         {
             bool gendered = IsGendered(page, genderedPages) && gender != null;
-            string gp = gendered ? GenderParam(gender) : null;
+            string gp = GenderParam(gender ?? PlayerPrefs.GetString("ft_gender", "male"));
             var k = gendered ? Key(taleId, page, gp) : Key(taleId, page);
 
             if (Cache.TryGetValue(k, out var cached))
@@ -56,17 +71,15 @@ namespace FairyTales.UI.Reading
                 yield break;
             }
 
-            // AssetCache (disk — gendered key first, then fallback)
+            var variants = Variants(gendered, gp);
             Sprite sprite = null;
-            if (gendered)
+
+            // AssetCache (disk)
+            foreach (var v in variants)
             {
                 yield return AssetCache.LoadSpriteAsync(
-                    AssetCache.IllustrationKey(taleId, page, gp), s => sprite = s);
-            }
-            if (sprite == null)
-            {
-                yield return AssetCache.LoadSpriteAsync(
-                    AssetCache.IllustrationKey(taleId, page), s => sprite = s);
+                    DiskKey(taleId, page, v), s => sprite = s);
+                if (sprite != null) break;
             }
             if (sprite != null)
             {
@@ -75,20 +88,16 @@ namespace FairyTales.UI.Reading
                 yield break;
             }
 
-            // Resources (gendered first, then fallback)
-            if (gendered)
+            // Resources
+            foreach (var v in variants)
             {
-                var req = Resources.LoadAsync<Sprite>(
-                    $"Illustrations/{taleId}/page_{page}_{gp}");
+                var path = v == null
+                    ? $"Illustrations/{taleId}/page_{page}"
+                    : $"Illustrations/{taleId}/page_{page}_{v}";
+                var req = Resources.LoadAsync<Sprite>(path);
                 yield return req;
                 sprite = req.asset as Sprite;
-            }
-            if (sprite == null)
-            {
-                var req = Resources.LoadAsync<Sprite>(
-                    $"Illustrations/{taleId}/page_{page}");
-                yield return req;
-                sprite = req.asset as Sprite;
+                if (sprite != null) break;
             }
             if (sprite != null)
             {
@@ -97,60 +106,60 @@ namespace FairyTales.UI.Reading
                 yield break;
             }
 
-            // StreamingAssets (gendered with fallback inside)
+            // StreamingAssets
             if (BundledTaleLoader.IsBundled(taleId))
             {
-                if (gendered)
+                foreach (var v in variants)
                 {
-                    yield return BundledTaleLoader.LoadPageGendered(
-                        taleId, page, gp, s =>
-                        {
-                            if (s != null) Cache[k] = s;
-                            cb?.Invoke(s);
-                        });
+                    var file = v == null
+                        ? $"page_{page}.jpg"
+                        : $"page_{page}_{v}.jpg";
+                    yield return BundledTaleLoader.LoadSprite(taleId, file, s => sprite = s);
+                    if (sprite != null) break;
                 }
-                else
-                {
-                    yield return BundledTaleLoader.LoadPage(taleId, page, s =>
-                    {
-                        if (s != null) Cache[k] = s;
-                        cb?.Invoke(s);
-                    });
-                }
+                if (sprite != null) Cache[k] = sprite;
+                cb?.Invoke(sprite);
             }
             else
             {
                 // Last resort: page missing from local cache (gender switched,
                 // download interrupted, or gendered page with no plain fallback
                 // on the server) — fetch it live and cache it. Self-heals.
-                yield return DownloadFromServer(taleId, page, gendered, gp, k, cb);
+                yield return DownloadFromServer(taleId, page, variants, k, cb);
             }
         }
 
         /// <summary>On-demand server fetch for an illustration absent from local cache.</summary>
         private static IEnumerator DownloadFromServer(
-            string taleId, int page, bool gendered, string gp, string memKey,
+            string taleId, int page, string[] variants, string memKey,
             Action<Sprite> cb)
         {
             var api = Api;
             if (api == null) { cb?.Invoke(null); yield break; }
 
-            var endpoint = gendered
-                ? $"/api/tales/{taleId}/illustration/{page}?gender={gp}"
-                : $"/api/tales/{taleId}/illustration/{page}";
-            var diskKey = gendered
-                ? AssetCache.IllustrationKey(taleId, page, gp)
-                : AssetCache.IllustrationKey(taleId, page);
+            foreach (var v in variants)
+            {
+                var endpoint = v == null
+                    ? $"/api/tales/{taleId}/illustration/{page}"
+                    : $"/api/tales/{taleId}/illustration/{page}?gender={v}";
 
-            byte[] data = null;
-            yield return api.GetBytes(endpoint, b => data = b, _ => { });
-            if (data == null || data.Length < 8) { cb?.Invoke(null); yield break; }
+                byte[] data = null;
+                yield return api.GetBytes(endpoint, b => data = b, _ => { });
+                if (data == null || data.Length < 8) continue;
 
-            AssetCache.Save(diskKey, data);
-            Sprite sprite = null;
-            yield return AssetCache.LoadSpriteAsync(diskKey, s => sprite = s);
-            if (sprite != null) Cache[memKey] = sprite;
-            cb?.Invoke(sprite);
+                var diskKey = DiskKey(taleId, page, v);
+                AssetCache.Save(diskKey, data);
+
+                Sprite sprite = null;
+                yield return AssetCache.LoadSpriteAsync(diskKey, s => sprite = s);
+                if (sprite == null) continue;
+
+                Cache[memKey] = sprite;
+                cb?.Invoke(sprite);
+                yield break;
+            }
+
+            cb?.Invoke(null);
         }
 
         /// <summary>Alias for thumbnails (no gender — always generic).</summary>

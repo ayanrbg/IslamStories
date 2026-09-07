@@ -13,7 +13,7 @@ namespace FairyTales.Api
         public IEnumerator CheckPromo(string code,
             Action<PromoCheckResponse> onSuccess, Action<string> onError = null)
         {
-            var body = JsonUtility.ToJson(new PromoCheckRequest { code = code, app = "BALA_STORIES" });
+            var body = JsonUtility.ToJson(new PromoCheckRequest { code = code });
             Debug.Log($"[Promo] CheckPromo request: code={code}, body={body}, hasToken={_api.HasToken}");
             string resultJson = null;
             string resultErr = null;
@@ -60,7 +60,10 @@ namespace FairyTales.Api
                 {
                     case 409: return "promo_already_used";   // this account already spent its one code
                     case 410: return "promo_exhausted";      // code hit its redemption limit
+                    case 403: return "promo_self";           // own referral code — nobody was invited
                     case 404: return "promo_not_found";
+                    case 429: return "promo_too_many";       // 10 wrong tries in an hour — never retry, it burns the limit
+                    case 503: return "promo_service_down";   // promo service not configured on the server
                 }
             }
             return "promo_no_connection";
@@ -79,11 +82,14 @@ namespace FairyTales.Api
             PlayerPrefs.Save();
         }
 
+        // No "app" field on purpose. Both backends destructure only { code } and then
+        // hardcode their own app id ("BALA_STORIES" / "ISLAMIC_TALES") when they call the
+        // upstream promo service. A client-side app id is never read, and carrying the
+        // twin's value here read as a live bug every time someone diffed the two repos.
         [Serializable]
         private class PromoCheckRequest
         {
             public string code;
-            public string app = "BALA_STORIES";
         }
 
         /// <summary>
@@ -96,7 +102,7 @@ namespace FairyTales.Api
         [UnityEngine.Scripting.Preserve]
         public class PromoCheckResponse
         {
-            public string type;          // premium | blogger | tale
+            public string type;          // premium | blogger | tale | referral
             public int durationDays;
             public string bloggerName;
             public string message;

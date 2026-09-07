@@ -123,10 +123,37 @@ namespace FairyTales.UI.Library
 
             // Cached list was already sorted + rebuilt in OnPrepare (before the
             // slide-in), so nothing more to do here.
-            if (_loadedTales != null && !_needsReload)
+            if (_loadedTales != null && !_needsReload && !HasPendingGift())
                 yield break;
 
             yield return LoadTales();
+        }
+
+        /// <summary>
+        /// Coming back from the background is the other moment a gift can have landed —
+        /// the friend redeems the code while the app is not running, and the credit is
+        /// never pushed to us. Deliberately not tied to the notification: push delivery is
+        /// guaranteed by nobody, and the book already exists by the time it would arrive.
+        /// </summary>
+        private void OnApplicationFocus(bool focused)
+        {
+            if (!focused || !IsVisible) return;
+
+            _needsReload = true;
+            if (isActiveAndEnabled) StartCoroutine(LoadTales());
+        }
+
+        /// <summary>
+        /// A gift tale still waiting on a friend makes the catalog worth re-reading every
+        /// time the library opens: the unlock happens server-side when the friend types the
+        /// code, and nothing pushes it to us.
+        /// </summary>
+        private bool HasPendingGift()
+        {
+            if (_loadedTales == null) return false;
+            foreach (var t in _loadedTales)
+                if (t != null && t.gift && !t.unlocked) return true;
+            return false;
         }
 
         private IEnumerator LoadTales()
@@ -156,6 +183,7 @@ namespace FairyTales.UI.Library
                 ReconcileLibrary(serverTales);
                 _loadedTales = VisibleTales(serverTales);
                 SaveUnlocked(_loadedTales);
+                AnnounceEarnedGifts(_loadedTales);
             }
             else if (previous != null)
             {
@@ -263,6 +291,35 @@ namespace FairyTales.UI.Library
                 if (t != null && set.Contains(t.id)) t.unlocked = true;
         }
 
+        // Gift tales already announced as earned. Without this the friend's redemption
+        // arrives as a silently unlocked tale — nothing tells the user their code worked.
+        private const string GiftSeenKey = "ft_gift_seen";
+
+        private static void AnnounceEarnedGifts(TaleSummary[] tales)
+        {
+            var known = PlayerPrefs.HasKey(GiftSeenKey);
+            var seen = new HashSet<string>(PlayerPrefs.GetString(GiftSeenKey, "").Split(','));
+
+            var earned = new List<string>();
+            var isNew = false;
+            foreach (var t in tales)
+            {
+                if (t == null || !t.gift || !t.unlocked) continue;
+                earned.Add(t.id);
+                if (!seen.Contains(t.id)) isNew = true;
+            }
+
+            PlayerPrefs.SetString(GiftSeenKey, string.Join(",", earned));
+            PlayerPrefs.Save();
+
+            // First catalog after the update (or after a profile switch) is the baseline,
+            // not a celebration: everything in it would otherwise read as just-earned.
+            if (!known || !isNew) return;
+
+            Toast.Show(Loc.Get("gift_earned"));
+            Analytics.Log("gift_earned", ("gifts_total", earned.Count));
+        }
+
         /// <summary>Catalog minus hidden/removed tales, preserving order.</summary>
         private static TaleSummary[] VisibleTales(TaleSummary[] serverTales)
         {
@@ -349,11 +406,13 @@ namespace FairyTales.UI.Library
             card.Init(tale, locked, downloaded, _api, OnCardClick);
         }
 
-        // Sort order: downloaded → ready-to-download → locked → coming-soon (always last)
+        // Sort order: downloaded → ready-to-download → gift → locked → coming-soon (last).
+        // Gift tales sit above the plain locked ones: they are the one locked group the
+        // user can actually do something about, so the badge has to be reachable.
         private static int SortGroup(TaleSummary tale, bool subscribed)
         {
-            if (tale.comingSoon) return 3;
-            if (tale.IsLocked(subscribed)) return 2;
+            if (tale.comingSoon) return 4;
+            if (tale.IsLocked(subscribed)) return tale.gift ? 2 : 3;
             return AssetCache.IsTaleDownloaded(tale.id) ? 0 : 1;
         }
 
@@ -387,7 +446,16 @@ namespace FairyTales.UI.Library
             bool subscribed = IAPManager.Instance != null && IAPManager.Instance.IsSubscribed;
             if (tale.IsLocked(subscribed))
             {
-                // gate first, then paywall (back to library)
+                // A gift tale has its own way in — the paywall would be the wrong answer
+                // to "how do I get this one?".
+                if (tale.gift)
+                {
+                    GiftPopup.Show(_api, tale);
+                    return;
+                }
+
+                // Paywall, then back to the library. Open() runs the parental gate
+                // (Kids category, Guideline 1.3) before the screen appears at all.
                 PaymentScreen.Open(_screens, source: "tale_locked");
                 return;
             }

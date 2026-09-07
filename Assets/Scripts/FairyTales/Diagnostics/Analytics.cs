@@ -39,6 +39,9 @@ namespace FairyTales.Diagnostics
             "purchase_start", "purchase_success", "purchase_error", "purchase_restore",
             "paywall_view", "paywall_dismiss", "promo_redeem", "tale_complete",
             "tale_open", "tale_page_view", "tale_abandon",
+            // Referral gift: the funnel is split across two devices (inviter shows/copies
+            // the code, friend redeems it), so only our own backend can join the halves.
+            "gift_popup_view", "gift_code_copied", "gift_earned", "promo_entered",
         };
 
         private static Analytics _i;

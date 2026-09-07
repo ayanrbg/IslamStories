@@ -18,6 +18,12 @@ namespace FairyTales.Models
         /// catalog property shared by everyone.
         /// </summary>
         public bool unlocked;
+        /// <summary>
+        /// Server-marked "invite a friend and this one is yours" tale. Purely a badge +
+        /// a different tap target — the tale is still locked by <see cref="IsLocked"/>
+        /// until the friend redeems the code and the server flips <see cref="unlocked"/>.
+        /// </summary>
+        public bool gift;
         public string coverUrl;
         public bool bundled;
         public long downloadSize;

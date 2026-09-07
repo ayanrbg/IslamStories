@@ -41,6 +41,11 @@ namespace FairyTales.UI.Reading
         [SerializeField] private float minTextScale = 0.7f;
         [SerializeField] private float maxTextScale = 1.6f;
 
+        [Header("End-of-tale paywall")]
+        [Tooltip("Seconds the last page stays on screen before the subscription offer " +
+                 "takes over. Zero would swallow the ending the child just reached.")]
+        [SerializeField] private float endPaywallDelay = 2f;
+
         private ScreenManager _screens;
         private BackgroundMusicManager _backgroundMusicManager;
         private NarrationPlayer _narrationPlayer;
@@ -53,7 +58,7 @@ namespace FairyTales.UI.Reading
         private bool _recordingMode;
         private Models.Draft _recordingDraft;
         private int _startPage;
-        private bool _reachedLastPage;
+        private bool _paywallShown;
         private bool _completed;
         private float _openTime;
         private int _pendingPageView;
@@ -103,7 +108,7 @@ namespace FairyTales.UI.Reading
             _recordingMode = false;
             _taleSummary = null;
             _initialIllustration = null;
-            _reachedLastPage = false;
+            _paywallShown = false;
         }
 
         public void SetRecordingMode(TaleDetail detail, TaleSummary summary,
@@ -160,19 +165,18 @@ namespace FairyTales.UI.Reading
 
                 Analytics.Log("tale_open", ("tale_id", _tale.id), ("is_free", _tale.free),
                     ("language", Loc.Lang), ("child_gender", Analytics.Gender()));
-                LogPageView(pageNavigator.CurrentPage);
-
-                if (pageNavigator.CurrentPage >= pageNavigator.TotalPages - 1)
-                    _reachedLastPage = true;
-                CheckComplete(pageNavigator.CurrentPage);
-
-                // Once per opened tale, not per page: tells us whether narration was even
-                // supposed to sound (mode None is silent by design) and if a player exists.
+                // One line per opened book: its absence next to a finished generation
+                // means OnShown never ran at all.
                 RemoteLog.Event("narration_session",
                     $"tale={_tale.id}; mode={_mode}; lang={SpokenLang}; " +
                     $"player={_narrationPlayer != null}; service={_narrationService != null}; " +
                     $"startPage={_startPage}");
+                LogPageView(pageNavigator.CurrentPage);
 
+                // Deliberately no end-of-tale paywall here: resuming a book that was
+                // left on its last page is not finishing it, and the offer must never
+                // be the first thing that happens when a book opens.
+                CheckComplete(pageNavigator.CurrentPage);
                 PlayNarration(_startPage);
             }
 
@@ -186,6 +190,10 @@ namespace FairyTales.UI.Reading
         {
             if (pageNavigator != null)
                 pageNavigator.OnPageChanged -= OnPageChanged;
+
+            // A pending offer belongs to this reading session only — never let it
+            // fire once the user is already somewhere else.
+            CancelInvoke(nameof(ShowEndPaywall));
 
             if (!_recordingMode && _tale != null)
             {
@@ -229,7 +237,7 @@ namespace FairyTales.UI.Reading
             }
             else
             {
-                if (page >= pageNavigator.TotalPages - 1) _reachedLastPage = true;
+                if (page >= pageNavigator.TotalPages - 1) ScheduleEndPaywall();
                 LogPageView(page);
                 CheckComplete(page);
                 PlayNarration(page);
@@ -314,17 +322,17 @@ namespace FairyTales.UI.Reading
             => IsVisible && pageNavigator != null
                && pageNavigator.CurrentPage == page;
 
-        // Every narration path keys on the language of the text on screen, not on
-        // the UI language: a tale without the current translation falls back to
-        // another one, and the audio must follow the words, not the menu.
-        private string SpokenLang => TaleText.SpokenLang(_tale);
-
         private static string VoiceTypeTag(NarrationMode mode) => mode switch
         {
             NarrationMode.AI => "cloned",
             NarrationMode.Parent => "parent",
             _ => "default"
         };
+
+        // Every narration path keys on the language of the text on screen, not on
+        // the UI language: a tale without the current translation falls back to
+        // another one, and the audio must follow the words, not the menu.
+        private string SpokenLang => TaleText.SpokenLang(_tale);
 
         // Play the parent's real recorded clip for this page. Pages the parent
         // didn't record simply stay silent.
@@ -497,7 +505,14 @@ namespace FairyTales.UI.Reading
                 return;
             }
 
-            if (TryShowFirstReadPaywall()) return;
+            // They walked away while the offer was still on its timer — show it now
+            // rather than dropping it, then let the paywall own the navigation.
+            if (IsInvoking(nameof(ShowEndPaywall)))
+            {
+                ShowEndPaywall();
+                if (_paywallShown) return;
+            }
+
             _screens.Show<Library.LibraryScreen>();
         }
 
@@ -505,24 +520,37 @@ namespace FairyTales.UI.Reading
             IAPManager.Instance != null && IAPManager.Instance.IsSubscribed;
 
         /// <summary>
-        /// After the user finishes their first tale, surface the subscription
-        /// offer exactly once. Skipped for premium users, recording sessions,
-        /// and tales the user left before reaching the end. Returns true when
-        /// the paywall took over navigation.
+        /// Reaching the last page ends the tale, which is the moment the subscription
+        /// offer lands best. It is queued rather than opened on the spot so the ending
+        /// the child just got to stays on screen for a beat first.
         /// </summary>
-        private bool TryShowFirstReadPaywall()
+        private void ScheduleEndPaywall()
         {
-            if (_recordingMode || !_reachedLastPage) return false;
-            if (IsPremium || !ReadingState.FirstPaywallPending) return false;
+            if (_paywallShown || _recordingMode || IsPremium) return;
+            if (IsInvoking(nameof(ShowEndPaywall))) return;
 
-            var payment = _screens.Get<Payment.PaymentScreen>();
-            if (payment == null) return false;
+            Invoke(nameof(ShowEndPaywall), Mathf.Max(0f, endPaywallDelay));
+        }
 
-            ReadingState.MarkFirstPaywallShown();
-            // Gate first; on cancel fall through to the library like a normal back.
+        /// <summary>
+        /// Shown after every finished tale, once per reading session — flipping back
+        /// and forth across the last page must not re-open it.
+        /// </summary>
+        private void ShowEndPaywall()
+        {
+            CancelInvoke(nameof(ShowEndPaywall));
+
+            if (_paywallShown || _recordingMode || IsPremium) return;
+            if (_screens == null || _screens.Get<Payment.PaymentScreen>() == null) return;
+
+            _paywallShown = true;
+            if (_narrationPlayer) _narrationPlayer.Stop();
+            StopNarrationRoutine();
+
+            // Closing the paywall continues the journey the tale ended on: back to
+            // the library, not into the book that was just finished.
             Payment.PaymentScreen.Open(_screens, typeof(Library.LibraryScreen),
-                () => _screens.Show<Library.LibraryScreen>(), source: "first_read");
-            return true;
+                source: "tale_finished");
         }
 
         private void OnToc()

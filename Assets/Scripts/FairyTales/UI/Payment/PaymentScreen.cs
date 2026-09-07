@@ -101,16 +101,13 @@ namespace FairyTales.UI.Payment
             if (btnRestore) btnRestore.onClick.AddListener(OnRestore);
             if (btnPrivacy) btnPrivacy.onClick.AddListener(OnPrivacy);
             if (btnRetryStore) btnRetryStore.onClick.AddListener(OnRetryStore);
-#if UNITY_IOS
-            // Guideline 3.1.1: premium may only be unlocked through In-App Purchase
-            // on iOS — the promo-code entry point must not exist there at all.
-            if (btnPromo) btnPromo.gameObject.SetActive(false);
-            if (promoPanel) promoPanel.SetActive(false);
-#else
+            // The promo field is deliberately identical on both stores. It was iOS-only
+            // hidden for a while after a 3.1.1 rejection, but the same flow ships in
+            // another of our apps and passes review, and the gift feature is unusable
+            // for an invited friend who has nowhere to type the code.
             if (btnPromo) btnPromo.onClick.AddListener(() => ShowPromoPanel(true));
             if (btnPromoApply) btnPromoApply.onClick.AddListener(OnPromoApply);
             if (btnPromoClose) btnPromoClose.onClick.AddListener(() => ShowPromoPanel(false));
-#endif
         }
 
         protected override void OnPrepare()
@@ -512,8 +509,16 @@ namespace FairyTales.UI.Payment
             {
                 FinishPurchaseAttempt();
 
+                // The store never complained, yet the purchase did not go through: the
+                // store took the payment and the server would not confirm the receipt.
+                // "Try again" is the wrong advice — a second purchase is refused as a
+                // duplicate, restoring is what recovers it.
                 if (!success && !_failureReported)
-                    Toast.Show(Loc.Get("purchase_failed"));
+                {
+                    RemoteLog.Event("paywall_purchase_failed",
+                        $"productId={productId}; source={Source}; reason=not_validated");
+                    Toast.Show(Loc.Get("purchase_not_activated"));
+                }
 
                 if (success)
                 {
@@ -625,16 +630,16 @@ namespace FairyTales.UI.Payment
         /// A promo code is redeemable once per account, so a second attempt can only end
         /// in a 409 — hide the entry point instead of letting the user hit that wall.
         /// Never hidden for subscribers: paying does not disqualify anyone from a code.
-        /// On iOS it stays hidden either way (Guideline 3.1.1, see Awake).
         /// </summary>
         private void UpdatePromoButton()
         {
             if (!btnPromo) return;
-#if UNITY_IOS
-            btnPromo.gameObject.SetActive(false);
-#else
             btnPromo.gameObject.SetActive(!PromoService.WasUsed);
-#endif
+
+            // The icon carries a caption now: the gift popup tells the invited friend to
+            // tap a button by this exact name, so it has to follow the app language.
+            var label = btnPromo.GetComponentInChildren<TextMeshProUGUI>(true);
+            if (label) label.text = Loc.Get("promo_code");
         }
 
         private void ShowPromoPanel(bool show)
@@ -699,6 +704,19 @@ namespace FairyTales.UI.Payment
                     else if (response.type == "tale")
                     {
                         OnTalesUnlocked(code, response);
+                    }
+                    else if (response.type == "referral")
+                    {
+                        // The invited friend's side of "book as a gift": nothing unlocks
+                        // here, the tale opens on the INVITER's account. Say thank you and
+                        // close the field — otherwise they wait for a book that was never
+                        // theirs. The paywall stays open: nothing was purchased.
+                        PromoService.MarkUsed(code);
+                        Analytics.Log("promo_redeem", ("success", true));
+                        LogPromoEntered("referral", 0, response.bloggerName);
+                        Toast.Show(Loc.Get("promo_referral_ok"));
+                        ShowPromoPanel(false);
+                        UpdatePromoButton();
                     }
                     else
                     {
