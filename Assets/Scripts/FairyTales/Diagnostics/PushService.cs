@@ -39,6 +39,12 @@ namespace FairyTales.Diagnostics
         private const string UnregisterEndpoint = "/api/push/unregister";
         private const string OpenedEndpoint = "/api/push/opened";
 
+        /// <summary>
+        /// Must stay identical to the channel id the server sends (ticket §5.5) and to
+        /// the manifest's default_notification_channel_id. Three places, one string.
+        /// </summary>
+        private const string ChannelId = "islamstories_default";
+
         private static PushService _i;
         private ApiClient _api;
         private string _token;
@@ -145,6 +151,7 @@ namespace FairyTales.Diagnostics
                 !string.IsNullOrEmpty(PlayerPrefs.GetString("ft_childName", "")));
 
             yield return RequestAndroidPermission(); // Android 13+ POST_NOTIFICATIONS
+            EnsureAndroidChannel();
 
             var dep = FirebaseApp.CheckAndFixDependenciesAsync();
             yield return new WaitUntil(() => dep.IsCompleted);
@@ -184,6 +191,39 @@ namespace FairyTales.Diagnostics
             }
 #else
             yield break;
+#endif
+        }
+
+        /// <summary>
+        /// Creates the notification channel the server addresses its pushes to. Declaring
+        /// the id in the manifest is not enough: on Android 8+ a push aimed at a channel
+        /// that was never created shows no banner at all, and nothing reports an error.
+        /// Creating an existing channel is a no-op, so this runs on every launch.
+        /// </summary>
+        private void EnsureAndroidChannel()
+        {
+#if UNITY_ANDROID && !UNITY_EDITOR
+            try
+            {
+                using var version = new AndroidJavaClass("android.os.Build$VERSION");
+                if (version.GetStatic<int>("SDK_INT") < 26) return; // channels start at Oreo
+
+                using var unity = new AndroidJavaClass("com.unity3d.player.UnityPlayer");
+                using var activity = unity.GetStatic<AndroidJavaObject>("currentActivity");
+                using var manager = activity.Call<AndroidJavaObject>(
+                    "getSystemService", "notification");
+
+                // IMPORTANCE_DEFAULT (3): a banner, no sound override. Importance is fixed
+                // at creation — changing it later needs a new id or a reinstall.
+                using var channel = new AndroidJavaObject(
+                    "android.app.NotificationChannel", ChannelId, Application.productName, 3);
+                manager.Call("createNotificationChannel", channel);
+                Debug.Log($"[Push] notification channel ready: {ChannelId}");
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning($"[Push] channel creation failed: {e.Message}");
+            }
 #endif
         }
 

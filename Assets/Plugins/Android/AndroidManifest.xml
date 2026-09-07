@@ -3,8 +3,11 @@
   <!-- Android 13+ runtime notification permission (CLIENT_TICKET_PUSH §1) -->
   <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
   <application>
-    <!-- FCM default notification channel used when a push has no explicit channel -->
-    <meta-data android:name="com.google.firebase.messaging.default_notification_channel_id" android:value="fairytales_default" />
+    <!-- FCM default notification channel used when a push has no explicit channel.
+             Must match what the server sends (ticket §5.5) AND the channel PushService
+             creates at startup — a channel id that was never created shows no banner
+             at all on Android 8+. -->
+    <meta-data android:name="com.google.firebase.messaging.default_notification_channel_id" android:value="islamstories_default" />
     <!-- Optional: set a white silhouette status-bar icon once one exists in res/drawable,
              e.g. <meta-data android:name="com.google.firebase.messaging.default_notification_icon"
                    android:resource="@drawable/ic_stat_push" />
