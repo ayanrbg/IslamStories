@@ -69,18 +69,9 @@ namespace FairyTales.Api
             return "promo_no_connection";
         }
 
-        // A code is redeemable once per account — the rule lives on the server (409).
-        // This flag only keeps the UI from offering a field that can no longer succeed.
-        private const string UsedKey = "ft_promo_used";
-
-        public static bool WasUsed => !string.IsNullOrEmpty(UsedCode);
-        public static string UsedCode => PlayerPrefs.GetString(UsedKey, "");
-
-        public static void MarkUsed(string code)
-        {
-            PlayerPrefs.SetString(UsedKey, code);
-            PlayerPrefs.Save();
-        }
+        // There is deliberately no local "already redeemed" flag. Whether a code can still
+        // be used is the server's answer (409), and the entry point stays on screen either
+        // way — see PaymentScreen.UpdatePromoButton.
 
         // No "app" field on purpose. Both backends destructure only { code } and then
         // hardcode their own app id ("BALA_STORIES" / "ISLAMIC_TALES") when they call the

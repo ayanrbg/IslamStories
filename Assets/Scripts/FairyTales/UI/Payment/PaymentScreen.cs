@@ -627,14 +627,16 @@ namespace FairyTales.UI.Payment
         }
 
         /// <summary>
-        /// A promo code is redeemable once per account, so a second attempt can only end
-        /// in a 409 — hide the entry point instead of letting the user hit that wall.
-        /// Never hidden for subscribers: paying does not disqualify anyone from a code.
+        /// The entry point is always on screen — on every platform, for subscribers, and
+        /// for someone who already redeemed a code. A code is not only premium: it opens
+        /// individual tales, so a user who spent one still has a reason to come back, and
+        /// a missing button reads as a missing feature. A code the server refuses answers
+        /// with a message in the field instead.
         /// </summary>
         private void UpdatePromoButton()
         {
             if (!btnPromo) return;
-            btnPromo.gameObject.SetActive(!PromoService.WasUsed);
+            btnPromo.gameObject.SetActive(true);
 
             // The icon carries a caption now: the gift popup tells the invited friend to
             // tap a button by this exact name, so it has to follow the app language.
@@ -693,7 +695,6 @@ namespace FairyTales.UI.Payment
                         PlayerPrefs.SetString("ft_premium_source", "promo");
                         PlayerPrefs.Save();
                         IAPManager.Instance.IsSubscribed = true;
-                        PromoService.MarkUsed(code);
                         Analytics.Log("promo_redeem", ("success", true));
                         LogPromoEntered("premium", 0, response.bloggerName);
                         _purchased = true;
@@ -703,7 +704,7 @@ namespace FairyTales.UI.Payment
                     }
                     else if (response.type == "tale")
                     {
-                        OnTalesUnlocked(code, response);
+                        OnTalesUnlocked(response);
                     }
                     else if (response.type == "referral")
                     {
@@ -711,18 +712,15 @@ namespace FairyTales.UI.Payment
                         // here, the tale opens on the INVITER's account. Say thank you and
                         // close the field — otherwise they wait for a book that was never
                         // theirs. The paywall stays open: nothing was purchased.
-                        PromoService.MarkUsed(code);
                         Analytics.Log("promo_redeem", ("success", true));
                         LogPromoEntered("referral", 0, response.bloggerName);
                         Toast.Show(Loc.Get("promo_referral_ok"));
                         ShowPromoPanel(false);
-                        UpdatePromoButton();
                     }
                     else
                     {
                         // "blogger" and anything a future server adds: show what it said
                         // rather than swallowing the answer.
-                        PromoService.MarkUsed(code);
                         Analytics.Log("promo_redeem", ("success", true));
                         LogPromoEntered(response.type, 0, response.bloggerName);
                         var text = response.message ?? response.bloggerName;
@@ -735,16 +733,10 @@ namespace FairyTales.UI.Payment
                     Analytics.Log("promo_redeem", ("success", false));
                     Debug.LogWarning($"[Promo] CheckPromo error: {error}");
 
+                    // 409 means this account already spent its one code. The field stays
+                    // where it is and says so — hiding it would take the whole feature
+                    // off the screen for the sake of one refused attempt.
                     var key = PromoService.ErrorKey(error);
-                    // 409 means this account already spent its one code — stop offering
-                    // the field, the server will refuse every further attempt too. Redraw
-                    // right away: the screen is already open, so waiting for the next
-                    // OnPrepare would let the user walk into the same 409 again.
-                    if (key == "promo_already_used")
-                    {
-                        PromoService.MarkUsed(code);
-                        UpdatePromoButton();
-                    }
                     SetPromoError(Loc.Get(key));
                 }
             ));
@@ -755,10 +747,9 @@ namespace FairyTales.UI.Payment
         /// catalog's `unlocked` flag, so the library must re-read the catalog — otherwise
         /// the tales stay locked on screen until the next cold start.
         /// </summary>
-        private void OnTalesUnlocked(string code, PromoService.PromoCheckResponse response)
+        private void OnTalesUnlocked(PromoService.PromoCheckResponse response)
         {
             var count = response.taleIds?.Length ?? 0;
-            PromoService.MarkUsed(code);
             LogPromoEntered("tale", count, response.bloggerName);
 
             // Our own translation wins: the server's `message` is Russian whatever the
@@ -768,7 +759,6 @@ namespace FairyTales.UI.Payment
                 : response.message ?? Loc.Get("promo_code"));
 
             ShowPromoPanel(false);
-            UpdatePromoButton();
 
             var library = _screens != null ? _screens.Get<Library.LibraryScreen>() : null;
             if (library != null) library.ApplyPromoUnlocks(response.taleIds);
