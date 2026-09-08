@@ -31,5 +31,11 @@ namespace FairyTales
         public const string PrivacyUrl =
             "https://docs.google.com/document/d/1SfqqaObOdnbG0W0ArddX9XUsWhWZt7LjFybnL7t_11o/edit?usp=sharing";
         public const string SupportEmail = "support@fairytales.app";
+
+        // ── Push ────────────────────────────────────────────
+        // Android notification channel. Must match BOTH the server's channel_id and
+        // Assets/Plugins/Android/AndroidManifest.xml — a push aimed at a channel the app
+        // never created shows no banner at all on Android 8+.
+        public const string PushChannelId = "islamstories_default";
     }
 }

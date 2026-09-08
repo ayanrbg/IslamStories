@@ -172,11 +172,10 @@ namespace FairyTales.Cache
         /// <summary>
         /// Drops every cached narrator audio for all tales, so the next play regenerates
         /// it. "narration" is included on purpose: no tale ships pre-recorded audio
-        /// (hasDefaultNarration is false for all 11 and /default-narration is a 404),
-        /// so that folder holds nothing but TTS an older build wrote there — and
-        /// PlayDefaultNarration reads it FIRST, ahead of any voice check. If
-        /// pre-recorded narration ever ships, take that folder back out: the client
-        /// only downloads it while fetching a tale and would not restore it here.
+        /// (hasDefaultNarration is false everywhere and /default-narration is a 404), so
+        /// that folder holds nothing but TTS an older build wrote there. If pre-recorded
+        /// narration ever ships, take that folder back out — the client only downloads it
+        /// while fetching a tale and would not restore it here.
         /// </summary>
         public static void ClearGeneratedNarration()
         {
@@ -203,22 +202,26 @@ namespace FairyTales.Cache
         }
 
         /// <summary>
-        /// Deletes audio written by builds that keyed AI narration by language alone
-        /// (mp3 straight inside .../{lang}/). Those files carry no record of which
-        /// narrator made them, and some of them ARE the male-under-female takes the
-        /// server handed out before 14.08.2026 — there is no way to tell which, so
-        /// they all go. Runs once; new audio lives one folder deeper.
+        /// Deletes every narrator mp3 an older build could have written without
+        /// recording WHICH narrator made it. Two places, both of them landmines:
+        ///
+        ///   ai-narration/{tale}/{lang}/*.mp3  — the old AI layout, keyed by language
+        ///       alone. Some of these ARE the male-under-female takes the server handed
+        ///       out before 14.08.2026; which ones, nobody can tell.
+        ///   narration/{tale}/{lang}/*.mp3     — the TTS fallback of builds that did not
+        ///       send narratorGender at all, so every file here is male. This folder is
+        ///       read FIRST in PlayDefaultNarration, ahead of any voice check, so a
+        ///       leftover here plays male no matter what the user picked. Safe to wipe:
+        ///       no tale ships pre-recorded audio (hasDefaultNarration is false for every
+        ///       tale in both apps, /default-narration is a 404).
+        ///
+        /// Runs once. New audio lives one folder deeper, under a profile tag.
         /// </summary>
         private static void PurgeLegacyAiNarration()
         {
             const string flag = "ft_ai_narration_v2";
             if (PlayerPrefs.GetInt(flag, 0) == 1) return;
 
-            // Two folders, both landmines: ai-narration/{tale}/{lang}/*.mp3 is the old
-            // AI layout (may contain male-under-female takes), and narration/{tale}/
-            // {lang}/*.mp3 is the TTS fallback of builds that never sent narratorGender
-            // — every file there is male, and PlayDefaultNarration reads it FIRST,
-            // ahead of any voice check.
             foreach (var sub in new[] { "ai-narration", "narration" })
             {
                 var root = Path.Combine(Root, sub);
@@ -238,9 +241,7 @@ namespace FairyTales.Cache
         public struct AiNarrationMeta
         {
             public string voice;
-            // False when the run was cut short — the pages present are still valid
-            // and reusable, the book just isn't fully narrated yet.
-            public bool complete;
+            public bool complete; // every page generated
         }
 
         // ── Queries ──────────────────────────────────────────
@@ -442,8 +443,7 @@ namespace FairyTales.Cache
         {
             if (string.IsNullOrEmpty(taleId)) return;
 
-            foreach (var sub in new[] { "illustrations", "tales-text", "narration",
-                         "ai-narration", "tts-narration", "parent-narration" })
+            foreach (var sub in new[] { "illustrations", "tales-text", "narration", "ai-narration", "tts-narration", "parent-narration" })
             {
                 var dir = Path.Combine(Root, sub, taleId);
                 if (Directory.Exists(dir)) Directory.Delete(dir, true);

@@ -41,9 +41,10 @@ namespace FairyTales.Diagnostics
 
         /// <summary>
         /// Must stay identical to the channel id the server sends (ticket §5.5) and to
-        /// the manifest's default_notification_channel_id. Three places, one string.
+        /// the manifest's default_notification_channel_id. Three places, one string —
+        /// and it differs per app, so it lives in AppConfig.
         /// </summary>
-        private const string ChannelId = "islamstories_default";
+        private const string ChannelId = AppConfig.PushChannelId;
 
         private static PushService _i;
         private ApiClient _api;

@@ -35,22 +35,5 @@ namespace FairyTales.UI.Core
         {
             return PlayerPrefs.GetInt("ft_muted", 0) == 1;
         }
-
-        // ── First-read paywall (one-time) ───────────────────────
-
-        private const string FirstPaywallShownKey = "ft_first_paywall_shown";
-
-        /// <summary>
-        /// True until the one-time "first tale finished" subscription offer
-        /// has been shown on this device.
-        /// </summary>
-        public static bool FirstPaywallPending =>
-            PlayerPrefs.GetInt(FirstPaywallShownKey, 0) == 0;
-
-        public static void MarkFirstPaywallShown()
-        {
-            PlayerPrefs.SetInt(FirstPaywallShownKey, 1);
-            PlayerPrefs.Save();
-        }
     }
 }
