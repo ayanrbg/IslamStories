@@ -85,7 +85,7 @@ namespace FairyTales.Editor
             var panelRt = (RectTransform)panel;
             var panelImg = Ensure<Image>(panel.gameObject);
             CopyImage(gatePanel, panelImg);
-            if (layout) Center(panelRt, new Vector2(900f, 1240f));
+            if (layout) Center(panelRt, new Vector2(900f, 1200f));
 
             // Close (top-right corner of the panel)
             var close = FindChild(panel, "BtnClose") ?? NewUI("BtnClose", panel).transform;
@@ -135,28 +135,34 @@ namespace FairyTales.Editor
 
             // Copy and Share sit side by side: copying is for dictating the code, sharing
             // is for forwarding it in a messenger, and most people do the second.
-            var copy = Action(panel, "BtnCopy", promoApply, layout, x: -195f);
-            var copyLabel = Text(copy, "Label", titleFont, titleMat, 46f, Loc.Get("copy"), layout);
+            var copy = Action(panel, "BtnCopy", promoApply, layout, x: -190f);
+            var copyLabel = Text(copy, "Label", titleFont, titleMat, 42f, Loc.Get("copy"), layout);
             if (layout) Stretch(copyLabel.rectTransform);
 
-            var share = Action(panel, "BtnShare", promoApply, layout, x: 195f);
-            var shareLabel = Text(share, "Label", titleFont, titleMat, 46f, Loc.Get("share"), layout);
+            var share = Action(panel, "BtnShare", promoApply, layout, x: 190f);
+            var shareLabel = Text(share, "Label", titleFont, titleMat, 42f, Loc.Get("share"), layout);
             if (layout) Stretch(shareLabel.rectTransform);
 
-            // Same row, centred: it replaces the pair when there is no code to act on.
+            // Occupies the SAME row as the pair above, so it must never be visible at the
+            // same time as them — GiftPopup swaps between the two states. Authored off, or
+            // the scene shows three buttons stacked on top of each other.
             var retry = Action(panel, "BtnRetry", promoApply, layout, x: 0f);
-            var retryLabel = Text(retry, "Label", titleFont, titleMat, 46f, Loc.Get("retry"), layout);
+            var retryLabel = Text(retry, "Label", titleFont, titleMat, 42f, Loc.Get("retry"), layout);
             if (layout) Stretch(retryLabel.rectTransform);
+            retry.gameObject.SetActive(false);
 
             // Counters. Two numbers that legitimately disagree, plus a neutral note shown
-            // only when they do — see GiftPopup.SetCounters.
-            var counters = Text(panel, "Counters", titleFont, titleMat, 38f,
+            // only when they do — see GiftPopup.SetCounters. Both are authored off: they
+            // hold no meaningful value until the server answers.
+            var counters = Text(panel, "Counters", titleFont, titleMat, 36f,
                 Loc.Format("gift_counters", 0, 0), layout);
-            if (layout) TopStretch(counters.rectTransform, top: 990f, height: 110f, margin: 60f);
+            if (layout) TopStretch(counters.rectTransform, top: 960f, height: 100f, margin: 60f);
+            counters.gameObject.SetActive(false);
 
-            var countersNote = Text(panel, "CountersNote", titleFont, titleMat, 30f,
+            var countersNote = Text(panel, "CountersNote", titleFont, titleMat, 28f,
                 Loc.Get("gift_counters_note"), layout);
-            if (layout) TopStretch(countersNote.rectTransform, top: 1110f, height: 70f, margin: 60f);
+            if (layout) TopStretch(countersNote.rectTransform, top: 1070f, height: 60f, margin: 60f);
+            countersNote.gameObject.SetActive(false);
 
             var so = new SerializedObject(popup);
             so.FindProperty("canvasGroup").objectReferenceValue = cg;
@@ -338,8 +344,10 @@ namespace FairyTales.Editor
                 var rt = (RectTransform)t;
                 rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 1f);
                 rt.pivot = new Vector2(0.5f, 1f);
-                rt.sizeDelta = new Vector2(370f, 130f);
-                rt.anchoredPosition = new Vector2(x, -830f);
+                // 360 wide at x = ±190 leaves a 20 px gap between the pair and 80 px to
+                // the panel edge. Anything wider makes the two overlap each other.
+                rt.sizeDelta = new Vector2(360f, 130f);
+                rt.anchoredPosition = new Vector2(x, -800f);
             }
             return t;
         }
