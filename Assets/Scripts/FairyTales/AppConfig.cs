@@ -8,6 +8,24 @@ namespace FairyTales
     ///
     /// Adding a brand-specific literal anywhere else re-forks the codebase; put it
     /// here instead.
+    ///
+    /// SANCTIONED EXCEPTIONS (owner's decision, 2026-09-08). Four files are allowed to
+    /// stay different and must NOT be "aligned" by copying either way:
+    ///
+    ///   IAP/IAPManager.cs, UI/Payment/PaymentScreen.cs, Editor/PaymentSetup.cs,
+    ///   and the paywall keys in UI/Core/Loc.cs
+    ///     (trial_note, auto_renew_ios, auto_renew_android, iap_unavailable, retry).
+    ///
+    /// Islam Stories went through App Store rejections that Bala never did, so its
+    /// versions carry things Bala has no equivalent for: the Guideline 3.1.2(c) trial
+    /// and auto-renew disclosures, the store-unavailable strip with a retry, and the
+    /// stalled-purchase watchdog. Above all it maps store product ids through
+    /// StoreSpecificIds — without that, this app asks App Store Connect for
+    /// "fairytales_monthly", which does not exist under com.mozz.islamStories, and iOS
+    /// purchases stop working entirely.
+    ///
+    /// The parental gate is NOT one of the differences: both apps have it, Bala on the
+    /// purchase and restore buttons, Islam Stories on the door to the paywall.
     /// </summary>
     public static class AppConfig
     {
