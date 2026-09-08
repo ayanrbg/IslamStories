@@ -91,8 +91,15 @@ Terms ведут на Google Docs старого проекта. Заменит�
 
 ## 9. Ассеты и контент
 
-Сказки-контент грузятся с бэкенда; в `Assets/StreamingAssets/BundledTales` лежит бандл `golden_egg`.
+Сказки-контент грузятся с бэкенда; в `Assets/StreamingAssets/BundledTales` лежит бандл `komar`
+(бесплатная сказка, читается офлайн до первого скачивания), обложка — `Resources/Covers/komar.png`.
 Если у нового продукта другой каталог — обнови bundled-манифест и Resources/Covers.
+
+`tale_{lang}.json` в бандле должны содержать `totalPages` и `genderedPages`: сервер считает их
+на лету (`routes/tales.js`), а до бандла он не дотягивается. `genderedPages` бери из имён файлов
+иллюстраций (`page_N_boy/_girl`), а не из маркеров `{m:|f:}` в тексте — иначе наборы ru и kz
+разъедутся и слайды не привяжутся (см. `AI/CLIENT_TICKET_KZ_BUNDLE_SLIDES.md`).
+Id бандла обязан совпадать с `BUNDLED_TALES` в `services/talesService.js` на бэкенде.
 
 ---
 
