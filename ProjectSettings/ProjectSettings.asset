@@ -267,7 +267,7 @@ PlayerSettings:
   useCustomBaseGradleTemplate: 0
   useCustomGradlePropertiesTemplate: 1
   useCustomGradleSettingsTemplate: 1
-  useCustomProguardFile: 0
+  useCustomProguardFile: 1
   AndroidTargetArchitectures: 2
   AndroidAllowedArchitectures: -13
   AndroidSplashScreenScale: 0
@@ -291,7 +291,7 @@ PlayerSettings:
     height: 180
     banner: {fileID: 0}
   androidGamepadSupportLevel: 0
-  AndroidMinifyRelease: 0
+  AndroidMinifyRelease: 1
   AndroidMinifyDebug: 0
   AndroidValidateAppBundleSize: 1
   AndroidAppBundleSizeToValidate: 150
@@ -841,25 +841,24 @@ PlayerSettings:
   webWasm2023: 0
   webEnableSubmoduleStrippingCompatibility: 0
   scriptingDefineSymbols:
-    Android: DOTWEEN;DOTWEEN_NOPHYSICS;FT_FIREBASE;FT_FCM;UNITY_MCP_READY
-    EmbeddedLinux: DOTWEEN;DOTWEEN_NOPHYSICS;UNITY_MCP_READY
-    GameCoreScarlett: DOTWEEN;DOTWEEN_NOPHYSICS;UNITY_MCP_READY
-    GameCoreXboxOne: DOTWEEN;DOTWEEN_NOPHYSICS;UNITY_MCP_READY
-    Kepler: DOTWEEN;DOTWEEN_NOPHYSICS;UNITY_MCP_READY
-    LinuxHeadlessSimulation: DOTWEEN;DOTWEEN_NOPHYSICS;UNITY_MCP_READY
-    Nintendo Switch: DOTWEEN;DOTWEEN_NOPHYSICS;UNITY_MCP_READY
-    Nintendo Switch 2: DOTWEEN;DOTWEEN_NOPHYSICS;UNITY_MCP_READY
-    PS4: DOTWEEN;DOTWEEN_NOPHYSICS;UNITY_MCP_READY
-    PS5: DOTWEEN;DOTWEEN_NOPHYSICS;UNITY_MCP_READY
-    QNX: DOTWEEN;DOTWEEN_NOPHYSICS;UNITY_MCP_READY
-    Server: UNITY_MCP_READY
-    Standalone: DOTWEEN;DOTWEEN_NOPHYSICS;FT_FIREBASE;UNITY_MCP_READY
-    VisionOS: DOTWEEN;DOTWEEN_NOPHYSICS;UNITY_MCP_READY
-    WebGL: DOTWEEN;DOTWEEN_NOPHYSICS;UNITY_MCP_READY
-    Windows Store Apps: DOTWEEN;DOTWEEN_NOPHYSICS;UNITY_MCP_READY
-    XboxOne: DOTWEEN;DOTWEEN_NOPHYSICS;UNITY_MCP_READY
-    iPhone: DOTWEEN;DOTWEEN_NOPHYSICS;FT_FIREBASE;FT_FCM;UNITY_MCP_READY
-    tvOS: DOTWEEN;DOTWEEN_NOPHYSICS;UNITY_MCP_READY
+    Android: DOTWEEN;DOTWEEN_NOPHYSICS;FT_FIREBASE;FT_FCM
+    EmbeddedLinux: DOTWEEN;DOTWEEN_NOPHYSICS
+    GameCoreScarlett: DOTWEEN;DOTWEEN_NOPHYSICS
+    GameCoreXboxOne: DOTWEEN;DOTWEEN_NOPHYSICS
+    Kepler: DOTWEEN;DOTWEEN_NOPHYSICS
+    LinuxHeadlessSimulation: DOTWEEN;DOTWEEN_NOPHYSICS
+    Nintendo Switch: DOTWEEN;DOTWEEN_NOPHYSICS
+    Nintendo Switch 2: DOTWEEN;DOTWEEN_NOPHYSICS
+    PS4: DOTWEEN;DOTWEEN_NOPHYSICS
+    PS5: DOTWEEN;DOTWEEN_NOPHYSICS
+    QNX: DOTWEEN;DOTWEEN_NOPHYSICS
+    Standalone: DOTWEEN;DOTWEEN_NOPHYSICS;FT_FIREBASE
+    VisionOS: DOTWEEN;DOTWEEN_NOPHYSICS
+    WebGL: DOTWEEN;DOTWEEN_NOPHYSICS
+    Windows Store Apps: DOTWEEN;DOTWEEN_NOPHYSICS
+    XboxOne: DOTWEEN;DOTWEEN_NOPHYSICS
+    iPhone: DOTWEEN;DOTWEEN_NOPHYSICS;FT_FIREBASE;FT_FCM
+    tvOS: DOTWEEN;DOTWEEN_NOPHYSICS
   additionalCompilerArguments: {}
   platformArchitecture: {}
   scriptingBackend:
