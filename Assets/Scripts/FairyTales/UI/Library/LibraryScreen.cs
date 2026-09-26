@@ -28,8 +28,14 @@ namespace FairyTales.UI.Library
         [SerializeField] private GameObject selectionBtnMusicOff;
         [SerializeField] private GameObject selectionBtnMusicOn;
         [SerializeField] private BackgroundMusicManager backgroundMusicManager;
-        
+
+        [Header("\"A story for <name>\" header")]
+        [SerializeField] private GameObject forChildHeader;
+        [SerializeField] private TMP_Text txtForChildTitle;
+        [SerializeField] private TMP_Text txtForChildSubtitle;
+
         private readonly List<TaleCard> _cardPool = new();
+        private readonly Dictionary<string, int> _catalogOrder = new();
         private TextMeshProUGUI _unlockLabel;
 
         private ScreenManager _screens;
@@ -75,6 +81,7 @@ namespace FairyTales.UI.Library
             selectionBtnMusicOff.SetActive(backgroundMusicManager.IsMuted);
             selectionBtnMusicOn.SetActive(!backgroundMusicManager.IsMuted);
             UpdateUnlockButton();
+            UpdateForChildHeader();
 
             // Invalidate cache if language changed since last load.
             var currentLang = PlayerPrefs.GetString("ft_lang", "ru");
@@ -201,6 +208,10 @@ namespace FairyTales.UI.Library
             }
 
             if (_loadedTales == null) yield break;
+
+            // A fresh catalog (server or bundled) sets the order; the kept one already has it.
+            if (!ReferenceEquals(_loadedTales, previous))
+                RememberCatalogOrder(_loadedTales);
 
             _loadedLang = lang;
             BuildGrid();
@@ -373,14 +384,29 @@ namespace FairyTales.UI.Library
             UpdateUnlockButton();
         }
 
-        // Sort: accessible+downloaded → accessible+not-downloaded → locked
+        /// <summary>
+        /// Order within a group is the catalog's own, remembered here because
+        /// <see cref="_loadedTales"/> is sorted in place. Without it ties came back in
+        /// whatever order the previous sort left them, and Array.Sort is not stable.
+        /// </summary>
+        private void RememberCatalogOrder(TaleSummary[] tales)
+        {
+            _catalogOrder.Clear();
+            for (int i = 0; i < tales.Length; i++)
+                if (tales[i] != null) _catalogOrder[tales[i].id] = i;
+        }
+
+        private int CatalogIndex(TaleSummary tale) =>
+            _catalogOrder.TryGetValue(tale.id, out var i) ? i : int.MaxValue;
+
+        // Access group first, then catalog order — see SortGroup.
         private void SortLoadedTales(bool subscribed)
         {
             Array.Sort(_loadedTales, (a, b) =>
             {
                 int ga = SortGroup(a, subscribed);
                 int gb = SortGroup(b, subscribed);
-                return ga != gb ? ga.CompareTo(gb) : 0;
+                return ga != gb ? ga.CompareTo(gb) : CatalogIndex(a).CompareTo(CatalogIndex(b));
             });
         }
 
@@ -406,14 +432,17 @@ namespace FairyTales.UI.Library
             card.Init(tale, locked, downloaded, _api, OnCardClick);
         }
 
-        // Sort order: downloaded → ready-to-download → gift → locked → coming-soon (last).
+        // Sort order: open → gift → locked → coming-soon (last).
+        // Deliberately by access only, never by download state: downloading a tale used
+        // to lift it to the top on the next rebuild, and the grid visibly reshuffled
+        // under the reader. Access changes only on a purchase or a promo code.
         // Gift tales sit above the plain locked ones: they are the one locked group the
         // user can actually do something about, so the badge has to be reachable.
         private static int SortGroup(TaleSummary tale, bool subscribed)
         {
-            if (tale.comingSoon) return 4;
-            if (tale.IsLocked(subscribed)) return tale.gift ? 2 : 3;
-            return AssetCache.IsTaleDownloaded(tale.id) ? 0 : 1;
+            if (tale.comingSoon) return 3;
+            if (tale.IsLocked(subscribed)) return tale.gift ? 1 : 2;
+            return 0;
         }
 
         /// <summary>Call when name/gender changes to force reload on next show.</summary>
@@ -485,6 +514,28 @@ namespace FairyTales.UI.Library
                 var subject = Uri.EscapeDataString(Loc.Get("email_subject"));
                 Application.OpenURL($"mailto:{email}?subject={subject}");
             });
+        }
+
+        /// <summary>
+        /// "История для Амира / Подобрано специально для него" — the name is declined for
+        /// the phrase and the subtitle follows the child's gender. Hidden without a name.
+        /// </summary>
+        private void UpdateForChildHeader()
+        {
+            var childName = PlayerPrefs.GetString("ft_childName", "").Trim();
+            var gender = PlayerPrefs.GetString("ft_gender", "male");
+            var hasName = !string.IsNullOrEmpty(childName);
+
+            if (forChildHeader) forChildHeader.SetActive(hasName);
+            if (!hasName) return;
+
+            if (txtForChildTitle)
+                txtForChildTitle.text = Loc.Format("library_for_child",
+                    ChildNameForms.ForDedication(childName, gender, Loc.Lang));
+            if (txtForChildSubtitle)
+                txtForChildSubtitle.text = Loc.Get(gender == "female"
+                    ? "library_for_child_sub_female"
+                    : "library_for_child_sub_male");
         }
 
         private void UpdateUnlockButton()

@@ -152,7 +152,9 @@ namespace FairyTales.UI.Onboarding
 
             btnContinue.interactable = true;
 
-            if (PlayerPrefs.GetInt("ft_onboarded", 0) == 0)
+            // First run shows the formats intro before the download/library.
+            var firstRun = PlayerPrefs.GetInt("ft_onboarded", 0) == 0;
+            if (firstRun)
             {
                 PlayerPrefs.SetInt("ft_onboarded", 1);
                 PlayerPrefs.Save();
@@ -166,13 +168,24 @@ namespace FairyTales.UI.Onboarding
                 if (download != null)
                 {
                     download.SetTales(tales);
-                    FadeOutAndNavigate(() => _screens.Show<DownloadScreen>());
+                    NavigateAfterProfile(typeof(DownloadScreen), firstRun);
                     yield break;
                 }
             }
 
             _screens.Get<LibraryScreen>()?.MarkNeedsRefresh();
-            FadeOutAndNavigate(() => _screens.Show<LibraryScreen>());
+            NavigateAfterProfile(typeof(LibraryScreen), firstRun);
+        }
+
+        private void NavigateAfterProfile(Type next, bool firstRun)
+        {
+            var formats = firstRun ? _screens.Get<OnboardingFormatsScreen>() : null;
+            if (formats != null)
+            {
+                formats.SetNext(next);
+                next = typeof(OnboardingFormatsScreen);
+            }
+            FadeOutAndNavigate(() => _screens.Show(next));
         }
 
         private void FadeOutAndNavigate(Action navigate)

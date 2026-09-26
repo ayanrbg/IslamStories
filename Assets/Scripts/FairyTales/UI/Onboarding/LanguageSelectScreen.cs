@@ -101,12 +101,24 @@ namespace FairyTales.UI.Onboarding
             if (background)
             {
                 background.DOFade(0f, bgFadeDuration).SetEase(Ease.InQuad)
-                    .OnComplete(() => _screens.Show<PersonalizationScreen>());
+                    .OnComplete(ShowNext);
             }
             else
             {
-                _screens.Show<PersonalizationScreen>();
+                ShowNext();
             }
+        }
+
+        /// <summary>
+        /// First run goes through the intro page before the profile; changing the
+        /// language later (from the profile screen) goes straight back to the profile.
+        /// </summary>
+        private void ShowNext()
+        {
+            if (PlayerPrefs.GetInt("ft_onboarded", 0) == 0 && _screens.Get<OnboardingValuesScreen>() != null)
+                _screens.Show<OnboardingValuesScreen>();
+            else
+                _screens.Show<PersonalizationScreen>();
         }
 
         private void OnMusicToggle()

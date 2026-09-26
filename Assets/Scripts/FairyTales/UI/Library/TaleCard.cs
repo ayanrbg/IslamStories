@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using DG.Tweening;
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
@@ -36,6 +37,9 @@ namespace FairyTales.UI.Library
         [SerializeField] private TMP_Text sizeText;
         [SerializeField] private TMP_Text progressText;
 
+        [Header("Appear")]
+        [SerializeField] private float appearDuration = 0.4f;
+
         private TaleSummary _tale;
         private Action<TaleSummary> _onClick;
         private ApiClient _api;
@@ -46,6 +50,10 @@ namespace FairyTales.UI.Library
         private bool _isComingSoon;
         private bool _isGift;
         private Coroutine _downloadCoroutine;
+        private Coroutine _coverCoroutine;
+        private CanvasGroup _group;
+        private Tween _appearTween;
+        private bool _appeared;
 
         public bool IsDownloaded => _isDownloaded;
 
@@ -53,6 +61,12 @@ namespace FairyTales.UI.Library
             ApiClient api, Action<TaleSummary> onClick)
         {
             CancelDownload();
+
+            // The same tale re-initialised in place (the grid is rebuilt every time the
+            // library is shown) keeps its card on screen; a new tale in this slot
+            // starts hidden and fades in once its cover is ready.
+            bool sameTale = _appeared && _tale != null && _tale.id == tale.id;
+            if (!sameTale) Conceal();
 
             _tale = tale;
             _onClick = onClick;
@@ -70,21 +84,62 @@ namespace FairyTales.UI.Library
             if (button) button.onClick.RemoveAllListeners();
             if (titleText) titleText.text = tale.GetTitle(Loc.Lang);
 
+            if (_coverCoroutine != null)
+            {
+                StopCoroutine(_coverCoroutine);
+                _coverCoroutine = null;
+            }
+
             var cached = CoverProvider.GetCached(tale.id);
             if (cached != null)
             {
                 if (coverImage) coverImage.sprite = cached;
+                Appear();
             }
             else
             {
-                StartCoroutine(CoverProvider.GetAsync(tale.id, s =>
+                // Cards whose cover is still on its way (disk, or the server for tales
+                // not downloaded yet) stay hidden and come in one by one as they land.
+                var id = tale.id;
+                _coverCoroutine = StartCoroutine(CoverProvider.GetAsync(id, s =>
                 {
+                    _coverCoroutine = null;
+                    if (_tale == null || _tale.id != id) return;
                     if (s != null && coverImage) coverImage.sprite = s;
+                    Appear();
                 }, _api));
             }
 
             if (button) button.onClick.AddListener(OnClick);
             UpdateOverlay();
+        }
+
+        private CanvasGroup Group
+        {
+            get
+            {
+                if (!_group) _group = GetComponent<CanvasGroup>();
+                if (!_group) _group = gameObject.AddComponent<CanvasGroup>();
+                return _group;
+            }
+        }
+
+        /// <summary>Hide the card and keep it from taking taps until it has appeared.</summary>
+        private void Conceal()
+        {
+            _appearTween?.Kill();
+            _appeared = false;
+            Group.alpha = 0f;
+            Group.blocksRaycasts = false;
+        }
+
+        private void Appear()
+        {
+            if (_appeared) return;
+            _appeared = true;
+            Group.blocksRaycasts = true;
+            _appearTween?.Kill();
+            _appearTween = Group.DOFade(1f, appearDuration).SetEase(Ease.OutQuad).SetLink(gameObject);
         }
 
         /// <summary>

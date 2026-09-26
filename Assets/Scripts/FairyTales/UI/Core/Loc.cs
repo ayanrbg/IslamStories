@@ -38,7 +38,7 @@ namespace FairyTales.UI.Core
             ["boy"] = new() { ["ru"] = "Мальчик", ["kz"] = "Ұл бала", ["en"] = "Boy", ["uz"] = "Bola" },
             ["girl"] = new() { ["ru"] = "Девочка", ["kz"] = "Қыз бала", ["en"] = "Girl", ["uz"] = "Qiz" },
             ["child_name"] = new() { ["ru"] = "Имя ребёнка", ["kz"] = "Баланың аты", ["en"] = "Child's name", ["uz"] = "Bola ismi" },
-            ["unlock_all"] = new() { ["ru"] = "Разблокировать все", ["kz"] = "Барлығын ашу", ["en"] = "Unlock all", ["uz"] = "Hammasini ochish" },
+            ["unlock_all"] = new() { ["ru"] = "Открыть все истории", ["kz"] = "Барлық оқиғаларды ашу", ["en"] = "Unlock All Stories", ["uz"] = "Barcha hikoyalarni ochish" },
             ["premium_active_until"] = new() { ["ru"] = "Активно до {0}", ["kz"] = "{0} дейін жарамды", ["en"] = "Active until {0}", ["uz"] = "{0} gacha faol" },
             ["premium_active"] = new() { ["ru"] = "Премиум активен", ["kz"] = "Премиум жарамды", ["en"] = "Premium active", ["uz"] = "Premium faol" },
             ["pages"] = new() { ["ru"] = "стр.", ["kz"] = "бет", ["en"] = "pages", ["uz"] = "bet" },
@@ -132,14 +132,28 @@ namespace FairyTales.UI.Core
             ["gift_title"] = new() { ["ru"] = "Получите книгу бесплатно!", ["kz"] = "Кітапты тегін алыңыз!", ["en"] = "Get this book for free!", ["uz"] = "Kitobni bepul oling!" },
             // {0} = the "unlock all" button, {1} = the promo button. Substituted from their
             // own Loc keys so the quoted names always match what the friend actually sees.
-            // <nobr> keeps a button name on one line: "«Разблокировать / все»" split across
+            // <nobr> keeps a button name on one line: "«Открыть все / истории»" split across
             // two lines reads as two different buttons.
-            ["gift_instruction"] = new() { ["ru"] = "Пригласите друга и отправьте ему ваш промокод.\nДругу нужно открыть <b><nobr>«{0}»</nobr></b> и нажать <b><nobr>«{1}»</nobr></b> в правом верхнем углу.", ["kz"] = "Досыңызды шақырып, оған промокодыңызды жіберіңіз.\nДосыңыз <b><nobr>«{0}»</nobr></b> бөлімін ашып, оң жақ жоғарғы бұрыштағы <b><nobr>«{1}»</nobr></b> түймесін басуы керек.", ["en"] = "Invite a friend and send them your promo code.\nThey need to open <b><nobr>\"{0}\"</nobr></b> and tap <b><nobr>\"{1}\"</nobr></b> in the top right corner.", ["uz"] = "Do'stingizni taklif qiling va unga promokodingizni yuboring.\nDo'stingiz <b><nobr>\"{0}\"</nobr></b> ni ochib, o'ng yuqori burchakdagi <b><nobr>\"{1}\"</nobr></b> tugmasini bosishi kerak." },
+            ["gift_instruction"] = new() { ["ru"] = "Пригласите друга и отправьте ему ваш промокод.\nДругу нужно нажать <b><nobr>«{0}»</nobr></b>, а затем <b><nobr>«{1}»</nobr></b> в правом верхнем углу.", ["kz"] = "Досыңызды шақырып, оған промокодыңызды жіберіңіз.\nДосыңыз <b><nobr>«{0}»</nobr></b> түймесін, содан кейін оң жақ жоғарғы бұрыштағы <b><nobr>«{1}»</nobr></b> түймесін басуы керек.", ["en"] = "Invite a friend and send them your promo code.\nThey need to tap <b><nobr>\"{0}\"</nobr></b>, then <b><nobr>\"{1}\"</nobr></b> in the top right corner.", ["uz"] = "Do'stingizni taklif qiling va unga promokodingizni yuboring.\nDo'stingiz <b><nobr>\"{0}\"</nobr></b> ni ochib, o'ng yuqori burchakdagi <b><nobr>\"{1}\"</nobr></b> tugmasini bosishi kerak." },
             ["gift_your_code"] = new() { ["ru"] = "Ваш промокод", ["kz"] = "Сіздің промокодыңыз", ["en"] = "Your promo code", ["uz"] = "Sizning promokodingiz" },
             ["copy"] = new() { ["ru"] = "Копировать", ["kz"] = "Көшіру", ["en"] = "Copy", ["uz"] = "Nusxalash" },
             ["gift_code_copied"] = new() { ["ru"] = "Промокод скопирован", ["kz"] = "Промокод көшірілді", ["en"] = "Promo code copied", ["uz"] = "Promokod nusxalandi" },
             ["gift_code_error"] = new() { ["ru"] = "Код недоступен", ["kz"] = "Код қолжетімсіз", ["en"] = "Code unavailable", ["uz"] = "Kod mavjud emas" },
             ["gift_earned"] = new() { ["ru"] = "Друг ввёл ваш промокод — книга открыта!", ["kz"] = "Досыңыз промокодыңызды енгізді — кітап ашылды!", ["en"] = "A friend entered your promo code — the book is yours!", ["uz"] = "Do'stingiz promokodingizni kiritdi — kitob ochildi!" },
+            // First-run intro screens, shown around the profile step. The highlighted words
+            // travel inside the translation, as in paywall_headline.
+            ["intro_values_title"] = new() { ["ru"] = "Помогите ребёнку стать ближе <color=#FFC93C>к Аллаху</color>", ["kz"] = "Балаңызға <color=#FFC93C>Аллаһқа</color> жақындауға көмектесіңіз", ["en"] = "Help your child grow closer <color=#FFC93C>to Allah</color>", ["uz"] = "Farzandingizga <color=#FFC93C>Allohga</color> yaqinlashishga yordam bering" },
+            ["intro_values_sub"] = new() { ["ru"] = "Через добрые исламские истории мы помогаем детям\nрасти с верой и правильными ценностями", ["kz"] = "Мейірімді исламдық оқиғалар арқылы балалардың\nиманмен және дұрыс құндылықтармен өсуіне көмектесеміз", ["en"] = "Through kind Islamic stories we help children\ngrow up with faith and good values", ["uz"] = "Mehrli islomiy hikoyalar orqali bolalarga\niymon va to'g'ri qadriyatlar bilan ulg'ayishga yordam beramiz" },
+            ["intro_values_quote"] = new() { ["ru"] = "«Вели своей семье совершать молитву и будь терпелив в ней».", ["kz"] = "«Отбасыңа намаз оқуды бұйыр және оған сабырлы бол».", ["en"] = "“Enjoin prayer upon your family and be steadfast therein.”", ["uz"] = "«Ahlingizni namozga buyuring va unga sabrli bo'ling»." },
+            ["intro_values_quote_source"] = new() { ["ru"] = "Коран 20:132", ["kz"] = "Құран 20:132", ["en"] = "Quran 20:132", ["uz"] = "Qur'on 20:132" },
+            ["intro_formats_title"] = new() { ["ru"] = "Читайте или слушайте — как\nудобно вашей <color=#FFC93C>семье</color>", ["kz"] = "Оқыңыз немесе тыңдаңыз —\n<color=#FFC93C>отбасыңызға</color> ыңғайлы түрде", ["en"] = "Read or listen — whatever\nsuits your <color=#FFC93C>family</color>", ["uz"] = "O'qing yoki tinglang —\n<color=#FFC93C>oilangizga</color> qanday qulay bo'lsa" },
+            ["intro_formats_card_title"] = new() { ["ru"] = "4 удобных формата", ["kz"] = "4 ыңғайлы формат", ["en"] = "4 easy formats", ["uz"] = "4 ta qulay format" },
+            ["intro_formats_card_sub"] = new() { ["ru"] = "Чтение · Ваш голос · Диктор · Персональная озвучка", ["kz"] = "Оқу · Сіздің дауысыңыз · Диктор · Жеке дыбыстау", ["en"] = "Reading · Your voice · Narrator · Personal narration", ["uz"] = "O'qish · Sizning ovozingiz · Diktor · Shaxsiy ovozlash" },
+            // Library header. {0} is the child's name already put into the case the phrase
+            // needs (ChildNameForms): genitive in Russian, dative in Kazakh.
+            ["library_for_child"] = new() { ["ru"] = "История для {0}", ["kz"] = "{0} арналған оқиға", ["en"] = "A Story for {0}", ["uz"] = "{0} uchun hikoya" },
+            ["library_for_child_sub_male"] = new() { ["ru"] = "Подобрано специально для него", ["kz"] = "Ол үшін арнайы таңдалды", ["en"] = "Picked especially for him", ["uz"] = "Aynan u uchun tanlandi" },
+            ["library_for_child_sub_female"] = new() { ["ru"] = "Подобрано специально для неё", ["kz"] = "Ол үшін арнайы таңдалды", ["en"] = "Picked especially for her", ["uz"] = "Aynan u uchun tanlandi" },
         };
 
         /// <summary>All supported app languages — used to download every translation.</summary>
