@@ -257,7 +257,22 @@ namespace FairyTales.Cache
         public static bool IsCoverDownloaded(string taleId)
             => Exists(CoverKey(taleId)) || HasResourceCover(taleId);
 
+        // The library asks this for every card each time it is shown, and each answer was
+        // a file read plus up to three existence checks on the main thread. Only
+        // MarkTaleReady, DeleteTale and ClearAll change it, and they drop the entry.
+        private static readonly Dictionary<string, bool> DownloadedMemo = new();
+
         public static bool IsTaleDownloaded(string taleId)
+        {
+            if (DownloadedMemo.TryGetValue(taleId, out var known)) return known;
+            var downloaded = CheckTaleDownloaded(taleId);
+            // Before the bundled set has loaded, a bundled tale reads as not downloaded —
+            // an answer that must not be kept.
+            if (downloaded || BundledTaleLoader.IsReady) DownloadedMemo[taleId] = downloaded;
+            return downloaded;
+        }
+
+        private static bool CheckTaleDownloaded(string taleId)
         {
             // Available in bundled Resources — no download needed
             if (HasResourceIllustrations(taleId))
@@ -292,7 +307,10 @@ namespace FairyTales.Cache
         }
 
         public static void MarkTaleReady(string taleId)
-            => Save(TaleReadyKey(taleId), new byte[] { IllustrationsVersion });
+        {
+            Save(TaleReadyKey(taleId), new byte[] { IllustrationsVersion });
+            DownloadedMemo.Remove(taleId);
+        }
 
         // ── Read / Write ─────────────────────────────────────
         public static void Save(string key, byte[] data)
@@ -370,8 +388,11 @@ namespace FairyTales.Cache
             return File.Exists(path) && new FileInfo(path).Length >= 512;
         }
 
-        /// <summary>Async sprite load via UnityWebRequest (file I/O off main thread).</summary>
-        public static IEnumerator LoadSpriteAsync(string key, Action<Sprite> cb)
+        /// <summary>Async sprite load via UnityWebRequest (file I/O off main thread).
+        /// <paramref name="cache"/> false leaves the sprite to the caller: illustrations
+        /// are owned by IllustrationProvider, which frees them — a second reference here
+        /// would keep every page ever read in memory.</summary>
+        public static IEnumerator LoadSpriteAsync(string key, Action<Sprite> cb, bool cache = true)
         {
             if (SpriteCache.TryGetValue(key, out var cached) && cached != null)
             {
@@ -401,7 +422,7 @@ namespace FairyTales.Cache
                 new Rect(0, 0, tex.width, tex.height),
                 new Vector2(0.5f, 0.5f),
                 100f, 0, SpriteMeshType.FullRect);
-            SpriteCache[key] = sprite;
+            if (cache) SpriteCache[key] = sprite;
             cb?.Invoke(sprite);
         }
 
@@ -450,6 +471,7 @@ namespace FairyTales.Cache
             }
             Delete(CoverKey(taleId));
             Delete(TaleReadyKey(taleId));
+            DownloadedMemo.Remove(taleId);
 
             // Drop any in-memory sprites belonging to this tale.
             var coverKey = CoverKey(taleId);
@@ -477,6 +499,7 @@ namespace FairyTales.Cache
         public static void ClearAll()
         {
             ClearSpriteCache();
+            DownloadedMemo.Clear();
             if (Directory.Exists(Root))
                 Directory.Delete(Root, true);
         }

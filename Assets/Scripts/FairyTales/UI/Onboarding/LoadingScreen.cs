@@ -95,9 +95,12 @@ namespace FairyTales.UI.Onboarding
 
                     if (BundledTaleLoader.IsBundled(tales[i].id)) continue;
 
+                    // Without lang the server personalizes its own default language, so
+                    // this warm-up filled the cache with Russian for every user.
                     yield return _tales.Personalize(tales[i].id, childName, gender,
                         onSuccess: _ => { },
-                        onError: e => { } /* RELEASE: Debug.LogWarning($"[Loading] Personalize {tales[i].id}: {e}") */);
+                        onError: e => { } /* RELEASE: Debug.LogWarning($"[Loading] Personalize {tales[i].id}: {e}") */,
+                        lang: lang);
                 }
             }
 

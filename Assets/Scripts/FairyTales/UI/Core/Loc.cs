@@ -72,8 +72,8 @@ namespace FairyTales.UI.Core
             ["drafts_limit"] = new() { ["ru"] = "Максимум 3 черновика", ["kz"] = "Ең көбі 3 жоба", ["en"] = "Maximum 3 drafts", ["uz"] = "Maksimum 3 ta qoralama" },
             ["download.tales"] = new() { ["ru"] = "Загрузка сказок", ["kz"] = "Ертегілер жүктелуде", ["en"] = "Downloading tales", ["uz"] = "Ertaklar yuklanmoqda" },
             ["download.narration"] = new() { ["ru"] = "Загружаем озвучку...", ["kz"] = "Дыбыстау жүктелуде...", ["en"] = "Downloading narration...", ["uz"] = "Ovoz yuklanmoqda..." },
-            ["per_month"] = new() { ["ru"] = "мес", ["kz"] = "ай", ["en"] = "mo", ["uz"] = "oy" },
-            ["per_year"] = new() { ["ru"] = "год", ["kz"] = "жыл", ["en"] = "yr", ["uz"] = "yil" },
+            ["per_month"] = new() { ["ru"] = "месяц", ["kz"] = "ай", ["en"] = "month", ["uz"] = "oy" },
+            ["per_year"] = new() { ["ru"] = "год", ["kz"] = "жыл", ["en"] = "year", ["uz"] = "yil" },
             ["start_trial"] = new() { ["ru"] = "Попробовать бесплатно", ["kz"] = "Тегін байқап көру", ["en"] = "Try for free", ["uz"] = "Bepul sinab ko'rish" },
             ["subscribe"] = new() { ["ru"] = "Подписаться", ["kz"] = "Жазылу", ["en"] = "Subscribe", ["uz"] = "Obuna bo'lish" },
             // Guideline 3.1.2(c): the billed amount must stay the most prominent pricing
@@ -81,6 +81,26 @@ namespace FairyTales.UI.Core
             ["trial_note"] = new() { ["ru"] = "Пробный период бесплатно, затем {0}", ["kz"] = "Сынақ кезеңі тегін, кейін {0}", ["en"] = "Free trial, then {0}", ["uz"] = "Sinov davri bepul, keyin {0}" },
             ["auto_renew_ios"] = new() { ["ru"] = "Подписка продлевается автоматически. Отменить можно в настройках Apple ID в любой момент.", ["kz"] = "Жазылым автоматты түрде жаңарады. Кез келген уақытта Apple ID баптауларынан бас тартуға болады.", ["en"] = "Subscription renews automatically. Cancel anytime in your Apple ID settings.", ["uz"] = "Obuna avtomatik yangilanadi. Istalgan vaqtda Apple ID sozlamalarida bekor qilish mumkin." },
             ["auto_renew_android"] = new() { ["ru"] = "Подписка продлевается автоматически. Отменить можно в настройках Google Play в любой момент.", ["kz"] = "Жазылым автоматты түрде жаңарады. Кез келген уақытта Google Play баптауларынан бас тартуға болады.", ["en"] = "Subscription renews automatically. Cancel anytime in your Google Play settings.", ["uz"] = "Obuna avtomatik yangilanadi. Istalgan vaqtda Google Play sozlamalarida bekor qilish mumkin." },
+            // New paywall layout. The highlighted word differs per language, so the
+            // <color> tag travels inside the translation instead of being applied to a
+            // fixed character range.
+            ["paywall_headline"] = new() { ["ru"] = "Знакомьте ребёнка с <color=#FFC93C>ИСЛАМОМ</color>\nчерез добрые сказки", ["kz"] = "Балаңызды <color=#FFC93C>ИСЛАММЕН</color> ертегі\nарқылы таныстырыңыз", ["en"] = "Nurture your child's faith with\n<color=#FFC93C>ISLAMIC</color> bedtime stories", ["uz"] = "Farzandingizni <color=#FFC93C>ISLOM</color> bilan\nmehrli ertaklar orqali tanishtiring" },
+            ["paywall_f1_title"] = new() { ["ru"] = "Исламские\nистории для детей", ["kz"] = "Балаларға арналған\nертегілер", ["en"] = "Islamic stories for\nchildren", ["uz"] = "Bolalar uchun\nislomiy ertaklar" },
+            ["paywall_f1_sub"] = new() { ["ru"] = "Доброта, вера и\nважные ценности", ["kz"] = "Мейірім, иман және\nмаңызды құндылықтар", ["en"] = "Kindness, faith and\ngood values", ["uz"] = "Mehr, iymon va\nmuhim qadriyatlar" },
+            ["paywall_f2_title"] = new() { ["ru"] = "Успокаивающее\nаудио", ["kz"] = "Тыныштандыратын\nаудио", ["en"] = "Calming audio\nnarration", ["uz"] = "Tinchlantiruvchi\naudio" },
+            ["paywall_f2_sub"] = new() { ["ru"] = "Идеально для сна", ["kz"] = "Ұйықтар алдында\nөте қолайлы", ["en"] = "Perfect for\nbedtime", ["uz"] = "Uyqu oldidan ideal" },
+            ["paywall_f3_title"] = new() { ["ru"] = "Новая история\nкаждую неделю", ["kz"] = "Әр апта сайын\nжаңа ертегі", ["en"] = "A new story\nevery week", ["uz"] = "Har hafta\nyangi ertak" },
+            ["paywall_f3_sub"] = new() { ["ru"] = "Всегда что-то\nновое", ["kz"] = "Әрдайым жаңа\nбір нәрсе", ["en"] = "Always something\nfresh", ["uz"] = "Doimo yangi narsa" },
+            ["paywall_f4_title"] = new() { ["ru"] = "Безопасно и без\nрекламы", ["kz"] = "Қауіпсіз және\nжарнамасыз", ["en"] = "Safe & ad-free", ["uz"] = "Xavfsiz va\nreklamasiz" },
+            ["paywall_f4_sub"] = new() { ["ru"] = "Надёжное пространство\nдля вашей семьи", ["kz"] = "Отбасыңызға арналған\nсенімді орта", ["en"] = "A trusted space for\nyour family", ["uz"] = "Oilangiz uchun\nishonchli makon" },
+            ["paywall_popular"] = new() { ["ru"] = "Самый популярный", ["kz"] = "Ең танымал", ["en"] = "Most popular", ["uz"] = "Eng mashhur" },
+            // Trial length is the introductory offer configured in App Store Connect /
+            // Play Console. Change it in both places if the offer ever changes.
+            ["cta_start_trial"] = new() { ["ru"] = "Начать бесплатный 3-дневный пробный период", ["kz"] = "3 күндік тегін сынақ нұсқасын бастау", ["en"] = "Start My 3-Day Free Trial", ["uz"] = "3 kunlik bepul sinov muddatini boshlash" },
+            ["trial_days_note"] = new() { ["ru"] = "3 дня бесплатно, затем {0}", ["kz"] = "Алғашқы 3 күн тегін, кейін {0}", ["en"] = "3 days free, then {0}", ["uz"] = "3 kun bepul, keyin {0}" },
+            ["terms_of_use"] = new() { ["ru"] = "Условия использования", ["kz"] = "Қолдану шарттары", ["en"] = "Terms of Use", ["uz"] = "Foydalanish shartlari" },
+            ["restore_purchases"] = new() { ["ru"] = "Восстановить покупки", ["kz"] = "Сатып алуларды қалпына келтіру", ["en"] = "Restore Purchases", ["uz"] = "Xaridlarni tiklash" },
+            ["privacy_policy"] = new() { ["ru"] = "Политика конфиденциальности", ["kz"] = "Құпиялық саясаты", ["en"] = "Privacy Policy", ["uz"] = "Maxfiylik siyosati" },
             ["iap_not_ready"] = new() { ["ru"] = "Магазин загружается...", ["kz"] = "Дүкен жүктелуде...", ["en"] = "Store loading...", ["uz"] = "Do'kon yuklanmoqda..." },
             ["iap_unavailable"] = new() { ["ru"] = "Магазин временно недоступен", ["kz"] = "Дүкен уақытша қолжетімсіз", ["en"] = "Store temporarily unavailable", ["uz"] = "Do'kon vaqtincha mavjud emas" },
             ["retry"] = new() { ["ru"] = "Повторить", ["kz"] = "Қайталау", ["en"] = "Retry", ["uz"] = "Qayta urinish" },
@@ -156,10 +176,34 @@ namespace FairyTales.UI.Core
             ["library_for_child_sub_female"] = new() { ["ru"] = "Подобрано специально для неё", ["kz"] = "Ол үшін арнайы таңдалды", ["en"] = "Picked especially for her", ["uz"] = "Aynan u uchun tanlandi" },
         };
 
-        /// <summary>All supported app languages — used to download every translation.</summary>
-        public static readonly string[] AllLangs = { "ru", "kz", "en", "uz" };
+        /// <summary>
+        /// All selectable app languages — also the list of translations to download.
+        /// Uzbek is PARKED, not deleted: its button is out of the picker and "uz" is
+        /// off this list, so nothing selects it and nothing fetches it any more. Its
+        /// locale mapping and every uz translation above are left intact, so bringing
+        /// it back is this one entry plus the button.
+        /// </summary>
+        public static readonly string[] AllLangs = { "ru", "kz", "en" };
+
+        /// <summary>The parked language a stored preference must be migrated off.</summary>
+        private const string RetiredLang = "uz";
 
         public static event Action OnLanguageChanged;
+
+        /// <summary>
+        /// Moves a device that had picked the now-parked language onto English.
+        /// Runs before any scene object reads the preference, because half the callers
+        /// read PlayerPrefs["ft_lang"] directly rather than going through <see cref="Lang"/>.
+        /// Without it those devices sit on a language the picker can no longer show and
+        /// <see cref="AllLangs"/> no longer downloads — unreachable short of a reinstall.
+        /// </summary>
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+        private static void MigrateRetiredLang()
+        {
+            if (PlayerPrefs.GetString("ft_lang", "ru") != RetiredLang) return;
+            PlayerPrefs.SetString("ft_lang", "en");
+            PlayerPrefs.Save();
+        }
 
         public static string Lang
         {
@@ -196,7 +240,6 @@ namespace FairyTales.UI.Core
             {
                 SystemLanguage.Russian => "ru",
                 SystemLanguage.English => "en",
-                SystemLanguage.Unknown => "uz", // Uzbek not in Unity enum — detected via locale
                 _ => "ru"
             };
         }

@@ -24,8 +24,8 @@ namespace FairyTales
     /// "fairytales_monthly", which does not exist under com.mozz.islamStories, and iOS
     /// purchases stop working entirely.
     ///
-    /// The parental gate is NOT one of the differences: both apps have it, Bala on the
-    /// purchase and restore buttons, Islam Stories on the door to the paywall.
+    /// The parental gate is NOT one of the differences: both apps put it on the
+    /// purchase and restore buttons, and let the child open the paywall itself.
     /// </summary>
     public static class AppConfig
     {

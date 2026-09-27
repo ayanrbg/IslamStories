@@ -128,7 +128,38 @@ namespace FairyTales.UI.Onboarding
                 ("step_index", 1), ("step_name", "profile"));
 
             btnContinue.interactable = false;
+
+            // First run: the tales load in the background behind the formats intro, so
+            // the tap moves on at once instead of waiting for the server.
+            var formats = PlayerPrefs.GetInt("ft_onboarded", 0) == 0
+                ? _screens.Get<OnboardingFormatsScreen>()
+                : null;
+            if (formats != null)
+            {
+                PreloadAndShowIntro(formats, childName);
+                return;
+            }
+
             StartCoroutine(RegisterAndRoute(childName));
+        }
+
+        private void PreloadAndShowIntro(OnboardingFormatsScreen formats, string childName)
+        {
+            var lang = PlayerPrefs.GetString("ft_lang", "ru");
+
+            PlayerPrefs.SetInt("ft_onboarded", 1);
+            PlayerPrefs.Save();
+            Analytics.Log("onboarding_complete",
+                ("child_gender", Analytics.Gender()), ("app_language", lang));
+
+            // Runs on the screen manager: this screen stops its coroutines when it hides.
+            var preload = new TalesPreloader(FindAnyObjectByType<ApiClient>());
+            _screens.StartCoroutine(preload.Run(AuthService.GetOrCreateUserId(),
+                childName, _gender, lang));
+            formats.SetPreload(preload);
+
+            btnContinue.interactable = true;
+            FadeOutAndNavigate(() => _screens.Show<OnboardingFormatsScreen>());
         }
 
         private IEnumerator RegisterAndRoute(string childName)
@@ -152,9 +183,7 @@ namespace FairyTales.UI.Onboarding
 
             btnContinue.interactable = true;
 
-            // First run shows the formats intro before the download/library.
-            var firstRun = PlayerPrefs.GetInt("ft_onboarded", 0) == 0;
-            if (firstRun)
+            if (PlayerPrefs.GetInt("ft_onboarded", 0) == 0)
             {
                 PlayerPrefs.SetInt("ft_onboarded", 1);
                 PlayerPrefs.Save();
@@ -168,24 +197,13 @@ namespace FairyTales.UI.Onboarding
                 if (download != null)
                 {
                     download.SetTales(tales);
-                    NavigateAfterProfile(typeof(DownloadScreen), firstRun);
+                    FadeOutAndNavigate(() => _screens.Show<DownloadScreen>());
                     yield break;
                 }
             }
 
             _screens.Get<LibraryScreen>()?.MarkNeedsRefresh();
-            NavigateAfterProfile(typeof(LibraryScreen), firstRun);
-        }
-
-        private void NavigateAfterProfile(Type next, bool firstRun)
-        {
-            var formats = firstRun ? _screens.Get<OnboardingFormatsScreen>() : null;
-            if (formats != null)
-            {
-                formats.SetNext(next);
-                next = typeof(OnboardingFormatsScreen);
-            }
-            FadeOutAndNavigate(() => _screens.Show(next));
+            FadeOutAndNavigate(() => _screens.Show<LibraryScreen>());
         }
 
         private void FadeOutAndNavigate(Action navigate)

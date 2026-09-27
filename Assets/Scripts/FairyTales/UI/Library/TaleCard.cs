@@ -93,8 +93,10 @@ namespace FairyTales.UI.Library
             var cached = CoverProvider.GetCached(tale.id);
             if (cached != null)
             {
+                // Cover already in memory: the card is simply there — it arrives with
+                // the screen's own slide, a fade on top would only delay it.
                 if (coverImage) coverImage.sprite = cached;
-                Appear();
+                Appear(instant: true);
             }
             else
             {
@@ -133,13 +135,16 @@ namespace FairyTales.UI.Library
             Group.blocksRaycasts = false;
         }
 
-        private void Appear()
+        private void Appear(bool instant = false)
         {
             if (_appeared) return;
             _appeared = true;
             Group.blocksRaycasts = true;
             _appearTween?.Kill();
-            _appearTween = Group.DOFade(1f, appearDuration).SetEase(Ease.OutQuad).SetLink(gameObject);
+            if (instant)
+                Group.alpha = 1f;
+            else
+                _appearTween = Group.DOFade(1f, appearDuration).SetEase(Ease.OutQuad).SetLink(gameObject);
         }
 
         /// <summary>

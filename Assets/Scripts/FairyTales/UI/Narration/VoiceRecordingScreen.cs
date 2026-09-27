@@ -181,7 +181,11 @@ namespace FairyTales.UI.Narration
 
             var childName = PlayerPrefs.GetString("ft_childName", "");
             var gender = PlayerPrefs.GetString("ft_gender", "male");
-            yield return _narration.NarrateAll(_tale.id, childName, gender,
+            // The language of the pages, not of the menu: a tale without the current
+            // translation is shown in another one, and the job must narrate the words
+            // actually on screen. Left unset, the server picked its own default.
+            var lang = string.IsNullOrEmpty(_tale.lang) ? Loc.Lang : _tale.lang;
+            yield return _narration.NarrateAll(_tale.id, childName, gender, lang: lang,
                 onSuccess: r =>
                 {
                     var progress = _screens.Get<NarrationProgressScreen>();

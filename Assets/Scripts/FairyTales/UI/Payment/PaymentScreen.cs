@@ -15,8 +15,25 @@ namespace FairyTales.UI.Payment
 {
     public class PaymentScreen : BaseScreen
     {
+        [Tooltip("The veil drawn over the shared background while the paywall is up.")]
         [SerializeField] private Image background;
+        [Tooltip("How dark that veil gets once the screen is in. 0 = the background shows " +
+                 "through untouched, 1 = the veil's own colour at full opacity. Editing this " +
+                 "also updates the image in the scene, so the editor shows what ships.")]
+        [Range(0f, 1f)]
+        [SerializeField] private float dimAlpha = 0.25f;
         [SerializeField] private float bgFadeDuration = 0.5f;
+
+        [Header("Background stars")]
+        [Tooltip("The shared twinkling stars behind every screen. Found automatically when " +
+                 "left empty.")]
+        [SerializeField] private StarBackground stars;
+        [Tooltip("What the stars dim to while the paywall is open — 0 switches them off. " +
+                 "They are restored when this screen closes, so every other screen keeps " +
+                 "them exactly as before.")]
+        [Range(0f, 1f)]
+        [SerializeField] private float starsAlphaWhileOpen;
+        [SerializeField] private float starsFadeDuration = 0.4f;
         [SerializeField] private Button btnClose;
         [SerializeField] private Button btnMonthly;
         [SerializeField] private Button btnYearly;
@@ -24,19 +41,46 @@ namespace FairyTales.UI.Payment
         [SerializeField] private Button btnTerms;
         [SerializeField] private Button btnRestore;
         [SerializeField] private Button btnPrivacy;
+        [Tooltip("Tick drawn over the radio on the monthly card. Shown only while that plan is selected.")]
         [SerializeField] private GameObject monthlySelect;
+        [Tooltip("Same tick on the yearly card.")]
         [SerializeField] private GameObject yearlySelect;
         [SerializeField] private TextMeshProUGUI txtMonthlyPrice;
         [SerializeField] private TextMeshProUGUI txtYearlyPrice;
         [SerializeField] private TextMeshProUGUI txtTrialLabel;
 
+        [Header("Plan card selected / unselected look")]
+        [Tooltip("Glow behind the selected card. Enabled for the selected plan only.")]
+        [SerializeField] private GameObject monthlyGlow;
+        [SerializeField] private GameObject yearlyGlow;
+        [Tooltip("Card background sprite while the plan IS selected.")]
+        [SerializeField] private Sprite cardSpriteSelected;
+        [Tooltip("Card background sprite while the plan is NOT selected.")]
+        [SerializeField] private Sprite cardSpriteUnselected;
+        [Tooltip("Image the two sprites above are written to. Left empty it resolves to the card button's own Image.")]
+        [SerializeField] private Image monthlyCardImage;
+        [SerializeField] private Image yearlyCardImage;
+
         [Header("Yearly saving (derived from live store prices, never hardcoded)")]
         [Tooltip("Struck-through '12 months at the monthly rate' figure on the yearly card.")]
         [SerializeField] private TextMeshProUGUI txtYearlyOldPrice;
+        [Tooltip("Colour of the rule drawn through that figure. The figure itself keeps the " +
+                 "colour set on the label. Default is sampled from the discount badge so the " +
+                 "two reds are the same one.")]
+        [SerializeField] private Color oldPriceStrikeColor = new Color32(0xF5, 0x46, 0x33, 0xFF);
         [Tooltip("Discount badge label, e.g. \"-45%\".")]
         [SerializeField] private TextMeshProUGUI txtDiscountBadge;
         [Tooltip("Badge background — hidden together with the label when there is no real saving.")]
         [SerializeField] private GameObject discountBadge;
+
+        [Header("Free trial")]
+        [Tooltip("Both plans ship with a 3-day introductory offer, so the trial wording — CTA " +
+                 "and the line on the monthly card — is shown without asking the store. Note " +
+                 "that a store grants that offer once per subscription group per account: a " +
+                 "user who already spent it is charged straight away and still sees the " +
+                 "promise. Untick to go back to showing it only when the store confirms the " +
+                 "offer is still available for THIS account.")]
+        [SerializeField] private bool alwaysOfferTrial = true;
 
         [Header("Subscription disclosure (Guideline 3.1.2(c))")]
         [Tooltip("Subordinate line under the CTA. Must be smaller and less prominent than the billed amount.")]
@@ -44,10 +88,20 @@ namespace FairyTales.UI.Payment
         [Tooltip("Auto-renewal disclaimer shown next to the Terms / Privacy links.")]
         [SerializeField] private TextMeshProUGUI txtAutoRenew;
 
-        [Header("Store unavailable state")]
-        [SerializeField] private GameObject storeErrorPanel;
-        [SerializeField] private TextMeshProUGUI txtStoreError;
-        [SerializeField] private Button btnRetryStore;
+        [Header("New paywall layout")]
+        [Tooltip("Headline. The highlight colour travels inside the localized string.")]
+        [SerializeField] private TextMeshProUGUI txtHeadline;
+        [Tooltip("Feature titles, left to right — filled from paywall_f1_title … paywall_f4_title.")]
+        [SerializeField] private TextMeshProUGUI[] featureTitles;
+        [Tooltip("Feature subtitles, same order — filled from paywall_f1_sub … paywall_f4_sub.")]
+        [SerializeField] private TextMeshProUGUI[] featureSubtitles;
+        [Tooltip("\"Most popular\" badge caption on the monthly card.")]
+        [SerializeField] private TextMeshProUGUI txtPopularBadge;
+        [Tooltip("\"3 days free, then …\" line inside the monthly card. Hidden when the store offers no trial.")]
+        [SerializeField] private TextMeshProUGUI txtMonthlyTrialNote;
+        [SerializeField] private TextMeshProUGUI txtTermsLabel;
+        [SerializeField] private TextMeshProUGUI txtRestoreLabel;
+        [SerializeField] private TextMeshProUGUI txtPrivacyLabel;
 
         [Header("Promo")]
         [SerializeField] private Button btnPromo;
@@ -59,21 +113,20 @@ namespace FairyTales.UI.Payment
 
         private ScreenManager _screens;
         private PromoService _promoService;
+        /// <summary>Keeps the star rows and the link row laid out against the text that is
+        /// really on them — see <see cref="LayoutGuard"/> for why one rebuild is not enough.</summary>
+        private LayoutGuard _layout;
         private bool _yearlySelected = true;
         private bool _purchased;
 
         private bool _purchaseInFlight;
         private bool _failureReported;
         private Coroutine _purchaseWatchdog;
-        private bool _storeErrorUiChecked;
 
         /// <summary>StoreKit can leave a purchase pending (parental approval, interrupted
         /// sheet) without ever calling back. Re-arm the UI after this long so the buttons
         /// can never stay disabled.</summary>
         private const float PurchaseTimeout = 120f;
-
-        /// <summary>Height of the runtime-built store-status strip, in the CTA's units.</summary>
-        private const float StoreErrorHeight = 100f;
 
         /// <summary>
         /// Set before showing to control where Close navigates.
@@ -87,10 +140,18 @@ namespace FairyTales.UI.Payment
         private void Awake()
         {
             _screens = GetComponentInParent<ScreenManager>();
+            _layout = LayoutGuard.Attach(gameObject);
+
+            if (!stars) stars = FindAnyObjectByType<StarBackground>(FindObjectsInactive.Include);
 
             var api = FindAnyObjectByType<ApiClient>();
             Debug.Log($"[Promo] Awake: ApiClient found={api != null}");
             if (api) _promoService = new PromoService(api);
+
+            // The card's background IS the button's target graphic, so the common case
+            // needs no extra wiring in the inspector.
+            if (!monthlyCardImage && btnMonthly) monthlyCardImage = btnMonthly.targetGraphic as Image;
+            if (!yearlyCardImage && btnYearly) yearlyCardImage = btnYearly.targetGraphic as Image;
 
             if (background) SetBgAlpha(0f);
             if (btnClose) btnClose.onClick.AddListener(OnClose);
@@ -100,7 +161,6 @@ namespace FairyTales.UI.Payment
             if (btnTerms) btnTerms.onClick.AddListener(OnTerms);
             if (btnRestore) btnRestore.onClick.AddListener(OnRestore);
             if (btnPrivacy) btnPrivacy.onClick.AddListener(OnPrivacy);
-            if (btnRetryStore) btnRetryStore.onClick.AddListener(OnRetryStore);
             // The promo field is deliberately identical on both stores. It was iOS-only
             // hidden for a while after a 3.1.1 rejection, but the same flow ships in
             // another of our apps and passes review, and the gift feature is unusable
@@ -120,11 +180,47 @@ namespace FairyTales.UI.Payment
             _purchaseWatchdog = null;
             SetButtonsInteractable(true);
 
-            EnsureStoreErrorUi();
             SelectPlan(true);
-            UpdatePrices();
+            ApplyLocalizedText();
             if (promoPanel) promoPanel.SetActive(false);
-            UpdatePromoButton();
+
+            // The store may still be initialising (or retrying) while the paywall is
+            // open — refresh prices as soon as the catalog lands instead of leaving
+            // placeholders on screen.
+            var iap = IAPManager.Instance;
+            if (iap != null)
+            {
+                iap.OnStoreReady -= OnStoreReady;
+                iap.OnStoreReady += OnStoreReady;
+                iap.PurchaseFailed -= OnPurchaseError;
+                iap.PurchaseFailed += OnPurchaseError;
+                if (iap.StoreUnavailable) iap.RetryInitialize();
+            }
+
+            // Last thing before the screen slides in: every label above has just been
+            // rewritten (prices, plan, promo caption), so the guard re-reads the subtree
+            // and lays it out.
+            if (_layout) _layout.Rescan();
+        }
+
+        /// <summary>
+        /// The screen survives between visits — <see cref="BaseScreen.WarmUp"/> activates the
+        /// object once and hiding only switches the canvas off — so nothing rewrites its
+        /// labels when the language changes behind its back. Hence the subscription: a
+        /// paywall that is merely hidden still has to end up in the new language.
+        /// </summary>
+        private void OnEnable() => Loc.OnLanguageChanged += ApplyLocalizedText;
+
+        private void OnDisable() => Loc.OnLanguageChanged -= ApplyLocalizedText;
+
+        /// <summary>
+        /// Every string the screen takes from <see cref="Loc"/>, in one pass. The prices
+        /// belong here as much as the captions do — they carry the localized period word
+        /// ("/ месяц"), so a language change has to re-run them too.
+        /// </summary>
+        private void ApplyLocalizedText()
+        {
+            ApplyStaticLabels();
 
             if (txtAutoRenew)
             {
@@ -135,28 +231,49 @@ namespace FairyTales.UI.Payment
 #endif
             }
 
-            // The store may still be initialising (or retrying) while the paywall is
-            // open — refresh prices as soon as the catalog lands instead of leaving
-            // placeholders on screen.
-            var iap = IAPManager.Instance;
-            if (iap != null)
-            {
-                iap.OnStoreReady -= OnStoreReady;
-                iap.OnStoreReady += OnStoreReady;
-                iap.OnStoreFailed -= OnStoreFailed;
-                iap.OnStoreFailed += OnStoreFailed;
-                iap.PurchaseFailed -= OnPurchaseError;
-                iap.PurchaseFailed += OnPurchaseError;
-                if (iap.StoreUnavailable) iap.RetryInitialize();
-            }
+            UpdatePromoButton();
+            // Rewrites both card prices, the struck-through figure, the trial line and
+            // the CTA label.
+            UpdatePrices();
+
+            // The feature columns take their height from their own text and sit in groups
+            // that do not control child sizes, so a new translation needs the guard's
+            // multi-pass rebuild rather than Unity's single automatic one.
+            if (_layout) _layout.Refresh();
+        }
+
+        /// <summary>
+        /// Every label the new layout carries that isn't a price.
+        /// Each reference is optional — the old layout simply has none of them.
+        /// </summary>
+        private void ApplyStaticLabels()
+        {
+            if (txtHeadline) txtHeadline.text = Loc.Get("paywall_headline");
+            if (txtPopularBadge) txtPopularBadge.text = Loc.Get("paywall_popular");
+            if (txtTermsLabel) txtTermsLabel.text = Loc.Get("terms_of_use");
+            if (txtRestoreLabel) txtRestoreLabel.text = Loc.Get("restore_purchases");
+            if (txtPrivacyLabel) txtPrivacyLabel.text = Loc.Get("privacy_policy");
+
+            ApplyFeatureLabels(featureTitles, "title");
+            ApplyFeatureLabels(featureSubtitles, "sub");
+        }
+
+        /// <summary>Fills a feature row from paywall_f{n}_{suffix}, in array order.</summary>
+        private static void ApplyFeatureLabels(TextMeshProUGUI[] labels, string suffix)
+        {
+            if (labels == null) return;
+            for (var i = 0; i < labels.Length; i++)
+                if (labels[i])
+                    labels[i].text = Loc.Get($"paywall_f{i + 1}_{suffix}");
         }
 
         private void OnDestroy()
         {
+            RestoreStars();
+
             var iap = IAPManager.Instance;
             if (iap == null) return;
             iap.OnStoreReady -= OnStoreReady;
-            iap.OnStoreFailed -= OnStoreFailed;
             iap.PurchaseFailed -= OnPurchaseError;
         }
 
@@ -176,48 +293,69 @@ namespace FairyTales.UI.Payment
 
         private void OnStoreReady() => UpdatePrices();
 
-        private void OnStoreFailed() => UpdateStoreErrorState();
-
-        private void OnRetryStore()
-        {
-            var iap = IAPManager.Instance;
-            if (iap == null) return;
-            if (txtStoreError) txtStoreError.text = Loc.Get("iap_not_ready");
-            if (btnRetryStore) btnRetryStore.interactable = false;
-            iap.RetryInitialize();
-        }
-
         protected override void OnShown()
         {
-            if (background) background.DOFade(1f, bgFadeDuration).SetEase(Ease.OutQuad);
+            // A localized string can land during the slide-in, after OnPrepare laid
+            // everything out.
+            if (_layout) _layout.Refresh();
+            if (background) background.DOFade(dimAlpha, bgFadeDuration).SetEase(Ease.OutQuad);
+            // The stars twinkle right through the copy on this screen, which is the one
+            // screen that is mostly text over the background.
+            if (stars) stars.FadeTo(starsAlphaWhileOpen, starsFadeDuration);
             Analytics.Log("paywall_view", ("source", Source));
         }
 
         /// <summary>
-        /// Kids category (Guideline 1.3): the parental gate must pass BEFORE the
-        /// paywall opens. Single entry point for every navigation to this screen —
-        /// shows the gate first, opens the screen only on success.
+        /// Single entry point for every navigation to this screen. The child may look at
+        /// the paywall freely; the parental gate (Kids category, Guideline 1.3) sits on
+        /// the buttons that reach the store — purchase and restore — not on the door.
         /// </summary>
         public static void Open(ScreenManager screens, System.Type returnTo = null,
-            System.Action onCancel = null, string source = "unknown")
+            string source = "unknown")
         {
             if (screens == null) return;
-            ChildGatePopup.Show(() =>
+
+            var payment = screens.Get<PaymentScreen>();
+            if (payment != null)
             {
-                var payment = screens.Get<PaymentScreen>();
-                if (payment != null)
-                {
-                    payment.ReturnTo = returnTo;
-                    payment.Source = source;
-                }
-                screens.Show<PaymentScreen>();
-            }, onCancel);
+                payment.ReturnTo = returnTo;
+                payment.Source = source;
+            }
+            screens.Show<PaymentScreen>();
         }
 
         protected override void OnHidden()
         {
             if (background) SetBgAlpha(0f);
+            RestoreStars();
         }
+
+        /// <summary>
+        /// Hands the star field back to whatever screen comes next. Every exit runs through
+        /// OnHidden, and OnDestroy repeats it, so the one screen that dims them can never
+        /// leave them dimmed for the rest of the app.
+        /// </summary>
+        private void RestoreStars()
+        {
+            if (stars) stars.FadeTo(1f, starsFadeDuration);
+        }
+
+#if UNITY_EDITOR
+        /// <summary>
+        /// Mirrors the slider onto the veil in the scene. Without it the editor would show
+        /// whatever alpha the image was last left with — which is 0 after a play session —
+        /// and the dim could only be judged by running the game.
+        /// </summary>
+        private void OnValidate()
+        {
+            if (Application.isPlaying || background == null) return;
+            var c = background.color;
+            if (Mathf.Approximately(c.a, dimAlpha)) return;
+            c.a = dimAlpha;
+            background.color = c;
+            UnityEditor.EditorUtility.SetDirty(background);
+        }
+#endif
 
         private void SetBgAlpha(float a)
         {
@@ -226,19 +364,44 @@ namespace FairyTales.UI.Payment
             background.color = c;
         }
 
+        /// <summary>
+        /// A plan card carries its state in three places at once — the tick on its radio,
+        /// the glow behind it and its own background sprite. All three are driven from
+        /// here so a card can never end up half-selected, which is what happens when the
+        /// scene's authored state is left to speak for one of them.
+        /// </summary>
         private void SelectPlan(bool yearly)
         {
             _yearlySelected = yearly;
-            if (monthlySelect) monthlySelect.SetActive(!yearly);
-            if (yearlySelect) yearlySelect.SetActive(yearly);
+            ApplyCardState(monthlyCardImage, monthlySelect, monthlyGlow, !yearly);
+            ApplyCardState(yearlyCardImage, yearlySelect, yearlyGlow, yearly);
             UpdateTrialButton();
+        }
+
+        private void ApplyCardState(Image card, GameObject tick, GameObject glow, bool selected)
+        {
+            if (tick) tick.SetActive(selected);
+            if (glow) glow.SetActive(selected);
+
+            // Swapping the sprite is safe because the card buttons use a ColorTint
+            // transition — a SpriteSwap transition would overwrite this on every hover.
+            var sprite = selected ? cardSpriteSelected : cardSpriteUnselected;
+            if (card && sprite) card.sprite = sprite;
         }
 
         private string SelectedProductId => _yearlySelected
             ? IAPManager.ProductYearly
             : IAPManager.ProductMonthly;
 
-        /// <summary>Billed amount for the selected plan, e.g. "₽19 990/год". Null while
+        /// <summary>
+        /// "990 ₸ / месяц" — one place for the separator, because the same price string is
+        /// built for the two cards, the struck-through figure and the trial note, and the
+        /// design spaces the slash out on all of them.
+        /// </summary>
+        private static string PerPeriod(string price, bool yearly)
+            => $"{price} / {Loc.Get(yearly ? "per_year" : "per_month")}";
+
+        /// <summary>Billed amount for the selected plan, e.g. "₽19 990 / год". Null while
         /// the store has no catalog — callers must not invent a price in that case.</summary>
         private string SelectedBilledAmount()
         {
@@ -246,18 +409,17 @@ namespace FairyTales.UI.Payment
             if (iap == null || !iap.IsInitialized) return null;
             var price = iap.GetLocalizedPrice(SelectedProductId);
             if (string.IsNullOrEmpty(price)) return null;
-            return $"{price}/{Loc.Get(_yearlySelected ? "per_year" : "per_month")}";
+            return PerPeriod(price, _yearlySelected);
         }
 
         private void UpdatePrices()
         {
-            UpdateStoreErrorState();
-
             var iap = IAPManager.Instance;
             if (iap == null || !iap.IsInitialized)
             {
                 // No catalog: leave the plan cards exactly as authored in the scene. The
                 // screen must stay complete for the reviewer even when the store is down.
+                UpdateMonthlyTrialNote(null);
                 UpdateTrialButton();
                 return;
             }
@@ -266,11 +428,12 @@ namespace FairyTales.UI.Payment
             var yearlyPrice = iap.GetLocalizedPrice(IAPManager.ProductYearly);
 
             if (txtMonthlyPrice && monthlyPrice != null)
-                txtMonthlyPrice.text = $"{monthlyPrice}/{Loc.Get("per_month")}";
+                txtMonthlyPrice.text = PerPeriod(monthlyPrice, false);
             if (txtYearlyPrice && yearlyPrice != null)
-                txtYearlyPrice.text = $"{yearlyPrice}/{Loc.Get("per_year")}";
+                txtYearlyPrice.text = PerPeriod(yearlyPrice, true);
 
             UpdateYearlySaving(iap, yearlyPrice);
+            UpdateMonthlyTrialNote(monthlyPrice);
             UpdateTrialButton();
         }
 
@@ -305,12 +468,29 @@ namespace FairyTales.UI.Payment
             if (txtYearlyOldPrice)
             {
                 txtYearlyOldPrice.text = hasSaving
-                    ? $"<s>{oldPrice}/{Loc.Get("per_year")}</s>"
+                    ? StruckThrough(PerPeriod(oldPrice, true))
                     : "";
                 txtYearlyOldPrice.gameObject.SetActive(hasSaving);
             }
             if (txtDiscountBadge) txtDiscountBadge.text = hasSaving ? $"-{percentOff}%" : "";
             if (discountBadge) discountBadge.SetActive(hasSaving);
+        }
+
+        /// <summary>
+        /// Strikes <paramref name="text"/> through with a rule in its own colour while the
+        /// figure keeps the colour the label carries.
+        ///
+        /// TMP fixes the rule's colour when it parses the opening tag, not per character, so
+        /// the colour has to be set BEFORE &lt;s&gt; and put back inside it. A single
+        /// &lt;color&gt; around the whole thing would take the digits red along with the rule.
+        /// </summary>
+        private string StruckThrough(string text)
+        {
+            var rule = ColorUtility.ToHtmlStringRGB(oldPriceStrikeColor);
+            var figure = txtYearlyOldPrice
+                ? ColorUtility.ToHtmlStringRGB(txtYearlyOldPrice.color)
+                : "FFFFFF";
+            return $"<color=#{rule}><s><color=#{figure}>{text}</color></s></color>";
         }
 
         /// <summary>
@@ -358,126 +538,58 @@ namespace FairyTales.UI.Payment
         }
 
         /// <summary>
-        /// Guideline 3.1.2(c): the billed amount must be the clearest pricing element in
-        /// the flow. The CTA therefore carries no free-trial promise at all — the price on
-        /// the selected plan card stays the loudest pricing element, and any trial wording
-        /// lives in the subordinate note below it.
-        /// The label is deliberately a short static string: it must not resize the button.
+        /// Whether the screen may advertise the free trial for <paramref name="productId"/>.
+        /// With <see cref="alwaysOfferTrial"/> on this is simply true and the store is never
+        /// consulted — see the field's own note for what that costs.
+        /// </summary>
+        private bool ShowTrialWording(string productId)
+        {
+            if (alwaysOfferTrial) return true;
+            var iap = IAPManager.Instance;
+            return iap != null && iap.HasTrialAvailable(productId);
+        }
+
+        /// <summary>
+        /// The CTA names the free trial, as the design asks. Guideline 3.1.2(c) wants the
+        /// billed amount to read at least as clearly as that promise — that job belongs to
+        /// the price on the plan card and to the "N days free, then {price}" line under it,
+        /// so neither may be hidden while this wording is up.
         /// </summary>
         private void UpdateTrialButton()
         {
-            if (txtTrialLabel) txtTrialLabel.text = Loc.Get("subscribe");
+            var hasTrial = ShowTrialWording(SelectedProductId);
+
+            if (txtTrialLabel)
+                txtTrialLabel.text = Loc.Get(hasTrial ? "cta_start_trial" : "subscribe");
 
             if (!txtTrialNote) return;
 
+            // This note quotes the billed amount, so unlike the button it still has to wait
+            // for a catalog — "free, then " with nothing after it is worse than no line.
             var billed = SelectedBilledAmount();
-
-            var iap = IAPManager.Instance;
-            var hasTrial = billed != null && iap != null && iap.HasTrialAvailable(SelectedProductId);
-            txtTrialNote.text = hasTrial ? Loc.Format("trial_note", billed) : "";
-            txtTrialNote.gameObject.SetActive(hasTrial);
+            var show = hasTrial && billed != null;
+            txtTrialNote.text = show ? Loc.Format("trial_note", billed) : "";
+            txtTrialNote.gameObject.SetActive(show);
         }
 
         /// <summary>
-        /// The store-status line is the only thing that explains a paywall the store
-        /// cannot serve, so it must exist even when the scene reference was never wired —
-        /// otherwise the CTA looks simply broken (Guideline 2.1(b)). Builds a minimal
-        /// panel just above the CTA, never over it.
+        /// The "3 days free, then 990 ₸ / month" line inside the monthly card, so it follows
+        /// the monthly product rather than the selected one. The line itself stays up
+        /// whenever the trial is advertised; only the price inside it waits for a catalog,
+        /// and until then the card keeps the figure the scene was authored with.
         /// </summary>
-        private void EnsureStoreErrorUi()
+        private void UpdateMonthlyTrialNote(string monthlyPrice)
         {
-            if (_storeErrorUiChecked) return;
-            _storeErrorUiChecked = true;
-            if (storeErrorPanel != null || btnTrial == null) return;
+            if (!txtMonthlyTrialNote) return;
 
-            var cta = btnTrial.GetComponent<RectTransform>();
-            if (cta == null) return;
+            var hasTrial = ShowTrialWording(IAPManager.ProductMonthly);
+            txtMonthlyTrialNote.gameObject.SetActive(hasTrial);
 
-            // Runtime text needs a font that actually has Cyrillic glyphs — take the one
-            // the CTA already uses instead of TMP's default ASCII asset.
-            var fontSource = txtTrialLabel ? txtTrialLabel : txtAutoRenew;
-
-            var panel = new GameObject("StoreErrorRuntime", typeof(RectTransform), typeof(Image));
-            var rt = panel.GetComponent<RectTransform>();
-            rt.SetParent(cta.parent, false);
-            rt.anchorMin = cta.anchorMin;
-            rt.anchorMax = cta.anchorMax;
-            rt.pivot = cta.pivot;
-            rt.sizeDelta = new Vector2(cta.sizeDelta.x, StoreErrorHeight);
-            // Sits directly above the CTA and never over it — the purchase button has to
-            // stay tappable no matter what the store is doing.
-            rt.anchoredPosition = cta.anchoredPosition +
-                new Vector2(0f, (cta.rect.height + StoreErrorHeight) * 0.5f + 12f);
-            panel.GetComponent<Image>().color = new Color(0.15f, 0.1f, 0.22f, 0.92f);
-
-            var label = CreateRuntimeLabel(rt, "Text", fontSource,
-                new Vector2(0.03f, 0f), new Vector2(0.7f, 1f));
-
-            var retryGo = new GameObject("BtnRetry", typeof(RectTransform), typeof(Image), typeof(Button));
-            var retryRt = retryGo.GetComponent<RectTransform>();
-            retryRt.SetParent(rt, false);
-            retryRt.anchorMin = new Vector2(0.72f, 0.15f);
-            retryRt.anchorMax = new Vector2(0.97f, 0.85f);
-            retryRt.offsetMin = Vector2.zero;
-            retryRt.offsetMax = Vector2.zero;
-            retryGo.GetComponent<Image>().color = new Color(0.55f, 0.36f, 0.85f);
-            var retryLabel = CreateRuntimeLabel(retryRt, "Text", fontSource,
-                Vector2.zero, Vector2.one);
-            retryLabel.text = Loc.Get("retry");
-
-            storeErrorPanel = panel;
-            txtStoreError = label;
-            btnRetryStore = retryGo.GetComponent<Button>();
-            btnRetryStore.onClick.AddListener(OnRetryStore);
-            panel.SetActive(false);
-        }
-
-        private static TextMeshProUGUI CreateRuntimeLabel(RectTransform parent, string name,
-            TextMeshProUGUI fontSource, Vector2 anchorMin, Vector2 anchorMax)
-        {
-            var go = new GameObject(name, typeof(RectTransform));
-            var rt = go.GetComponent<RectTransform>();
-            rt.SetParent(parent, false);
-            rt.anchorMin = anchorMin;
-            rt.anchorMax = anchorMax;
-            rt.offsetMin = Vector2.zero;
-            rt.offsetMax = Vector2.zero;
-
-            var tmp = go.AddComponent<TextMeshProUGUI>();
-            if (fontSource)
-            {
-                tmp.font = fontSource.font;
-                tmp.fontSharedMaterial = fontSource.fontSharedMaterial;
-            }
-            // Autosized: the strip is built against whatever canvas units the scene uses,
-            // so a fixed point size could come out unreadable or overflow.
-            tmp.enableAutoSizing = true;
-            tmp.fontSizeMin = 10f;
-            tmp.fontSizeMax = StoreErrorHeight * 0.6f;
-            tmp.alignment = TextAlignmentOptions.Center;
-            tmp.color = Color.white;
-            return tmp;
-        }
-
-        /// <summary>
-        /// Reflects store availability WITHOUT disabling the CTA. A greyed-out purchase
-        /// button reads as "tapped, nothing happened" — the exact 2.1(b) complaint — so the
-        /// button stays live and <see cref="OnPurchase"/> explains the problem and retries.
-        /// </summary>
-        private void UpdateStoreErrorState()
-        {
-            var iap = IAPManager.Instance;
-            var ready = iap != null && iap.IsInitialized;
-            var failed = iap != null && iap.StoreUnavailable;
-
-            if (storeErrorPanel) storeErrorPanel.SetActive(!ready);
-            if (txtStoreError)
-                txtStoreError.text = Loc.Get(failed ? "iap_unavailable" : "iap_not_ready");
-            if (btnRetryStore)
-            {
-                btnRetryStore.gameObject.SetActive(!ready);
-                btnRetryStore.interactable = failed;
-            }
+            // Hiding the line is enough — blanking it would throw away the figure the scene
+            // was authored with, which is the only thing left to show if the note comes back
+            // up before the catalog has landed.
+            if (hasTrial && !string.IsNullOrEmpty(monthlyPrice))
+                txtMonthlyTrialNote.text = Loc.Format("trial_days_note", PerPeriod(monthlyPrice, false));
         }
 
         private void OnPurchase()
@@ -487,15 +599,25 @@ namespace FairyTales.UI.Payment
             var iap = IAPManager.Instance;
             if (iap == null || !iap.IsInitialized)
             {
-                // Never leave a dead button: say what's wrong and kick off a retry.
-                EnsureStoreErrorUi();
+                // Never leave a dead button. The CTA stays live and answers here: it says
+                // what is wrong and kicks off a retry, so tapping again after the catalog
+                // lands goes straight through. A greyed-out button would read as "tapped,
+                // nothing happened" — the exact Guideline 2.1(b) complaint.
                 Toast.Show(Loc.Get(iap != null && iap.StoreUnavailable
                     ? "iap_unavailable"
                     : "iap_not_ready"));
                 iap?.RetryInitialize();
-                UpdateStoreErrorState();
                 return;
             }
+
+            // The gate comes after the store check, so a parent is never asked to solve it
+            // only to be told the store is not ready. The plan is read once the gate passes.
+            ChildGatePopup.Show(() => StartPurchase(iap));
+        }
+
+        private void StartPurchase(IAPManager iap)
+        {
+            if (_purchaseInFlight) return;
 
             var productId = SelectedProductId;
 
@@ -592,6 +714,11 @@ namespace FairyTales.UI.Payment
                 return;
             }
 
+            ChildGatePopup.Show(() => StartRestore(iap));
+        }
+
+        private void StartRestore(IAPManager iap)
+        {
             SetButtonsInteractable(false);
 
             iap.RestorePurchases(success =>
@@ -648,6 +775,7 @@ namespace FairyTales.UI.Payment
         {
             if (!promoPanel) return;
             promoPanel.SetActive(show);
+            if (_layout) _layout.Refresh();
             if (!show)
             {
                 if (promoInput) promoInput.text = "";

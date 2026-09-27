@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using DG.Tweening;
 using UnityEngine;
 using UnityEngine.UI;
@@ -23,6 +24,7 @@ namespace FairyTales.UI.Reading
         private TocThumbnail[] _pool;
         private int[] _genderedPages;
         private string _gender;
+        private Coroutine _loading;
 
         private void Awake()
         {
@@ -63,7 +65,7 @@ namespace FairyTales.UI.Reading
         }
 
         /// <summary>
-        /// Warm the illustration cache for the TOC chapter thumbnails ahead of time
+        /// Warm the thumbnail cache for the TOC chapter cards ahead of time
         /// (e.g. when the reading screen opens) so the popup shows images immediately
         /// instead of blank cards while sprites load/download.
         /// </summary>
@@ -97,6 +99,8 @@ namespace FairyTales.UI.Reading
         {
             int total = tale.totalPages;
             int chapters = ChapterLayout(total, out int pagesPerChapter);
+            var pages = new List<int>();
+            var covers = new List<Image>();
 
             for (int i = 0; i < _pool.Length; i++)
             {
@@ -114,7 +118,8 @@ namespace FairyTales.UI.Reading
                 if (thumb.Cover)
                 {
                     thumb.Cover.sprite = null;
-                    StartCoroutine(LoadThumbnail(tale.id, startPage, thumb.Cover));
+                    pages.Add(startPage);
+                    covers.Add(thumb.Cover);
                 }
                 if (thumb.Label) thumb.Label.text = $"{startPage + 1}-{endPage + 1}";
                 if (thumb.Border) thumb.Border.color =
@@ -133,11 +138,26 @@ namespace FairyTales.UI.Reading
 
                 thumb.gameObject.SetActive(true);
             }
+
+            if (_loading != null) StopCoroutine(_loading);
+            _loading = StartCoroutine(LoadThumbnails(tale.id, pages, covers));
+        }
+
+        /// <summary>
+        /// One card after another rather than all at once: each missing card means
+        /// decoding a full page before it is shrunk, and a dozen of those in parallel
+        /// is exactly the memory spike and stall the small copies are meant to avoid.
+        /// </summary>
+        private IEnumerator LoadThumbnails(string taleId, List<int> pages, List<Image> covers)
+        {
+            for (int i = 0; i < pages.Count; i++)
+                yield return LoadThumbnail(taleId, pages[i], covers[i]);
+            _loading = null;
         }
 
         private IEnumerator LoadThumbnail(string taleId, int page, Image target)
         {
-            yield return IllustrationProvider.GetPageAsync(taleId, page, sprite =>
+            yield return IllustrationProvider.GetThumbnailAsync(taleId, page, sprite =>
             {
                 if (target) target.sprite = sprite;
             }, _gender, _genderedPages);

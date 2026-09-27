@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using FairyTales.Api;
 using FairyTales.Models;
 using FairyTales.UI.Core;
 using Newtonsoft.Json;
@@ -52,6 +53,10 @@ namespace FairyTales.Cache
             _bundledIds = set;
         }
 
+        /// <summary>False until <see cref="InitBundledSet"/> has finished; before that
+        /// <see cref="IsBundled"/> answers "no" for every tale on Android.</summary>
+        public static bool IsReady => _bundledIds != null;
+
         public static bool IsBundled(string taleId)
         {
 #if UNITY_ANDROID && !UNITY_EDITOR
@@ -61,7 +66,8 @@ namespace FairyTales.Cache
             return _bundledIds != null && _bundledIds.Contains(taleId);
 #else
             // Illustrations are shared across languages, so a tale stays bundled even
-            // if the current language's text is missing (LoadTaleJson falls back).
+            // if the current language's text is missing — the reader sources that text
+            // from the server or, failing that, from LoadFallbackTaleJson.
             var dir = Path.Combine(Application.streamingAssetsPath, Folder, taleId);
             return File.Exists(Path.Combine(dir, TaleFileName(Loc.Lang)))
                 || File.Exists(Path.Combine(dir, TaleFileName(FallbackLang)));
@@ -69,22 +75,15 @@ namespace FairyTales.Cache
         }
 
         /// <summary>
-        /// Loads the tale text for the current language, falling back to the default
-        /// one. A translation that is missing or malformed must not leave the tale
-        /// unreadable — better the wrong language than a dead screen.
+        /// Bundled tale text for ONE specific language, or null when that translation
+        /// is not in the build. Deliberately does not fall back by itself: a bundled
+        /// tale whose translation is missing can still be fetched from the server and
+        /// cached, and silently handing back the Russian pages here would hide that —
+        /// which is how English readers got komar in Russian.
+        /// Callers settle for <see cref="LoadFallbackTaleJson"/> only after the network
+        /// has had its turn.
         /// </summary>
-        public static IEnumerator LoadTaleJson(string taleId, Action<TaleDetail> cb)
-        {
-            TaleDetail detail = null;
-            yield return LoadTaleJsonForLang(taleId, Loc.Lang, d => detail = d);
-
-            if (detail == null && Loc.Lang != FallbackLang)
-                yield return LoadTaleJsonForLang(taleId, FallbackLang, d => detail = d);
-
-            cb?.Invoke(detail);
-        }
-
-        private static IEnumerator LoadTaleJsonForLang(string taleId, string lang,
+        public static IEnumerator LoadTaleJson(string taleId, string lang,
             Action<TaleDetail> cb)
         {
             var url = GetUrl(taleId, TaleFileName(lang));
@@ -97,15 +96,9 @@ namespace FairyTales.Cache
                 yield break;
             }
 
+            // Parsed off the main thread; a malformed file comes back as null.
             TaleDetail detail = null;
-            try
-            {
-                detail = JsonConvert.DeserializeObject<TaleDetail>(req.downloadHandler.text);
-            }
-            catch (JsonException)
-            {
-                // RELEASE: Debug.LogWarning($"[BundledTaleLoader] Malformed {TaleFileName(lang)} for {taleId}");
-            }
+            yield return JsonAsync.Parse<TaleDetail>(req.downloadHandler.text, d => detail = d);
 
             // A translation with no pages is as useless as no file at all.
             if (detail != null && (detail.pages == null || detail.pages.Length == 0))
@@ -116,6 +109,18 @@ namespace FairyTales.Cache
 
             cb?.Invoke(detail);
         }
+
+        /// <summary>
+        /// Last-resort bundled text in the default language, for a tale whose own
+        /// translation ships neither in the build nor within reach of the network.
+        /// Better the wrong language than a dead screen — but only once everything
+        /// that could serve the right one has been tried.
+        /// </summary>
+        public static IEnumerator LoadFallbackTaleJson(string taleId, Action<TaleDetail> cb)
+            => LoadTaleJson(taleId, FallbackLang, cb);
+
+        /// <summary>True when the default language IS the current one.</summary>
+        public static bool IsFallbackLang(string lang) => lang == FallbackLang;
 
         /// <summary>
         /// Load manifest.json → TaleSummary[] for offline library fallback.

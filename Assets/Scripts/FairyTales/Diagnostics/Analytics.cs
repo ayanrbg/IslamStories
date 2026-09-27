@@ -128,7 +128,8 @@ namespace FairyTales.Diagnostics
 
         private void Send(string name, (string key, object value)[] p)
         {
-            Debug.Log($"[Analytics] {name} | {Describe(p)}");
+            // Skip building the line at all where logging is off.
+            if (!ReleaseLogging.Silenced) Debug.Log($"[Analytics] {name} | {Describe(p)}");
 
 #if FT_FIREBASE
             RunOnFirebase(() => FirebaseAnalytics.LogEvent(name, ToParams(p)));

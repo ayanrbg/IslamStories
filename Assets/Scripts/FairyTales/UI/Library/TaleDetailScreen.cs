@@ -126,10 +126,14 @@ namespace FairyTales.UI.Library
             // (bundled JSON or downloaded cache) — raw templates we personalize on-client.
             bool localText = false;
 
-            // 1. Bundled tales: load local JSON (has all language translations)
-            if (BundledTaleLoader.IsBundled(_tale.id))
+            // 1. Bundled tales: local JSON for THIS language only. A bundle that ships
+            // fewer translations than the app has languages (komar has ru + kz, no en)
+            // must fall through to the steps below instead of serving Russian pages to
+            // an English reader — step 4 is where settling for that becomes acceptable.
+            bool bundled = BundledTaleLoader.IsBundled(_tale.id);
+            if (bundled)
             {
-                yield return BundledTaleLoader.LoadTaleJson(_tale.id, d =>
+                yield return BundledTaleLoader.LoadTaleJson(_tale.id, Loc.Lang, d =>
                 {
                     _detail = d;
                     UpdateUI();
@@ -140,11 +144,19 @@ namespace FairyTales.UI.Library
             // 2. Downloaded tale: cached text for the current language (offline + correct)
             if (_detail == null)
             {
-                var cached = AssetCache.Load(AssetCache.TaleTextKey(_tale.id, Loc.Lang));
+                // Read and parsed on a worker thread: this used to run inside the tap on
+                // the card, before the screen had even started to move.
+                var detailOf = _tale.id;
+                var path = AssetCache.GetPath(AssetCache.TaleTextKey(_tale.id, Loc.Lang));
+                TaleDetail cached = null;
+                yield return JsonAsync.Run(() => System.IO.File.Exists(path)
+                    ? JsonConvert.DeserializeObject<TaleDetail>(System.IO.File.ReadAllText(path))
+                    : null, d => cached = d);
+                // Another card may have been opened while the file was being read.
+                if (_tale == null || _tale.id != detailOf) yield break;
                 if (cached != null)
                 {
-                    _detail = JsonConvert.DeserializeObject<TaleDetail>(
-                        System.Text.Encoding.UTF8.GetString(cached));
+                    _detail = cached;
 
                     // A cached translation with no usable text would stick forever
                     // (the cache is never refreshed) — drop it and ask the server.
@@ -178,6 +190,19 @@ namespace FairyTales.UI.Library
                     },
                     onError: e => { } /* RELEASE: Debug.LogWarning($"[TaleDetail] Server: {e}") */,
                     lang: Loc.Lang);
+            }
+
+            // 4. Bundled tale, untranslated and offline: the default-language pages are
+            // all there is. Reached only once steps 1-3 came up empty, so a reachable
+            // translation always wins over this.
+            if (_detail == null && bundled && !BundledTaleLoader.IsFallbackLang(Loc.Lang))
+            {
+                yield return BundledTaleLoader.LoadFallbackTaleJson(_tale.id, d =>
+                {
+                    _detail = d;
+                    UpdateUI();
+                });
+                if (_detail != null) localText = true;
             }
 
             // Personalize pages (replace {childName}; gender {m:|f:} is resolved at render time)

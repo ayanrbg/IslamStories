@@ -1,3 +1,4 @@
+using DG.Tweening;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -39,6 +40,44 @@ namespace FairyTales.UI.Core
 
         // Throttle: update half the stars each frame (alternating)
         int _batchOffset;
+
+        // Screens that need the background quiet dim the whole field through this.
+        float _master = 1f;
+        bool _blanked;
+        Tween _fade;
+
+        /// <summary>
+        /// Dims the whole star field, 0..1, on top of each star's own twinkle.
+        ///
+        /// It has to live here rather than in a CanvasGroup: <see cref="Update"/> writes
+        /// every star's alpha straight onto its CanvasRenderer each frame, which would
+        /// overwrite whatever a group had applied.
+        /// </summary>
+        public float MasterAlpha
+        {
+            get => _master;
+            set
+            {
+                _fade?.Kill();
+                _fade = null;
+                _master = Mathf.Clamp01(value);
+            }
+        }
+
+        /// <summary>Eases <see cref="MasterAlpha"/> to <paramref name="target"/>. A second
+        /// call replaces the first, so open/close in quick succession cannot leave the
+        /// field stuck halfway.</summary>
+        public void FadeTo(float target, float duration)
+        {
+            _fade?.Kill();
+            target = Mathf.Clamp01(target);
+            if (duration <= 0f) { _master = target; return; }
+            _fade = DOTween.To(() => _master, v => _master = v, target, duration)
+                .SetEase(Ease.OutQuad)
+                .SetUpdate(true);   // keeps working if a screen ever pauses the game
+        }
+
+        void OnDestroy() => _fade?.Kill();
 
         void Awake()
         {
@@ -91,6 +130,17 @@ namespace FairyTales.UI.Core
 
         void Update()
         {
+            // Fully dimmed: clear every star once, then stop working entirely — the
+            // batching means a plain early-out would freeze half of them mid-twinkle.
+            if (_master <= 0.001f)
+            {
+                if (_blanked) return;
+                for (int i = 0; i < starCount; i++) _renderers[i].SetAlpha(0f);
+                _blanked = true;
+                return;
+            }
+            _blanked = false;
+
             var t = Time.time;
             var mid = (minAlpha + maxAlpha) * 0.5f;
             var amp = (maxAlpha - minAlpha) * 0.5f;
@@ -103,7 +153,7 @@ namespace FairyTales.UI.Core
             {
                 // Twinkle via CanvasRenderer.SetAlpha — does NOT dirty Canvas geometry
                 var alpha = mid + amp * Mathf.Sin(t * _twinkleSpeed[i] + _twinklePhase[i]);
-                _renderers[i].SetAlpha(alpha);
+                _renderers[i].SetAlpha(alpha * _master);
 
                 // Rotation: sin wave oscillation around base angle
                 var angle = _baseRotation[i]

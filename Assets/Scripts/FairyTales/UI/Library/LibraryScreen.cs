@@ -446,6 +446,38 @@ namespace FairyTales.UI.Library
         }
 
         /// <summary>Call when name/gender changes to force reload on next show.</summary>
+        /// <summary>
+        /// Takes a catalog fetched elsewhere (the onboarding preload) while this screen is
+        /// still hidden and builds the grid right away, so the cards are already in place
+        /// when the library slides in rather than appearing after it has arrived.
+        /// </summary>
+        public void SetCatalog(TaleSummary[] tales, bool fromServer)
+        {
+            if (tales == null) return;
+            _loadGeneration++; // an in-flight load must not overwrite this
+
+            if (fromServer)
+            {
+                _needsReload = false;
+                ReconcileLibrary(tales);
+                _loadedTales = VisibleTales(tales);
+                // Sets the baseline gift announcements are measured against — nothing
+                // has been earned on a first launch.
+                SaveUnlocked(_loadedTales);
+            }
+            else
+            {
+                // The bundled list only stands in: ask the server again once shown.
+                _needsReload = true;
+                _loadedTales = tales;
+                ApplyCachedUnlocked(_loadedTales);
+            }
+
+            RememberCatalogOrder(_loadedTales);
+            _loadedLang = PlayerPrefs.GetString("ft_lang", "ru");
+            BuildGridImmediate();
+        }
+
         public void MarkNeedsRefresh()
         {
             _needsReload = true;
@@ -483,8 +515,8 @@ namespace FairyTales.UI.Library
                     return;
                 }
 
-                // Paywall, then back to the library. Open() runs the parental gate
-                // (Kids category, Guideline 1.3) before the screen appears at all.
+                // Paywall, then back to the library. The parental gate (Kids category,
+                // Guideline 1.3) waits on the paywall's purchase and restore buttons.
                 PaymentScreen.Open(_screens, source: "tale_locked");
                 return;
             }

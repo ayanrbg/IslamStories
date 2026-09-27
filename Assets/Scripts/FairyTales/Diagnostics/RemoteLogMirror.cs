@@ -55,6 +55,8 @@ namespace FairyTales.Diagnostics
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void Bootstrap()
         {
+            // Nothing to mirror once logging is off in store builds.
+            if (ReleaseLogging.Silenced) return;
             if (_instance != null) return;
             var go = new GameObject("[RemoteLogMirror]");
             DontDestroyOnLoad(go);

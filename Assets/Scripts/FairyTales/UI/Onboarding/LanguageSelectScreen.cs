@@ -16,7 +16,6 @@ namespace FairyTales.UI.Onboarding
         [SerializeField] private Button btnRussian;
         [SerializeField] private Button btnKazakh;
         [SerializeField] private Button btnEnglish;
-        [SerializeField] private Button btnUzbek;
         [SerializeField] private Button btnContinue;
         [SerializeField] private Button btnMusic;
 
@@ -24,7 +23,6 @@ namespace FairyTales.UI.Onboarding
         [SerializeField] private GameObject selectedRu;
         [SerializeField] private GameObject selectedKz;
         [SerializeField] private GameObject selectedEn;
-        [SerializeField] private GameObject selectedUz;
         [SerializeField] private GameObject selectionBtnMusicOff;
         [SerializeField] private GameObject selectionBtnMusicOn;
 
@@ -39,7 +37,6 @@ namespace FairyTales.UI.Onboarding
             btnRussian.onClick.AddListener(() => SelectLang("ru"));
             btnKazakh.onClick.AddListener(() => SelectLang("kz"));
             if (btnEnglish) btnEnglish.onClick.AddListener(() => SelectLang("en"));
-            if (btnUzbek) btnUzbek.onClick.AddListener(() => SelectLang("uz"));
             btnContinue.onClick.AddListener(OnContinue);
             if (btnMusic) btnMusic.onClick.AddListener(OnMusicToggle);
             backgroundMusicManager = FindObjectOfType<BackgroundMusicManager>();
@@ -89,7 +86,6 @@ namespace FairyTales.UI.Onboarding
             if (selectedRu) selectedRu.SetActive(lang == "ru");
             if (selectedKz) selectedKz.SetActive(lang == "kz");
             if (selectedEn) selectedEn.SetActive(lang == "en");
-            if (selectedUz) selectedUz.SetActive(lang == "uz");
             Loc.ApplyLocale(lang);
         }
 

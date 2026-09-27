@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using FairyTales.Models;
+using Newtonsoft.Json;
 using UnityEngine;
 
 namespace FairyTales.Api
@@ -85,13 +86,19 @@ namespace FairyTales.Api
             );
         }
 
+        /// <summary>
+        /// Partial profile update — every argument left null is omitted from the body.
+        /// JsonUtility cannot do that: it writes a null string as "", so updating the
+        /// language alone would have posted {"name":"","gender":"","lang":"en"} and
+        /// blanked the child's name and gender server-side.
+        /// </summary>
         public IEnumerator UpdateProfile(string name = null, string gender = null, string lang = null,
             Action<ProfileData> onSuccess = null, Action<string> onError = null)
         {
-            var body = JsonUtility.ToJson(new ProfileUpdateRequest
+            var body = JsonConvert.SerializeObject(new ProfileUpdateRequest
             {
                 name = name, gender = gender, lang = lang
-            });
+            }, new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
 
             yield return _api.PutJson("/api/user/profile", body,
                 json =>

@@ -1,7 +1,6 @@
 using System;
 using System.Collections;
 using FairyTales.Models;
-using Newtonsoft.Json;
 using UnityEngine;
 
 namespace FairyTales.Api
@@ -17,14 +16,11 @@ namespace FairyTales.Api
         {
             var query = string.IsNullOrEmpty(lang) ? "" : $"?lang={lang}";
 
-            yield return _api.Get($"/api/tales{query}",
-                json =>
-                {
-                    var tales = JsonConvert.DeserializeObject<TaleSummary[]>(json);
-                    onSuccess?.Invoke(tales);
-                },
-                onError
-            );
+            string json = null;
+            yield return _api.Get($"/api/tales{query}", j => json = j, onError);
+            if (json == null) yield break;
+
+            yield return ParseOrFail<TaleSummary[]>(json, onSuccess, onError);
         }
 
         public IEnumerator GetTale(string taleId,
@@ -33,14 +29,11 @@ namespace FairyTales.Api
         {
             var query = string.IsNullOrEmpty(lang) ? "" : $"?lang={lang}";
 
-            yield return _api.Get($"/api/tales/{taleId}{query}",
-                json =>
-                {
-                    var tale = JsonConvert.DeserializeObject<TaleDetail>(json);
-                    onSuccess?.Invoke(tale);
-                },
-                onError
-            );
+            string json = null;
+            yield return _api.Get($"/api/tales/{taleId}{query}", j => json = j, onError);
+            if (json == null) yield break;
+
+            yield return ParseOrFail<TaleDetail>(json, onSuccess, onError);
         }
 
         public IEnumerator Personalize(string taleId, string name, string gender,
@@ -52,14 +45,23 @@ namespace FairyTales.Api
             });
 
             var query = string.IsNullOrEmpty(lang) ? "" : $"?lang={lang}";
+            string json = null;
             yield return _api.PostJson($"/api/tales/{taleId}/personalize{query}", body,
-                json =>
-                {
-                    var response = JsonConvert.DeserializeObject<PersonalizeResponse>(json);
-                    onSuccess?.Invoke(response.pages);
-                },
-                onError
-            );
+                j => json = j, onError);
+            if (json == null) yield break;
+
+            yield return ParseOrFail<PersonalizeResponse>(json,
+                response => onSuccess?.Invoke(response.pages), onError);
+        }
+
+        /// <summary>Parses off the main thread; a body that doesn't parse is an error.</summary>
+        private static IEnumerator ParseOrFail<T>(string json, Action<T> onSuccess,
+            Action<string> onError) where T : class
+        {
+            T result = null;
+            yield return JsonAsync.Parse<T>(json, r => result = r);
+            if (result != null) onSuccess?.Invoke(result);
+            else onError?.Invoke("malformed response");
         }
     }
 }
