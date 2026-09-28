@@ -182,6 +182,14 @@ namespace FairyTales.UI.Core
             OnHidden();
         }
 
+        /// <summary>
+        /// A coordinated swipe is about to carry this screen off the top. Returns how far
+        /// (canvas units) its content may hang below its bottom edge while it travels —
+        /// ScreenManager widens the gap to the incoming screen by that much. Undo any
+        /// change in OnHidden, which runs when the slide ends.
+        /// </summary>
+        public virtual float BeginSlideOut() => 0f;
+
         /// <summary>Called before animation starts. Populate UI here so it's visible during transition.</summary>
         protected virtual void OnPrepare() { }
         protected virtual void OnShown() { }

@@ -7,13 +7,11 @@ using FairyTales.Api;
 using FairyTales.Cache;
 using FairyTales.Diagnostics;
 using FairyTales.Models;
-using FairyTales.IAP;
 using Newtonsoft.Json;
 using FairyTales.Audio;
 using FairyTales.UI.Core;
 using FairyTales.UI.Narration;
 using FairyTales.UI.Onboarding;
-using FairyTales.UI.Payment;
 using FairyTales.UI.Reading;
 
 namespace FairyTales.UI.Library
@@ -27,13 +25,10 @@ namespace FairyTales.UI.Library
         [SerializeField] private TMP_Text pageCountText;
         [SerializeField] private Button btnRead;
         [SerializeField] private Button btnListen;
-        [SerializeField] private Button btnNarrate;
         [SerializeField] private Button btnBack;
         [SerializeField] private Button btnMusic;
         [SerializeField] private GameObject selectionBtnMusicOff;
         [SerializeField] private GameObject selectionBtnMusicOn;
-
-        [SerializeField] private TMP_Text btnNarrateText;
 
         [Header("Voice Selection (child panel)")]
         [SerializeField] private GameObject mainPanel;
@@ -42,13 +37,35 @@ namespace FairyTales.UI.Library
         [SerializeField] private Button btnVoiceMale;
         [SerializeField] private Button btnVoiceFemale;
         [SerializeField] private Button btnVoiceParent;
-        [SerializeField] private Button btnVoiceBack;
+        [Tooltip("One Back for the voice and parent-voice panels. Lives in the top bar, so it " +
+                 "stays put while the panels slide; hidden on the main panel, which has Home.")]
+        [SerializeField] private Button btnPanelBack;
+        [SerializeField] private TMP_Text voiceMaleText;
+        [SerializeField] private TMP_Text voiceFemaleText;
+        [SerializeField] private TMP_Text voiceParentText;
+
+        [Header("Parent voices (child panel)")]
+        [SerializeField] private GameObject parentPanel;
+        [SerializeField] private TMP_Text parentTitleText;
+        [SerializeField] private TMP_Text newRecordingTitleText;
+        [SerializeField] private TMP_InputField speakerInput;
+        [SerializeField] private TMP_Text speakerPlaceholderText;
+        [SerializeField] private Button btnStartRecording;
+        [SerializeField] private TMP_Text startRecordingText;
+        [SerializeField] private TMP_Text voicesTitleText;
+        [SerializeField] private Transform voicesContent;
+        [SerializeField] private ParentVoiceItem voiceItemTemplate;
+        [SerializeField] private TMP_Text noVoicesText;
 
         private ScreenManager _screens;
         private TalesService _tales;
         private BackgroundMusicManager _musicManager;
         private TaleSummary _tale;
         private TaleDetail _detail;
+        private bool _returnToParentVoices;
+        private GameObject _currentPanel;
+        private CanvasGroup _panelBackGroup;
+        private Sequence _panelSeq;
 
         private void Awake()
         {
@@ -59,14 +76,20 @@ namespace FairyTales.UI.Library
 
             if (btnRead) btnRead.onClick.AddListener(OnRead);
             if (btnListen) btnListen.onClick.AddListener(OnListen);
-            if (btnNarrate) btnNarrate.onClick.AddListener(OnNarrate);
             if (btnBack) btnBack.onClick.AddListener(OnBack);
             if (btnMusic) btnMusic.onClick.AddListener(OnMusicToggle);
 
             if (btnVoiceMale) btnVoiceMale.onClick.AddListener(() => OnVoiceSelected("narrator", "male"));
             if (btnVoiceFemale) btnVoiceFemale.onClick.AddListener(() => OnVoiceSelected("narrator", "female"));
             if (btnVoiceParent) btnVoiceParent.onClick.AddListener(OnParentVoice);
-            if (btnVoiceBack) btnVoiceBack.onClick.AddListener(ShowMainPanel);
+            if (btnPanelBack)
+            {
+                btnPanelBack.onClick.AddListener(OnPanelBack);
+                _panelBackGroup = btnPanelBack.GetComponent<CanvasGroup>();
+                if (!_panelBackGroup) _panelBackGroup = btnPanelBack.gameObject.AddComponent<CanvasGroup>();
+            }
+            if (btnStartRecording) btnStartRecording.onClick.AddListener(OnStartRecording);
+            if (voiceItemTemplate) voiceItemTemplate.gameObject.SetActive(false);
         }
 
         public void SetTale(TaleSummary tale)
@@ -98,8 +121,11 @@ namespace FairyTales.UI.Library
         protected override void OnPrepare()
         {
             if (illustrationGroup) illustrationGroup.alpha = 1f;
-            ShowMainPanel();
-            UpdateNarrateButtonText();
+            ApplyTexts();
+            // Coming back from the recorder lands on the voices list, with the new voice in it.
+            if (_returnToParentVoices) ShowParentPanel(animate: false);
+            else ShowPanel(mainPanel, animate: false);
+            _returnToParentVoices = false;
             UpdateMusicButtons();
         }
 
@@ -230,9 +256,6 @@ namespace FairyTales.UI.Library
             EnsureDownloadedThen(NarrationMode.None);
         }
 
-        private bool IsPremium =>
-            IAPManager.Instance != null && IAPManager.Instance.IsSubscribed;
-
         private void OnListen()
         {
             if (_tale == null) return;
@@ -241,25 +264,118 @@ namespace FairyTales.UI.Library
             ShowVoicePanel();
         }
 
-        private void ShowVoicePanel()
+        private void ApplyTexts()
         {
-            if (mainPanel) mainPanel.SetActive(false);
-            if (voicePanel) voicePanel.SetActive(true);
             if (voiceTitleText) voiceTitleText.text = Loc.Get("choose_voice");
-            // Parent voice is a real per-page recording now — available in every language.
-            if (btnVoiceParent) btnVoiceParent.gameObject.SetActive(true);
+            if (voiceMaleText) voiceMaleText.text = Loc.Get("voice_male");
+            if (voiceFemaleText) voiceFemaleText.text = Loc.Get("voice_female");
+            if (voiceParentText) voiceParentText.text = Loc.Get("voice_parent");
+            if (parentTitleText) parentTitleText.text = Loc.Get("parent_voices_title");
+            if (newRecordingTitleText) newRecordingTitleText.text = Loc.Get("new_recording");
+            if (speakerPlaceholderText) speakerPlaceholderText.text = Loc.Get("speaker_name");
+            if (startRecordingText) startRecordingText.text = Loc.Get("start");
+            if (voicesTitleText) voicesTitleText.text = Loc.Get("voices");
+            if (noVoicesText) noVoicesText.text = Loc.Get("no_voices");
         }
 
-        private void ShowMainPanel()
+        // Same gap ScreenManager keeps between two screens during a coordinated slide.
+        private const float PanelGap = 40f;
+
+        /// <summary>
+        /// Swaps panels with the same swipe-up as a screen change (see ScreenManager.CoordinatedSlide):
+        /// the current panel leaves upward while the next one rises from below. The tale's
+        /// illustration and the music button stay put. Not animated when the screen is being
+        /// prepared — it isn't visible yet, and the screen's own transition covers it.
+        /// </summary>
+        private void ShowPanel(GameObject panel, bool animate = true)
         {
-            if (voicePanel) voicePanel.SetActive(false);
-            if (mainPanel) mainPanel.SetActive(true);
+            FinishPanelSlide();
+
+            var prev = _currentPanel;
+            _currentPanel = panel;
+            bool showBack = panel != mainPanel;
+
+            if (!animate || prev == null || prev == panel || panel == null)
+            {
+                foreach (var p in new[] { mainPanel, voicePanel, parentPanel })
+                {
+                    if (!p) continue;
+                    p.SetActive(p == panel);
+                    ((RectTransform)p.transform).anchoredPosition = Vector2.zero;
+                }
+                SetPanelBackVisible(showBack);
+                return;
+            }
+
+            var prevRt = (RectTransform)prev.transform;
+            var nextRt = (RectTransform)panel.transform;
+            float height = Rect.rect.height;
+
+            panel.SetActive(true);
+            prevRt.anchoredPosition = Vector2.zero;
+            nextRt.anchoredPosition = new Vector2(0f, -(height + PanelGap));
+            SetInputEnabled(false);
+
+            // Settled in OnKill, which runs whether the slide finishes or is cut short:
+            // a slide killed mid-way must not leave two panels up and the screen deaf.
+            _panelSeq = DOTween.Sequence()
+                .Append(prevRt.DOAnchorPosY(height + PanelGap, AnimDuration).SetEase(Ease.InOutCubic))
+                .Join(nextRt.DOAnchorPosY(0f, AnimDuration).SetEase(Ease.InOutCubic))
+                .OnKill(() =>
+                {
+                    _panelSeq = null;
+                    if (this == null) return; // killed by the link while the scene unloads
+                    prev.SetActive(false);
+                    prevRt.anchoredPosition = Vector2.zero;
+                    nextRt.anchoredPosition = Vector2.zero;
+                    SetPanelBackVisible(showBack);
+                    SetInputEnabled(true);
+                })
+                .SetLink(gameObject);
+
+            // The shared Back stays put, so it fades with the slide instead of travelling:
+            // in when leaving the main panel, out when returning to it.
+            if (_panelBackGroup && _panelBackGroup.alpha != (showBack ? 1f : 0f))
+                _panelSeq.Join(_panelBackGroup.DOFade(showBack ? 1f : 0f, AnimDuration).SetEase(Ease.InOutCubic));
         }
+
+        private void SetPanelBackVisible(bool visible)
+        {
+            if (!_panelBackGroup) return;
+            _panelBackGroup.alpha = visible ? 1f : 0f;
+            _panelBackGroup.interactable = visible;
+            _panelBackGroup.blocksRaycasts = visible;
+        }
+
+        private void OnPanelBack()
+        {
+            if (_currentPanel == parentPanel) ShowVoicePanel();
+            else ShowMainPanel();
+        }
+
+        private void FinishPanelSlide()
+        {
+            var seq = _panelSeq;
+            _panelSeq = null;
+            if (seq != null && seq.IsActive()) seq.Complete(true);
+        }
+
+        private void ShowVoicePanel() => ShowPanel(voicePanel);
+
+        private void ShowMainPanel() => ShowPanel(mainPanel);
+
+        private void ShowParentPanel(bool animate = true)
+        {
+            // Filled before the slide so the list rises already populated.
+            RefreshVoices();
+            ShowPanel(parentPanel, animate);
+        }
+
+        /// <summary>The recorder hands the parent back to the voices list instead of the tale's start panel.</summary>
+        public void ReturnToParentVoices() => _returnToParentVoices = true;
 
         private void OnVoiceSelected(string voice, string narratorGender)
         {
-            ShowMainPanel();
-
             // Remember the narrator: reading later re-narrates missing pages and the
             // default mode does TTS of its own — both must use the same voice.
             UserProfile.NarratorGender = narratorGender;
@@ -320,12 +436,12 @@ namespace FairyTales.UI.Library
             _screens.Show<NarrationProgressScreen>();
         }
 
-        private void EnsureDownloadedThen(NarrationMode mode)
+        private void EnsureDownloadedThen(NarrationMode mode, string parentVoiceId = null)
         {
             if (AssetCache.IsTaleDownloaded(_tale.id))
             {
                 // RELEASE: Debug.Log($"[TaleDetail] Tale {_tale.id} already cached, opening");
-                OpenReading(mode);
+                OpenReading(mode, parentVoiceId);
                 return;
             }
 
@@ -333,76 +449,98 @@ namespace FairyTales.UI.Library
             if (download == null)
             {
                 // RELEASE: Debug.LogError("[TaleDetail] DownloadScreen not found in scene!");
-                OpenReading(mode);
+                OpenReading(mode, parentVoiceId);
                 return;
             }
 
             // RELEASE: Debug.Log($"[TaleDetail] Starting download for {_tale.id}");
-            download.SetSingleTale(_tale, () => OpenReading(mode));
+            download.SetSingleTale(_tale, () => OpenReading(mode, parentVoiceId));
             _screens.Show<DownloadScreen>();
         }
 
-        private void OpenReading(NarrationMode mode)
+        private void OpenReading(NarrationMode mode, string parentVoiceId = null)
         {
             var reading = _screens.Get<ReadingScreen>();
             if (reading == null) return;
 
-            reading.SetTale(_detail, mode);
+            reading.SetTale(_detail, mode, parentVoiceId);
             if (illustrationImage && illustrationImage.sprite != null)
                 reading.SetInitialIllustration(illustrationImage.sprite);
             _screens.ShowOver<ReadingScreen>();
         }
 
-        private void UpdateNarrateButtonText()
+        // ── Parent voices ───────────────────────────────────
+
+        // Narration is free in every voice — only the tales themselves sit behind premium.
+        private void OnParentVoice() => ShowParentPanel();
+
+        private string VoicesLang => TaleText.SpokenLang(_detail);
+
+        private void RefreshVoices()
         {
-            if (btnNarrate) btnNarrate.gameObject.SetActive(true);
-            if (btnNarrateText == null) return;
-            btnNarrateText.text = Loc.Get("narrate");
+            if (voicesContent == null || voiceItemTemplate == null || _tale == null) return;
+
+            foreach (Transform child in voicesContent)
+                if (child != voiceItemTemplate.transform) Destroy(child.gameObject);
+
+            var voices = ParentVoices.List(_tale.id, VoicesLang);
+            foreach (var voice in voices)
+            {
+                var item = Instantiate(voiceItemTemplate, voicesContent);
+                item.gameObject.SetActive(true);
+                var v = voice;
+                item.Bind(v, () => OnPlayParentVoice(v), () => OnDeleteParentVoice(v));
+            }
+            if (noVoicesText) noVoicesText.gameObject.SetActive(voices.Count == 0);
         }
 
-        private void OnNarrate()
+        private void OnPlayParentVoice(ParentVoice voice)
         {
-            if (!IsPremium)
+            if (_detail == null)
             {
-                PaymentScreen.Open(_screens, typeof(TaleDetailScreen), source: "narrate");
+                Toast.Show(Loc.Get("loading"));
+                return;
+            }
+            EnsureDownloadedThen(NarrationMode.Parent, voice.id);
+        }
+
+        private void OnDeleteParentVoice(ParentVoice voice)
+        {
+            ConfirmPopup.Show(Loc.Get("delete_voice_confirm"), () =>
+                ChildGatePopup.Show(() =>
+                {
+                    ParentVoices.Delete(_tale.id, VoicesLang, voice.id);
+                    RefreshVoices();
+                }));
+        }
+
+        private void OnStartRecording()
+        {
+            var speaker = speakerInput ? speakerInput.text.Trim() : "";
+            if (speaker.Length == 0)
+            {
+                Toast.Show(Loc.Get("enter_speaker_name"));
+                if (speakerInput)
+                    speakerInput.transform.DOShakePosition(0.4f, new Vector3(12f, 0f, 0f), 20)
+                        .SetLink(speakerInput.gameObject);
+                return;
+            }
+            if (_detail == null)
+            {
+                Toast.Show(Loc.Get("loading"));
                 return;
             }
 
             ChildGatePopup.Show(() =>
             {
-                if (_detail == null) return;
                 var reading = _screens.Get<ReadingScreen>();
-                if (reading == null) return;
+                if (reading == null || _detail == null) return;
 
-                reading.SetRecordingMode(_detail, _tale);
+                var voice = ParentVoices.Create(_tale.id, VoicesLang, speaker);
+                if (speakerInput) speakerInput.text = "";
+                reading.SetRecordingMode(_detail, _tale, parentVoiceId: voice.id);
                 _screens.ShowOver<ReadingScreen>();
             });
-        }
-
-        // ── Parent voice in Listen panel ────────────────────
-
-        private void OnParentVoice()
-        {
-            ShowMainPanel();
-
-            // 1. No premium → payment
-            if (!IsPremium)
-            {
-                PaymentScreen.Open(_screens, typeof(TaleDetailScreen), source: "parent_voice");
-                return;
-            }
-
-            // 2. Nothing recorded yet → prompt the parent to record via "Озвучить"
-            if (!AssetCache.HasAnyParentNarration(_tale.id, TaleText.SpokenLang(_detail)))
-            {
-                Toast.Show(Loc.Get("record_voice_first"));
-                return;
-            }
-
-            if (_detail == null) return;
-
-            // 3. Play the parent's real recorded voice, page by page.
-            EnsureDownloadedThen(NarrationMode.Parent);
         }
 
         private void OnMusicToggle()

@@ -106,7 +106,7 @@ namespace FairyTales.Editor
             so.FindProperty("btnVoiceMale").objectReferenceValue = btnMale;
             so.FindProperty("btnVoiceFemale").objectReferenceValue = btnFemale;
             so.FindProperty("btnVoiceParent").objectReferenceValue = btnParent;
-            so.FindProperty("btnVoiceBack").objectReferenceValue = backBtn;
+            so.FindProperty("btnPanelBack").objectReferenceValue = backBtn;
 
             // Wire btnNarrateText
             var btnNarrateProp = so.FindProperty("btnNarrate");

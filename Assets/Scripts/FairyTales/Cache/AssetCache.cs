@@ -22,6 +22,11 @@ namespace FairyTales.Cache
         /// Call once at startup to wipe stale cache after format change.
         public static void MigrateIfNeeded()
         {
+            // First, before anything below may clear the cache. Startup must survive an
+            // IO failure here: the recordings then stay where they were (ClearAll spares
+            // that folder) and the move is simply tried again next launch.
+            try { MoveParentVoicesOutOfCache(); }
+            catch (Exception e) { Diagnostics.RemoteLog.Event("parent_voices_move_fail", e.Message); }
             PurgeLegacyAiNarration();
 
             var key = "cache_version";
@@ -63,42 +68,109 @@ namespace FairyTales.Cache
 
         // ── Parent narration (real parent voice, recorded per page) ──
         // Replaces the old AI voice-clone sample: the parent reads each page aloud
-        // and we store one WAV per (tale, language, page). Played back verbatim
-        // during reading — no server, no cloning.
-        public static string ParentNarrationKey(string taleId, string lang, int page)
-            => $"parent-narration/{taleId}/{lang}/page_{page}.wav";
+        // and we store one WAV per (tale, language, voice, page). Played back verbatim
+        // during reading — no server, no cloning. Voices are listed in ParentVoices.
+        //
+        // These recordings are the family's own work, not cache: nothing can download
+        // them again. They live beside the cache rather than inside it, so ClearAll —
+        // run whenever CacheVersion is bumped — can never take them.
+        private static string VoicesRoot => Path.Combine(Application.persistentDataPath, "parent-voices");
 
-        public static void SaveParentNarration(string taleId, string lang, int page, byte[] wav)
-            => Save(ParentNarrationKey(taleId, lang, page), wav);
+        // Where builds before VoicesRoot kept them (inside the cache).
+        private static string LegacyVoicesRoot => Path.Combine(Root, "parent-narration");
 
-        public static byte[] LoadParentNarration(string taleId, string lang, int page)
-            => Load(ParentNarrationKey(taleId, lang, page));
-
-        public static bool HasParentNarrationPage(string taleId, string lang, int page)
-            => Exists(ParentNarrationKey(taleId, lang, page));
-
-        /// <summary>True if at least one page has been recorded for this tale+language.</summary>
-        public static bool HasAnyParentNarration(string taleId, string lang)
+        private static string ParentNarrationPath(string taleId, string lang, string voiceId, int page)
         {
-            var dir = ParentNarrationDir(taleId, lang);
+            var dir = ParentVoiceDir(taleId, lang, voiceId);
+            return dir == null ? null : Path.Combine(dir, $"page_{page}.wav");
+        }
+
+        public static void SaveParentNarration(string taleId, string lang, string voiceId, int page, byte[] wav)
+        {
+            var path = ParentNarrationPath(taleId, lang, voiceId, page);
+            if (path == null) return;
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllBytes(path, wav);
+        }
+
+        public static byte[] LoadParentNarration(string taleId, string lang, string voiceId, int page)
+        {
+            var path = ParentNarrationPath(taleId, lang, voiceId, page);
+            return path != null && File.Exists(path) ? File.ReadAllBytes(path) : null;
+        }
+
+        public static bool HasParentNarrationPage(string taleId, string lang, string voiceId, int page)
+        {
+            var path = ParentNarrationPath(taleId, lang, voiceId, page);
+            return path != null && File.Exists(path);
+        }
+
+        /// <summary>True if at least one page has been recorded in this voice.</summary>
+        public static bool HasAnyParentNarration(string taleId, string lang, string voiceId)
+        {
+            var dir = ParentVoiceDir(taleId, lang, voiceId);
             return dir != null && Directory.Exists(dir)
                 && Directory.GetFiles(dir, "page_*.wav").Length > 0;
         }
 
-        /// <summary>Deletes all recorded parent pages for a tale+language.</summary>
-        public static void ClearParentNarration(string taleId, string lang)
+        /// <summary>Deletes all recorded pages of one voice.</summary>
+        public static void ClearParentNarration(string taleId, string lang, string voiceId)
         {
-            var dir = ParentNarrationDir(taleId, lang);
+            var dir = ParentVoiceDir(taleId, lang, voiceId);
             if (dir != null && Directory.Exists(dir)) Directory.Delete(dir, true);
         }
 
         // Path.Combine throws on a null segment, and callers legitimately ask about a
         // tale that was never set (RecordingOverlay before Activate) — answer "nothing
         // recorded" instead of blowing up the caller's call stack.
-        private static string ParentNarrationDir(string taleId, string lang)
+        internal static string ParentNarrationDir(string taleId, string lang)
             => string.IsNullOrEmpty(taleId) || string.IsNullOrEmpty(lang)
                 ? null
-                : Path.Combine(Root, "parent-narration", taleId, lang);
+                : Path.Combine(VoicesRoot, taleId, lang);
+
+        private static string ParentVoiceDir(string taleId, string lang, string voiceId)
+        {
+            var dir = ParentNarrationDir(taleId, lang);
+            return dir == null || string.IsNullOrEmpty(voiceId) ? null : Path.Combine(dir, voiceId);
+        }
+
+        /// <summary>
+        /// Moves recordings made by older builds out of the cache. Runs before anything
+        /// that may clear the cache. Moves whatever the new place doesn't have yet, entry
+        /// by entry; the old folder is removed only once nothing is left in it, so a clash
+        /// never costs a recording (ClearAll spares what stays behind).
+        /// </summary>
+        private static void MoveParentVoicesOutOfCache()
+        {
+            var legacy = LegacyVoicesRoot;
+            if (!Directory.Exists(legacy)) return;
+
+            MergeInto(legacy, VoicesRoot);
+            if (Directory.GetFileSystemEntries(legacy).Length == 0)
+                Directory.Delete(legacy);
+        }
+
+        // Moves every entry of src that dest lacks; recurses into folders both have, and
+        // drops folders it emptied. Files present in both stay where they are.
+        private static void MergeInto(string src, string dest)
+        {
+            Directory.CreateDirectory(dest);
+            foreach (var dir in Directory.GetDirectories(src))
+            {
+                var target = Path.Combine(dest, Path.GetFileName(dir));
+                if (!Directory.Exists(target)) Directory.Move(dir, target);
+                else
+                {
+                    MergeInto(dir, target);
+                    if (Directory.GetFileSystemEntries(dir).Length == 0) Directory.Delete(dir);
+                }
+            }
+            foreach (var file in Directory.GetFiles(src))
+            {
+                var target = Path.Combine(dest, Path.GetFileName(file));
+                if (!File.Exists(target)) File.Move(file, target);
+            }
+        }
 
         // ── Keys ─────────────────────────────────────────────
         public static string CoverKey(string taleId)
@@ -464,11 +536,13 @@ namespace FairyTales.Cache
         {
             if (string.IsNullOrEmpty(taleId)) return;
 
-            foreach (var sub in new[] { "illustrations", "tales-text", "narration", "ai-narration", "tts-narration", "parent-narration" })
+            foreach (var sub in new[] { "illustrations", "tales-text", "narration", "ai-narration", "tts-narration" })
             {
                 var dir = Path.Combine(Root, sub, taleId);
                 if (Directory.Exists(dir)) Directory.Delete(dir, true);
             }
+            var voices = Path.Combine(VoicesRoot, taleId);
+            if (Directory.Exists(voices)) Directory.Delete(voices, true);
             Delete(CoverKey(taleId));
             Delete(TaleReadyKey(taleId));
             DownloadedMemo.Remove(taleId);
@@ -500,8 +574,15 @@ namespace FairyTales.Cache
         {
             ClearSpriteCache();
             DownloadedMemo.Clear();
-            if (Directory.Exists(Root))
-                Directory.Delete(Root, true);
+            if (!Directory.Exists(Root)) return;
+
+            // Everything in the cache can be fetched again — except parent recordings that
+            // an older build left here and that could not be moved out yet.
+            var legacyVoices = Path.GetFullPath(LegacyVoicesRoot);
+            foreach (var dir in Directory.GetDirectories(Root))
+                if (Path.GetFullPath(dir) != legacyVoices) Directory.Delete(dir, true);
+            foreach (var file in Directory.GetFiles(Root))
+                File.Delete(file);
         }
     }
 }

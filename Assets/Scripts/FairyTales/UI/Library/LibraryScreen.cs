@@ -96,10 +96,109 @@ namespace FairyTales.UI.Library
                 BuildGridImmediate();
             else
                 RefreshCardStates();
+
+            // The library always opens from the top, wherever it was left scrolled.
+            ScrollToTop();
         }
+
+        private void ScrollToTop()
+        {
+            var scroll = cardContainer ? cardContainer.GetComponentInParent<ScrollRect>(true) : null;
+            if (scroll == null) return;
+            scroll.StopMovement();
+            var content = scroll.content;
+            content.anchoredPosition = new Vector2(content.anchoredPosition.x, 0f);
+        }
+
+        // ── Card rows cut by the screen edge during a slide ──────────
+        // The grid is clipped by a RectMask2D that ends exactly at the screen edge, which
+        // is invisible while the library sits still. Leaving (upward) carries the bottom
+        // edge into view, where a row would show sliced flat — so the mask is stretched
+        // just enough to finish that row, and ScreenManager moves the next screen that
+        // much further away. Arriving needs nothing: the library always opens scrolled
+        // to the top, where no row is cut.
+
+        private readonly Vector3[] _corners = new Vector3[4];
+        private readonly List<Graphic> _cardGraphics = new();
+        private readonly List<(Transform item, Vector2 span)> _gridItems = new(); // span = (minY, maxY) in mask space
+        private readonly List<Graphic> _hiddenForSlide = new();
+        private RectMask2D _gridMask;
+
+        private RectMask2D GridMask =>
+            _gridMask ? _gridMask : _gridMask = cardContainer ? cardContainer.GetComponentInParent<RectMask2D>(true) : null;
+
+        public override float BeginSlideOut() => FinishCutRow();
+
+        private float FinishCutRow()
+        {
+            var mask = GridMask;
+            if (mask == null) return 0f;
+
+            // Card positions come from layout; make sure it is current.
+            LayoutRebuilder.ForceRebuildLayoutImmediate((RectTransform)cardContainer);
+
+            var view = mask.rectTransform;
+
+            // What each grid item actually draws, lock and gift badges included — they
+            // stick out past the item's rect.
+            _gridItems.Clear();
+            foreach (Transform child in cardContainer)
+            {
+                if (!child.gameObject.activeInHierarchy) continue;
+                float minY = float.MaxValue, maxY = float.MinValue;
+                child.GetComponentsInChildren(false, _cardGraphics);
+                foreach (var g in _cardGraphics)
+                {
+                    if (!g.enabled || g.color.a <= 0f) continue;
+                    g.rectTransform.GetWorldCorners(_corners);
+                    minY = Mathf.Min(minY, view.InverseTransformPoint(_corners[0]).y);
+                    maxY = Mathf.Max(maxY, view.InverseTransformPoint(_corners[1]).y);
+                }
+                if (minY < maxY) _gridItems.Add((child, new Vector2(minY, maxY)));
+            }
+
+            // Finish every item the bottom edge cuts through.
+            var edge = view.rect.yMin;
+            var line = edge;
+            foreach (var (_, span) in _gridItems)
+                if (span.x < edge && span.y > edge) line = Mathf.Min(line, span.x);
+
+            float overhang = edge - line;
+            if (overhang <= 0f) return 0f;
+
+            // Items wholly below the edge that still reach into the stretched band — the
+            // next row's lock badges, which overlap the row above — would appear as
+            // slivers. They are off screen whenever the library stands still, so they sit
+            // this slide out. Pulling the line back in for them would cut the row we are
+            // finishing.
+            foreach (var (item, span) in _gridItems)
+            {
+                if (span.y > edge || span.y <= line) continue;
+                item.GetComponentsInChildren(false, _cardGraphics);
+                foreach (var g in _cardGraphics)
+                {
+                    g.canvasRenderer.SetAlpha(0f);
+                    _hiddenForSlide.Add(g);
+                }
+            }
+
+            mask.padding = new Vector4(0f, -overhang, 0f, 0f);
+            return overhang;
+        }
+
+        private void EndSlide()
+        {
+            if (GridMask) GridMask.padding = Vector4.zero;
+            foreach (var g in _hiddenForSlide)
+                if (g) g.canvasRenderer.SetAlpha(1f);
+            _hiddenForSlide.Clear();
+        }
+
+        protected override void OnHidden() => EndSlide();
 
         protected override void OnShown()
         {
+            EndSlide();
             Analytics.Log("library_view", ("tales_count", _loadedTales?.Length ?? 0));
             StartCoroutine(EnsureRegisteredAndLoad());
         }

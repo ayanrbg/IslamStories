@@ -57,6 +57,7 @@ namespace FairyTales.UI.Reading
         private Coroutine _narrationRoutine;
         private bool _recordingMode;
         private Models.Draft _recordingDraft;
+        private string _parentVoiceId; // the voice played (Parent mode) or being recorded
         private int _startPage;
         private bool _paywallShown;
         private bool _completed;
@@ -101,10 +102,12 @@ namespace FairyTales.UI.Reading
             _initialIllustration = sprite;
         }
 
-        public void SetTale(TaleDetail tale, NarrationMode mode = NarrationMode.Default)
+        public void SetTale(TaleDetail tale, NarrationMode mode = NarrationMode.Default,
+            string parentVoiceId = null)
         {
             _tale = tale;
             _mode = mode;
+            _parentVoiceId = parentVoiceId;
             _recordingMode = false;
             _taleSummary = null;
             _initialIllustration = null;
@@ -112,13 +115,17 @@ namespace FairyTales.UI.Reading
         }
 
         public void SetRecordingMode(TaleDetail detail, TaleSummary summary,
-            Models.Draft draft = null)
+            Models.Draft draft = null, string parentVoiceId = null)
         {
             _tale = detail;
             _taleSummary = summary;
             _mode = NarrationMode.None;
             _recordingMode = true;
             _recordingDraft = draft;
+            // Every recording session belongs to a voice; callers that don't name one
+            // get a nameless voice of their own.
+            _parentVoiceId = parentVoiceId
+                ?? ParentVoices.Create(summary?.id ?? detail?.id, TaleText.SpokenLang(detail), "").id;
         }
 
         protected override void OnPrepare()
@@ -151,7 +158,7 @@ namespace FairyTales.UI.Reading
             }
 
             if (_recordingMode && recordingOverlay)
-                recordingOverlay.Activate(_tale.id, SpokenLang,
+                recordingOverlay.Activate(_tale.id, SpokenLang, _parentVoiceId,
                     pageNavigator, _narrationPlayer);
             else if (recordingOverlay && recordingOverlay.IsActive)
                 recordingOverlay.Deactivate();
@@ -338,10 +345,10 @@ namespace FairyTales.UI.Reading
         // didn't record simply stay silent.
         private void PlayParentNarration(int page)
         {
-            var wav = AssetCache.LoadParentNarration(_tale.id, SpokenLang, page);
+            var wav = AssetCache.LoadParentNarration(_tale.id, SpokenLang, _parentVoiceId, page);
             if (wav != null) _narrationPlayer.PlayFromBytes(wav);
             else RemoteLog.Event("narration_parent_missing",
-                $"tale={_tale.id}; page={page}; lang={SpokenLang}");
+                $"tale={_tale.id}; page={page}; lang={SpokenLang}; voice={_parentVoiceId}");
         }
 
         private IEnumerator PlayDefaultNarration(int page)
@@ -493,14 +500,15 @@ namespace FairyTales.UI.Reading
         {
             if (_narrationPlayer) _narrationPlayer.Stop();
 
-            // Recording session: finalize the current page, then return to the tale
-            // detail so the parent can immediately listen via "Parent voice".
+            // Recording session: finalize the current page, then return to the parent
+            // voices list, where the new voice now shows up ready to play.
             if (_recordingMode)
             {
                 if (recordingOverlay && recordingOverlay.IsActive)
                     recordingOverlay.Deactivate();
-                if (_tale != null && AssetCache.HasAnyParentNarration(_tale.id, SpokenLang))
+                if (_tale != null && AssetCache.HasAnyParentNarration(_tale.id, SpokenLang, _parentVoiceId))
                     Toast.Show(Loc.Get("voice_saved"));
+                _screens.Get<Library.TaleDetailScreen>()?.ReturnToParentVoices();
                 _screens.Show<Library.TaleDetailScreen>();
                 return;
             }
@@ -511,6 +519,13 @@ namespace FairyTales.UI.Reading
             {
                 ShowEndPaywall();
                 if (_paywallShown) return;
+            }
+
+            // Closing a tale asks for support — at most once an hour (SupportScreen.IsDue).
+            if (!_paywallShown && Payment.SupportScreen.IsDue())
+            {
+                Payment.SupportScreen.Open(_screens, "tale_closed");
+                return;
             }
 
             _screens.Show<Library.LibraryScreen>();
@@ -546,6 +561,14 @@ namespace FairyTales.UI.Reading
             _paywallShown = true;
             if (_narrationPlayer) _narrationPlayer.Stop();
             StopNarrationRoutine();
+
+            // When the support ask is due it takes the paywall's place — one offer per
+            // finished tale, never two in a row.
+            if (Payment.SupportScreen.IsDue())
+            {
+                Payment.SupportScreen.Open(_screens, "tale_finished");
+                return;
+            }
 
             // Closing the paywall continues the journey the tale ended on: back to
             // the library, not into the book that was just finished.

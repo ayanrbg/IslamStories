@@ -14,7 +14,7 @@ namespace FairyTales.UI.Reading
     /// Play button, which previews every recorded page in order with auto page-flip.
     /// The "Done" button doubles as Play — exit is via the reading Home button
     /// (clips are saved incrementally, so leaving already keeps them).
-    /// Nothing goes to the server — clips are stored locally per (tale, language, page)
+    /// Nothing goes to the server — clips are stored locally per (tale, language, voice, page)
     /// and played back verbatim during reading.
     /// </summary>
     public class RecordingOverlay : MonoBehaviour
@@ -41,6 +41,7 @@ namespace FairyTales.UI.Reading
         private PageNavigator _pageNavigator;
         private string _taleId;
         private string _lang;
+        private string _voiceId;
 
         private bool _recording;      // a mic segment is currently active
         private bool _micStarted;     // mic actually began capturing (past the permission prompt)
@@ -56,11 +57,12 @@ namespace FairyTales.UI.Reading
             if (btnDone) btnDone.onClick.AddListener(OnPreviewToggle);
         }
 
-        public void Activate(string taleId, string lang,
+        public void Activate(string taleId, string lang, string voiceId,
             PageNavigator pageNavigator, NarrationPlayer player)
         {
             _taleId = taleId;
             _lang = lang;
+            _voiceId = voiceId;
             _pageNavigator = pageNavigator;
             _player = player;
 
@@ -149,7 +151,7 @@ namespace FairyTales.UI.Reading
         private void OnSegmentStopped(byte[] wav)
         {
             if (wav != null && wav.Length > 0)
-                AssetCache.SaveParentNarration(_taleId, _lang, _recordingPage, wav);
+                AssetCache.SaveParentNarration(_taleId, _lang, _voiceId, _recordingPage, wav);
         }
 
         /// <summary>
@@ -188,7 +190,7 @@ namespace FairyTales.UI.Reading
             if (_pageNavigator != null && _pageNavigator.CurrentPage != page)
                 _pageNavigator.GoToPage(page);
 
-            var wav = AssetCache.LoadParentNarration(_taleId, _lang, page);
+            var wav = AssetCache.LoadParentNarration(_taleId, _lang, _voiceId, page);
             if (wav == null || _player == null)
             {
                 AdvancePreview();
@@ -230,21 +232,21 @@ namespace FairyTales.UI.Reading
 
         // ── Helpers ──────────────────────────────────────────────
         private bool HasAnyRecording()
-            => AssetCache.HasAnyParentNarration(_taleId, _lang);
+            => AssetCache.HasAnyParentNarration(_taleId, _lang, _voiceId);
 
         private int TotalPages => _pageNavigator != null ? _pageNavigator.TotalPages : 0;
 
         private int FirstRecordedPage()
         {
             for (int i = 0; i < TotalPages; i++)
-                if (AssetCache.HasParentNarrationPage(_taleId, _lang, i)) return i;
+                if (AssetCache.HasParentNarrationPage(_taleId, _lang, _voiceId, i)) return i;
             return -1;
         }
 
         private int NextRecordedPage(int after)
         {
             for (int i = after + 1; i < TotalPages; i++)
-                if (AssetCache.HasParentNarrationPage(_taleId, _lang, i)) return i;
+                if (AssetCache.HasParentNarrationPage(_taleId, _lang, _voiceId, i)) return i;
             return -1;
         }
 

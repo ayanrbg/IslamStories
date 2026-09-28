@@ -223,11 +223,14 @@ namespace FairyTales.UI.Core
             prev.Rect.anchoredPosition = Vector2.zero;
             next.PrepareBelow();
             // Push incoming screen an extra SlideGap below so a small space
-            // stays between them as they travel together.
-            next.Rect.anchoredPosition = new Vector2(0f, -(next.Rect.rect.height + SlideGap));
+            // stays between them as they travel together. Screens that let content
+            // hang past their edge while moving (the library finishes the card row the
+            // screen edge cuts through) get that much more room, so nothing overlaps.
+            var gap = SlideGap + prev.BeginSlideOut();
+            next.Rect.anchoredPosition = new Vector2(0f, -(next.Rect.rect.height + gap));
 
             var seq = DOTween.Sequence();
-            seq.Append(prev.Rect.DOAnchorPosY(prev.Rect.rect.height + SlideGap, duration).SetEase(Ease.InOutCubic));
+            seq.Append(prev.Rect.DOAnchorPosY(prev.Rect.rect.height + gap, duration).SetEase(Ease.InOutCubic));
             seq.Join(next.Rect.DOAnchorPosY(0f, duration).SetEase(Ease.InOutCubic));
             seq.OnComplete(() =>
             {
