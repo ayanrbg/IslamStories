@@ -1,70 +1,72 @@
+using System;
+using System.Collections;
 using DG.Tweening;
+using FairyTales.Api;
 using FairyTales.Audio;
 using FairyTales.Diagnostics;
 using FairyTales.UI.Core;
 using UnityEngine;
 using UnityEngine.UI;
-using UnityEngine.Localization.Settings;
 
 namespace FairyTales.UI.Onboarding
 {
     public class LanguageSelectScreen : BaseScreen
     {
+        /// <summary>One flag tile; <see cref="lang"/> is the code GET /api/languages uses.</summary>
+        [Serializable]
+        private class LangTile
+        {
+            public string lang;
+            public Button button;
+            public GameObject selection;
+        }
+
         [SerializeField] private Image background;
         [SerializeField] private float bgFadeDuration = 0.5f;
         [SerializeField] private BackgroundMusicManager backgroundMusicManager;
-        [SerializeField] private Button btnRussian;
-        [SerializeField] private Button btnKazakh;
-        [SerializeField] private Button btnEnglish;
+        [SerializeField] private LangTile[] tiles;
         [SerializeField] private Button btnContinue;
+        [Tooltip("Hidden on first launch: there is nothing to go back to yet.")]
+        [SerializeField] private Button btnClose;
         [SerializeField] private Button btnMusic;
-
-        [Header("Selection visuals")]
-        [SerializeField] private GameObject selectedRu;
-        [SerializeField] private GameObject selectedKz;
-        [SerializeField] private GameObject selectedEn;
         [SerializeField] private GameObject selectionBtnMusicOff;
         [SerializeField] private GameObject selectionBtnMusicOn;
 
-        private string _selectedLang = "ru";
+        private LangTile _selected;
         private ScreenManager _screens;
+
+        private bool IsFirstRun => PlayerPrefs.GetInt("ft_onboarded", 0) == 0;
 
         private void Awake()
         {
             _screens = GetComponentInParent<ScreenManager>();
 
             if (background) SetBgAlpha(0f);
-            btnRussian.onClick.AddListener(() => SelectLang("ru"));
-            btnKazakh.onClick.AddListener(() => SelectLang("kz"));
-            if (btnEnglish) btnEnglish.onClick.AddListener(() => SelectLang("en"));
+            foreach (var tile in tiles)
+                tile.button.onClick.AddListener(() => Select(tile));
             btnContinue.onClick.AddListener(OnContinue);
+            if (btnClose) btnClose.onClick.AddListener(OnClose);
             if (btnMusic) btnMusic.onClick.AddListener(OnMusicToggle);
             backgroundMusicManager = FindObjectOfType<BackgroundMusicManager>();
-            selectionBtnMusicOff.SetActive(backgroundMusicManager.IsMuted);
-            selectionBtnMusicOn.SetActive(!backgroundMusicManager.IsMuted);
+            RefreshMusic();
         }
 
         protected override void OnPrepare()
         {
             // First launch — auto-detect device language
-            if (!PlayerPrefs.HasKey("ft_lang"))
-            {
-                var detected = Loc.DetectSystemLang();
-                SelectLang(detected);
-            }
-            else
-            {
-                SelectLang(Loc.Lang);
-            }
+            var lang = PlayerPrefs.HasKey("ft_lang") ? Loc.Lang : Loc.DetectSystemLang();
+            Select(Array.Find(tiles, t => t.lang == lang) ?? Array.Find(tiles, t => t.lang == "ru"));
+            RefreshTiles();
+            StartCoroutine(RefreshCatalog());
 
-            selectionBtnMusicOff.SetActive(backgroundMusicManager.IsMuted);
-            selectionBtnMusicOn.SetActive(!backgroundMusicManager.IsMuted);
+            if (btnClose) btnClose.gameObject.SetActive(!IsFirstRun);
+            RefreshMusic();
         }
 
         protected override void OnShown()
         {
             if (background) background.DOFade(1f, bgFadeDuration).SetEase(Ease.OutQuad);
-            if (PlayerPrefs.GetInt("ft_onboarded", 0) == 0)
+            if (IsFirstRun)
                 Analytics.Log("onboarding_start");
         }
 
@@ -80,29 +82,55 @@ namespace FairyTales.UI.Onboarding
             background.color = c;
         }
 
-        private void SelectLang(string lang)
+        private IEnumerator RefreshCatalog()
         {
-            _selectedLang = lang;
-            if (selectedRu) selectedRu.SetActive(lang == "ru");
-            if (selectedKz) selectedKz.SetActive(lang == "kz");
-            if (selectedEn) selectedEn.SetActive(lang == "en");
-            Loc.ApplyLocale(lang);
+            yield return LanguageCatalog.Refresh(FindAnyObjectByType<ApiClient>());
+            RefreshTiles();
+        }
+
+        /// <summary>
+        /// A language the server doesn't serve, or this build can't draw, keeps its place
+        /// in the layout but is hidden. The current one always stays, so it can't vanish
+        /// from under the user.
+        /// </summary>
+        private void RefreshTiles()
+        {
+            foreach (var t in tiles)
+                t.button.gameObject.SetActive(t == _selected || LanguageCatalog.IsOffered(t.lang));
+        }
+
+        private void Select(LangTile tile)
+        {
+            if (tile == null) return;
+            _selected = tile;
+            foreach (var t in tiles)
+                if (t.selection) t.selection.SetActive(t == tile);
+            // Preview: the screen's own captions switch at once.
+            Loc.ApplyLocale(tile.lang);
         }
 
         private void OnContinue()
         {
-            Loc.Lang = _selectedLang;
+            if (_selected == null) return;
+            Loc.Lang = _selected.lang;
             Analytics.Log("onboarding_step",
                 ("step_index", 0), ("step_name", "language"));
+            FadeOutThen(ShowNext);
+        }
+
+        /// <summary>Back to the profile with the language unchanged.</summary>
+        private void OnClose()
+        {
+            Loc.ApplyLocale(Loc.Lang);
+            FadeOutThen(() => _screens.Show<PersonalizationScreen>());
+        }
+
+        private void FadeOutThen(TweenCallback next)
+        {
             if (background)
-            {
-                background.DOFade(0f, bgFadeDuration).SetEase(Ease.InQuad)
-                    .OnComplete(ShowNext);
-            }
+                background.DOFade(0f, bgFadeDuration).SetEase(Ease.InQuad).OnComplete(next);
             else
-            {
-                ShowNext();
-            }
+                next();
         }
 
         /// <summary>
@@ -111,7 +139,7 @@ namespace FairyTales.UI.Onboarding
         /// </summary>
         private void ShowNext()
         {
-            if (PlayerPrefs.GetInt("ft_onboarded", 0) == 0 && _screens.Get<OnboardingValuesScreen>() != null)
+            if (IsFirstRun && _screens.Get<OnboardingValuesScreen>() != null)
                 _screens.Show<OnboardingValuesScreen>();
             else
                 _screens.Show<PersonalizationScreen>();
@@ -120,8 +148,14 @@ namespace FairyTales.UI.Onboarding
         private void OnMusicToggle()
         {
             if (backgroundMusicManager) backgroundMusicManager.SetMuted(!backgroundMusicManager.IsMuted);
-            selectionBtnMusicOff.SetActive(backgroundMusicManager.IsMuted);
-            selectionBtnMusicOn.SetActive(!backgroundMusicManager.IsMuted);
+            RefreshMusic();
+        }
+
+        private void RefreshMusic()
+        {
+            bool muted = backgroundMusicManager && backgroundMusicManager.IsMuted;
+            if (selectionBtnMusicOff) selectionBtnMusicOff.SetActive(muted);
+            if (selectionBtnMusicOn) selectionBtnMusicOn.SetActive(!muted);
         }
     }
 }

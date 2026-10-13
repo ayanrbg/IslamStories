@@ -46,21 +46,21 @@ namespace FairyTales.Cache
             var id = tale.id;
             var lang = Loc.Lang;
 
-            // Text for ALL translations — cache each language's JSON so switching
-            // language later works offline and shows the correct translation. Runs
-            // even if illustrations are already downloaded, so "download tale" always
-            // tops up every language. Only cache a language the server actually served
-            // (d.lang == l): otherwise its default-language fallback would be saved
-            // under the wrong key and the tale would read in the wrong language offline.
-            foreach (var l in Loc.AllLangs)
+            // Text for the CURRENT language only. Fetching every translation made sense
+            // with three languages; with ten it is ten requests per tale for text the
+            // reader almost never switches to. After a language switch the detail screen
+            // fetches the new translation itself, and "download tale" tops it up here.
+            // Runs even if illustrations are already downloaded. Only cache a language the
+            // server actually served (d.lang == lang): otherwise its default-language fallback
+            // would be saved under the wrong key and read in the wrong language offline.
+            if (!AssetCache.Exists(AssetCache.TaleTextKey(id, lang)))
             {
-                if (AssetCache.Exists(AssetCache.TaleTextKey(id, l))) continue;
-                yield return _api.Get($"/api/tales/{id}?lang={l}",
+                yield return _api.Get($"/api/tales/{id}?lang={lang}",
                     json =>
                     {
                         var d = JsonConvert.DeserializeObject<TaleDetail>(json);
-                        if (d != null && d.lang == l)
-                            AssetCache.Save(AssetCache.TaleTextKey(id, l),
+                        if (d != null && d.lang == lang)
+                            AssetCache.SaveTaleText(id, lang,
                                 System.Text.Encoding.UTF8.GetBytes(json));
                     },
                     _ => { });

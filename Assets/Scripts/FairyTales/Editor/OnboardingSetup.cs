@@ -15,57 +15,9 @@ namespace FairyTales.Editor
         [MenuItem("FairyTales/Setup Onboarding UI")]
         public static void Setup()
         {
-            SetupLanguageSelect();
             SetupPersonalization();
             SetupLoading();
             Debug.Log("[OnboardingSetup] Done!");
-        }
-
-        // ── LanguageSelectScreen ─────────────────────────────
-        private static void SetupLanguageSelect()
-        {
-            var screen = Object.FindAnyObjectByType<LanguageSelectScreen>(
-                FindObjectsInactive.Include);
-            if (screen == null)
-            {
-                Debug.LogError("LanguageSelectScreen not found");
-                return;
-            }
-            if (screen.transform.childCount > 0) return;
-
-            var root = screen.transform;
-
-            var title = CreateTMP(root, "Title", "Выберите язык",
-                36, TextAlignmentOptions.Center,
-                new Vector2(0.1f, 0.75f), new Vector2(0.9f, 0.85f));
-
-            var btnRu = CreateButton(root, "BtnRussian", "Русский",
-                new Vector2(0.15f, 0.58f), new Vector2(0.85f, 0.66f));
-            var selRu = CreateSelection(btnRu.transform);
-
-            var btnKz = CreateButton(root, "BtnKazakh", "Қазақ",
-                new Vector2(0.15f, 0.48f), new Vector2(0.85f, 0.56f));
-            var selKz = CreateSelection(btnKz.transform);
-
-            var btnEn = CreateButton(root, "BtnEnglish", "English",
-                new Vector2(0.15f, 0.38f), new Vector2(0.85f, 0.46f));
-            var selEn = CreateSelection(btnEn.transform);
-
-            var btnCont = CreateButton(root, "BtnContinue", "Продолжить",
-                new Vector2(0.2f, 0.15f), new Vector2(0.8f, 0.23f));
-
-            var so = new SerializedObject(screen);
-            so.FindProperty("btnRussian").objectReferenceValue = btnRu;
-            so.FindProperty("btnKazakh").objectReferenceValue = btnKz;
-            so.FindProperty("btnEnglish").objectReferenceValue = btnEn;
-            so.FindProperty("btnContinue").objectReferenceValue = btnCont;
-            so.FindProperty("selectedRu").objectReferenceValue = selRu;
-            so.FindProperty("selectedKz").objectReferenceValue = selKz;
-            so.FindProperty("selectedEn").objectReferenceValue = selEn;
-            so.ApplyModifiedProperties();
-
-            Undo.RegisterCreatedObjectUndo(screen.gameObject,
-                "Setup LanguageSelect");
         }
 
         // ── PersonalizationScreen ────────────────────────────

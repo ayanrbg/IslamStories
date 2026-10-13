@@ -209,13 +209,32 @@ namespace FairyTales.UI.Library
                         // Cache the raw text if the server served the requested language,
                         // so it's available offline / for fast language switching next time.
                         if (d?.pages != null && d.lang == Loc.Lang)
-                            AssetCache.Save(AssetCache.TaleTextKey(_tale.id, Loc.Lang),
+                            AssetCache.SaveTaleText(_tale.id, Loc.Lang,
                                 System.Text.Encoding.UTF8.GetBytes(
                                     JsonConvert.SerializeObject(d)));
                         UpdateUI();
                     },
                     onError: e => { } /* RELEASE: Debug.LogWarning($"[TaleDetail] Server: {e}") */,
                     lang: Loc.Lang);
+            }
+
+            // 3b. Offline, and the cached text was set aside because the server changed
+            // it: the old version beats an empty book.
+            if (_detail == null)
+            {
+                var stale = AssetCache.LoadStaleTaleText(_tale.id, Loc.Lang);
+                if (stale != null)
+                {
+                    try { _detail = JsonConvert.DeserializeObject<TaleDetail>(stale); }
+                    catch (JsonException) { }
+                    if (_detail?.pages == null || _detail.pages.Length == 0) _detail = null;
+                    if (_detail != null)
+                    {
+                        if (_detail.totalPages == 0) _detail.totalPages = _detail.pages.Length;
+                        localText = true;
+                        UpdateUI();
+                    }
+                }
             }
 
             // 4. Bundled tale, untranslated and offline: the default-language pages are

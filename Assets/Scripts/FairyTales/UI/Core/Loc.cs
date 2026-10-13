@@ -7,24 +7,24 @@ using UnityEngine.Localization.Settings;
 
 namespace FairyTales.UI.Core
 {
-    public static class Loc
+    public static partial class Loc
     {
+        // Only the codes that differ: every other language's Unity locale is its own code.
+        // Both English variants share the one "en" locale and string table.
         private static readonly Dictionary<string, string> ToLocaleCode = new()
         {
             ["ru"] = "ru-RU",
             ["kz"] = "kk-KZ",
-            ["en"] = "en",
-            ["uz"] = "uz"
+            ["en-US"] = "en",
+            ["en-GB"] = "en"
         };
 
         private static readonly Dictionary<string, string> FromLocaleCode = new()
         {
             ["ru-RU"] = "ru",
-            ["ru"] = "ru",
             ["kk-KZ"] = "kz",
             ["kk"] = "kz",
-            ["en"] = "en",
-            ["uz"] = "uz"
+            ["en"] = "en-US"
         };
         private static readonly Dictionary<string, Dictionary<string, string>> Strings = new()
         {
@@ -194,34 +194,20 @@ namespace FairyTales.UI.Core
             ["library_for_child_sub_female"] = new() { ["ru"] = "Подобрано специально для неё", ["kz"] = "Ол үшін арнайы таңдалды", ["en"] = "Picked especially for her", ["uz"] = "Aynan u uchun tanlandi" },
         };
 
-        /// <summary>
-        /// All selectable app languages — also the list of translations to download.
-        /// Uzbek is PARKED, not deleted: its button is out of the picker and "uz" is
-        /// off this list, so nothing selects it and nothing fetches it any more. Its
-        /// locale mapping and every uz translation above are left intact, so bringing
-        /// it back is this one entry plus the button.
-        /// </summary>
-        public static readonly string[] AllLangs = { "ru", "kz", "en" };
-
-        /// <summary>The parked language a stored preference must be migrated off.</summary>
-        private const string RetiredLang = "uz";
+        /// <summary>UI strings of the languages that live in their own files (Loc/Loc.*.cs).</summary>
+        private static Dictionary<string, string> Table(string lang) => lang switch
+        {
+            "id" => Id,
+            "tr" => Tr,
+            "ms" => Ms,
+            "fr" => Fr,
+            "ar" => Ar,
+            "ur" => Ur,
+            "bn" => Bn,
+            _ => null
+        };
 
         public static event Action OnLanguageChanged;
-
-        /// <summary>
-        /// Moves a device that had picked the now-parked language onto English.
-        /// Runs before any scene object reads the preference, because half the callers
-        /// read PlayerPrefs["ft_lang"] directly rather than going through <see cref="Lang"/>.
-        /// Without it those devices sit on a language the picker can no longer show and
-        /// <see cref="AllLangs"/> no longer downloads — unreachable short of a reinstall.
-        /// </summary>
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
-        private static void MigrateRetiredLang()
-        {
-            if (PlayerPrefs.GetString("ft_lang", "ru") != RetiredLang) return;
-            PlayerPrefs.SetString("ft_lang", "en");
-            PlayerPrefs.Save();
-        }
 
         public static string Lang
         {
@@ -239,8 +225,13 @@ namespace FairyTales.UI.Core
         public static string Get(string key)
         {
             if (!Strings.TryGetValue(key, out var translations)) return key;
-            if (translations.TryGetValue(Lang, out var text)) return text;
-            if (translations.TryGetValue("ru", out var fallback)) return fallback;
+            var lang = StringsLang(Lang);
+            if (translations.TryGetValue(lang, out var text)) return text;
+            if (Table(lang) is { } table && table.TryGetValue(key, out text)) return text;
+            // A string not translated yet: English reads better than Russian outside the CIS.
+            var fallbackLang = lang == "kz" ? "ru" : "en";
+            if (translations.TryGetValue(fallbackLang, out var fallback)) return fallback;
+            if (translations.TryGetValue("ru", out fallback)) return fallback;
             return key;
         }
 
@@ -250,25 +241,12 @@ namespace FairyTales.UI.Core
         }
 
         /// <summary>
-        /// Detect device language and return matching app lang code.
-        /// </summary>
-        public static string DetectSystemLang()
-        {
-            return Application.systemLanguage switch
-            {
-                SystemLanguage.Russian => "ru",
-                SystemLanguage.English => "en",
-                _ => "ru"
-            };
-        }
-
-        /// <summary>
         /// Set Unity Localization SelectedLocale to match our lang code.
         /// </summary>
         public static void ApplyLocale(string lang)
         {
             if (!LocalizationSettings.InitializationOperation.IsDone) return;
-            if (!ToLocaleCode.TryGetValue(lang, out var code)) code = "ru-RU";
+            if (!ToLocaleCode.TryGetValue(lang, out var code)) code = lang;
             var locale = LocalizationSettings.AvailableLocales.Locales
                 .FirstOrDefault(l => l.Identifier.Code == code);
             if (locale != null)
@@ -281,7 +259,9 @@ namespace FairyTales.UI.Core
         public static string FromLocale(Locale locale)
         {
             if (locale == null) return "ru";
-            return FromLocaleCode.TryGetValue(locale.Identifier.Code, out var lang) ? lang : "ru";
+            var code = locale.Identifier.Code;
+            if (FromLocaleCode.TryGetValue(code, out var lang)) return lang;
+            return IsSupported(code) ? code : "ru";
         }
     }
 }

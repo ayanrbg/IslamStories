@@ -89,7 +89,7 @@ namespace FairyTales.UI.Narration
 
             if (sampleText)
             {
-                var lang = Loc.Lang;
+                var lang = Loc.StringsLang(Loc.Lang);
                 var samples = SamplesByLang.ContainsKey(lang) ? SamplesByLang[lang] : SamplesByLang["ru"];
                 sampleText.text = string.Join("\n\n", samples);
             }

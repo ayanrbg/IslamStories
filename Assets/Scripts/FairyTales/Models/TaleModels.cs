@@ -29,6 +29,8 @@ namespace FairyTales.Models
         public long downloadSize;
         public bool comingSoon;
         public Dictionary<string, string> titles;
+        /// <summary>Raised by the server whenever the tale's text changes (AssetCache.ReconcileTextVersion).</summary>
+        public int contentVersion;
 
         /// <summary>
         /// Server-driven lifecycle: null/"active" = normal, "hidden" = don't show but keep

@@ -357,17 +357,26 @@ namespace FairyTales.UI.Library
             return null;
         }
 
-        /// <summary>Delete local cache for any tale the server marked "removed".</summary>
+        /// <summary>
+        /// Delete local cache for any tale the server marked "removed", and set aside
+        /// cached text the server has since changed.
+        /// </summary>
         private void ReconcileLibrary(TaleSummary[] serverTales)
         {
             foreach (var t in serverTales)
             {
-                if (t != null && t.IsRemoved)
+                if (t == null) continue;
+                if (t.IsRemoved)
                 {
                     AssetCache.DeleteTale(t.id);
                     // RELEASE: Debug.Log($"[Library] Purged removed tale {t.id}");
                 }
+                else
+                {
+                    AssetCache.ReconcileTextVersion(t.id, t.contentVersion);
+                }
             }
+            PlayerPrefs.Save();
         }
 
         // The bundled manifest knows nothing about promo unlocks, so an offline start

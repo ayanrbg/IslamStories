@@ -7,7 +7,7 @@ using UnityEngine.Networking;
 
 namespace FairyTales.Cache
 {
-    public static class AssetCache
+    public static partial class AssetCache
     {
         private const int CacheVersion = 3; // v3: images stored as JPEG (was PNG)
         // Bumped when the set of files a "downloaded" tale must contain changes.
@@ -28,6 +28,8 @@ namespace FairyTales.Cache
             try { MoveParentVoicesOutOfCache(); }
             catch (Exception e) { Diagnostics.RemoteLog.Event("parent_voices_move_fail", e.Message); }
             PurgeLegacyAiNarration();
+            try { PurgeOctober2026Changes(); }
+            catch (Exception e) { Diagnostics.RemoteLog.Event("cache_purge_2026_10_fail", e.Message); }
 
             var key = "cache_version";
             if (PlayerPrefs.GetInt(key, 0) >= CacheVersion) return;
