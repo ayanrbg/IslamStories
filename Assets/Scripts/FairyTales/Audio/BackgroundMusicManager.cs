@@ -221,16 +221,57 @@ namespace FairyTales.Audio
             _crossfading = false;
         }
 
+        /// <summary>Below this a track is inaudible anyway, so it counts as silence.</summary>
+        private const float MinAudibleVolume = 0.01f;
+
+        /// <summary>Where unmuting lands when there is no earlier level to return to.</summary>
+        private const float FallbackVolume = 0.5f;
+
+        /// <summary>
+        /// What a volume slider should show: muting reads as silence, while the level
+        /// the music button will restore stays untouched underneath.
+        /// </summary>
+        public float SliderVolume => IsMuted ? 0f : volume;
+
         public void SetVolume(float v)
         {
-            volume = Mathf.Clamp01(v);
+            v = Mathf.Clamp01(v);
+
+            // Dragging all the way down is the same intent as pressing mute. The stored
+            // volume stays where it was, so the music button has a level to bring back.
+            if (v < MinAudibleVolume)
+            {
+                ApplyMuted(true);
+                return;
+            }
+
+            volume = v;
             if (!_crossfading)
                 _active.volume = volume;
-            ReadingState.SaveVolume(volume);
+            ReadingState.SaveVolume(volume, flush: false);
+            ApplyMuted(false);
         }
 
         public void SetMuted(bool muted)
         {
+            // Unmuting onto a stored zero would stay silent and look broken, so give it
+            // a level to come back to. Only legacy prefs can hold one: SetVolume mutes
+            // instead of storing silence.
+            if (!muted && volume < MinAudibleVolume)
+            {
+                volume = FallbackVolume;
+                if (!_crossfading)
+                    _active.volume = volume;
+                ReadingState.SaveVolume(volume);
+            }
+            ApplyMuted(muted);
+        }
+
+        private void ApplyMuted(bool muted)
+        {
+            if (_sourceA == null || _sourceB == null) return;
+            if (_sourceA.mute == muted) return; // no change, so no write
+
             _sourceA.mute = muted;
             _sourceB.mute = muted;
             ReadingState.SaveMuted(muted);

@@ -14,10 +14,13 @@ namespace FairyTales.UI.Core
             return PlayerPrefs.GetInt($"ft_page_{taleId}", 0);
         }
 
-        public static void SaveVolume(float volume)
+        // A dragged slider calls these every frame, and PlayerPrefs.Save() writes a file
+        // each time. Pass flush: false while dragging and call Flush() once at the end;
+        // Unity also flushes on its own when the app is backgrounded or quits.
+        public static void SaveVolume(float volume, bool flush = true)
         {
             PlayerPrefs.SetFloat("ft_volume", volume);
-            PlayerPrefs.Save();
+            if (flush) PlayerPrefs.Save();
         }
 
         public static float LoadVolume()
@@ -25,9 +28,14 @@ namespace FairyTales.UI.Core
             return PlayerPrefs.GetFloat("ft_volume", 0.5f);
         }
 
-        public static void SaveMuted(bool muted)
+        public static void SaveMuted(bool muted, bool flush = true)
         {
             PlayerPrefs.SetInt("ft_muted", muted ? 1 : 0);
+            if (flush) PlayerPrefs.Save();
+        }
+
+        public static void Flush()
+        {
             PlayerPrefs.Save();
         }
 

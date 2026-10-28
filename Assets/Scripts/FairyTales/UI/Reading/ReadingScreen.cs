@@ -41,6 +41,12 @@ namespace FairyTales.UI.Reading
         [SerializeField] private float minTextScale = 0.7f;
         [SerializeField] private float maxTextScale = 1.6f;
 
+        [Header("Volume Panel")]
+        [SerializeField] private Button btnSettingsVolume;
+        [SerializeField] private GameObject volumePanel;
+        [SerializeField] private Button btnVolumeClose;
+        [SerializeField] private Slider volumeSlider;
+
         [Header("End-of-tale paywall")]
         [Tooltip("Seconds the last page stays on screen before the subscription offer " +
                  "takes over. Zero would swallow the ending the child just reached.")]
@@ -91,6 +97,15 @@ namespace FairyTales.UI.Reading
                 textSizeSlider.maxValue = maxTextScale;
                 textSizeSlider.value = PlayerPrefs.GetFloat("ft_text_scale", 1f);
                 textSizeSlider.onValueChanged.AddListener(OnTextScaleChanged);
+            }
+            if (btnSettingsVolume) btnSettingsVolume.onClick.AddListener(OpenVolumePanel);
+            if (btnVolumeClose) btnVolumeClose.onClick.AddListener(CloseVolumePanel);
+            if (volumeSlider)
+            {
+                volumeSlider.minValue = 0f;
+                volumeSlider.maxValue = 1f;
+                SyncVolumeSlider();
+                volumeSlider.onValueChanged.AddListener(OnVolumeChanged);
             }
             CloseAllPanels();
         }
@@ -587,6 +602,9 @@ namespace FairyTales.UI.Reading
             if (_backgroundMusicManager)
                 _backgroundMusicManager.SetMuted(!_backgroundMusicManager.IsMuted);
             UpdateMusicButtons();
+            // Unmuting restores the level the slider was last at, so move the handle
+            // back with it; muting drops it to zero.
+            SyncVolumeSlider();
         }
 
         private void UpdateMusicButtons()
@@ -608,6 +626,7 @@ namespace FairyTales.UI.Reading
         private void OpenSettingsPanel()
         {
             if (textSizePanel) textSizePanel.SetActive(false);
+            HideVolumePanel();
             if (settingsOverlay) settingsOverlay.gameObject.SetActive(true);
             if (settingsPanel) settingsPanel.SetActive(true);
         }
@@ -615,6 +634,7 @@ namespace FairyTales.UI.Reading
         private void OpenTextSizePanel()
         {
             if (settingsPanel) settingsPanel.SetActive(false);
+            HideVolumePanel();
             if (textSizePanel) textSizePanel.SetActive(true);
         }
 
@@ -624,10 +644,38 @@ namespace FairyTales.UI.Reading
             OpenSettingsPanel();
         }
 
+        private void OpenVolumePanel()
+        {
+            if (settingsPanel) settingsPanel.SetActive(false);
+            if (textSizePanel) textSizePanel.SetActive(false);
+            // The music button can have muted or restored the level since this panel
+            // was last open, so re-read it rather than trusting the handle's position.
+            SyncVolumeSlider();
+            if (volumePanel) volumePanel.SetActive(true);
+        }
+
+        private void CloseVolumePanel()
+        {
+            HideVolumePanel();
+            OpenSettingsPanel();
+        }
+
+        /// <summary>
+        /// Every way out of the volume panel. Dragging the slider skips the PlayerPrefs
+        /// flush to keep the drag smooth, so the level is written once on the way out.
+        /// </summary>
+        private void HideVolumePanel()
+        {
+            if (!volumePanel || !volumePanel.activeSelf) return;
+            volumePanel.SetActive(false);
+            ReadingState.Flush();
+        }
+
         private void CloseAllPanels()
         {
             if (settingsPanel) settingsPanel.SetActive(false);
             if (textSizePanel) textSizePanel.SetActive(false);
+            HideVolumePanel();
             if (settingsOverlay) settingsOverlay.gameObject.SetActive(false);
         }
 
@@ -648,6 +696,27 @@ namespace FairyTales.UI.Reading
             pageNavigator.SetTextScale(scale);
             if (textSizeSlider && !Mathf.Approximately(textSizeSlider.value, scale))
                 textSizeSlider.value = scale;
+        }
+
+        private void OnVolumeChanged(float value)
+        {
+            // SetVolume persists it; with no music manager in the scene there is
+            // nothing to hear, but the choice should still survive the session.
+            if (_backgroundMusicManager)
+                _backgroundMusicManager.SetVolume(value);
+            else
+                ReadingState.SaveVolume(Mathf.Clamp01(value), flush: false);
+            // Sliding down to silence mutes, and sliding back up unmutes, so the
+            // music button has to follow the handle.
+            UpdateMusicButtons();
+        }
+
+        private void SyncVolumeSlider()
+        {
+            if (!volumeSlider) return;
+            volumeSlider.SetValueWithoutNotify(_backgroundMusicManager
+                ? _backgroundMusicManager.SliderVolume
+                : ReadingState.LoadVolume());
         }
     }
 }
