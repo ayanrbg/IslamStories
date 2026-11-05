@@ -644,14 +644,20 @@ namespace FairyTales.UI.Payment
 
                 if (success)
                 {
+                    var kind = iap.LastPurchaseKind;
+                    var price = (double)iap.GetDecimalPrice(productId);
+                    var currency = iap.GetIsoCurrencyCode(productId) ?? "";
                     // Fires exactly once per user-initiated purchase (restore uses purchase_restore).
                     Analytics.Log("purchase_success", ("product_id", productId),
-                        ("price", (double)iap.GetDecimalPrice(productId)),
-                        ("currency", iap.GetIsoCurrencyCode(productId) ?? ""),
-                        ("is_trial", iap.HasTrialAvailable(productId)));
-                    // GA4 standard revenue event (spec §2.5 note) for out-of-the-box money reports.
-                    Analytics.Log("purchase", ("value", (double)iap.GetDecimalPrice(productId)),
-                        ("currency", iap.GetIsoCurrencyCode(productId) ?? ""));
+                        ("price", price), ("currency", currency),
+                        ("is_trial", kind == PurchaseKind.Unknown
+                            ? iap.HasTrialAvailable(productId)
+                            : kind == PurchaseKind.Trial));
+                    // GA4 standard revenue event (spec §2.5 note) — real charges only. A free
+                    // trial or a test buy takes no money, and reporting its full price is
+                    // how Firebase came to show income the stores never paid out.
+                    if (kind == PurchaseKind.Paid)
+                        Analytics.Log("purchase", ("value", price), ("currency", currency));
                     _purchased = true;
                     Toast.Show(Loc.Get("purchase_success"));
                     OnClose();

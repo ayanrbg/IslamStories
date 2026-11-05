@@ -23,8 +23,25 @@ namespace FairyTales.IAP
         public DateTime expiresUtc;
         public string source;     // apple | google | promo | null
         public string productId;
+        /// <summary>/validate only — what the store said about the purchase just checked.
+        /// null when the server did not say (an older server, or /status).</summary>
+        public string environment;  // production | sandbox | null
+        /// <summary>The purchase just checked is a free trial (valid with environment).</summary>
+        public bool trial;
 
         public static Entitlement Failed => new Entitlement { ok = false };
+    }
+
+    /// <summary>Whether a confirmed purchase actually took money. Only
+    /// <see cref="Paid"/> is revenue.</summary>
+    public enum PurchaseKind
+    {
+        /// <summary>The server did not say — not reported as revenue.</summary>
+        Unknown,
+        Paid,
+        Trial,
+        /// <summary>Sandbox, TestFlight, Play license tester or the editor.</summary>
+        Test,
     }
 
     public class SubscriptionService : MonoBehaviour
@@ -151,6 +168,8 @@ namespace FairyTales.IAP
                     e.active = dto.active;
                     e.source = dto.source;
                     e.productId = dto.productId;
+                    e.environment = string.IsNullOrEmpty(dto.environment) ? null : dto.environment;
+                    e.trial = dto.trial;
                     if (!string.IsNullOrEmpty(dto.expiresAt) &&
                         DateTime.TryParse(dto.expiresAt, CultureInfo.InvariantCulture,
                             DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal,
@@ -185,6 +204,8 @@ namespace FairyTales.IAP
             public string expiresAt;
             public string source;
             public string productId;
+            public string environment;
+            public bool trial;
         }
     }
 }

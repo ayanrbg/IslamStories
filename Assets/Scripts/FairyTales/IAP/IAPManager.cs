@@ -33,6 +33,10 @@ namespace FairyTales.IAP
         /// <summary>Last initialisation failure reason, for UI diagnostics. null while fine.</summary>
         public string LastInitError { get; private set; }
 
+        /// <summary>What the last purchase cost, per the store — set right before the
+        /// purchase callback fires. Only <see cref="PurchaseKind.Paid"/> is revenue.</summary>
+        public PurchaseKind LastPurchaseKind { get; private set; }
+
         /// <summary>
         /// True when the user has an active premium subscription.
         /// Persisted to PlayerPrefs so the flag survives app restarts
@@ -399,6 +403,7 @@ namespace FairyTales.IAP
             PlayerPrefs.SetString("ft_premium_source", "editor");
             PlayerPrefs.Save();
             IsSubscribed = true;
+            LastPurchaseKind = PurchaseKind.Test;
             _purchaseCallback?.Invoke(true);
             _purchaseCallback = null;
             return PurchaseProcessingResult.Complete;
@@ -411,9 +416,11 @@ namespace FairyTales.IAP
                 // If the server explicitly said "not active" (invalid receipt), do NOT grant.
                 ApplyEntitlement(e, optimisticOnError: true);
                 bool granted = IsSubscribed;
-                Debug.Log($"[IAP-DBG] ProcessPurchase → ok={e.ok}, active={e.active}, granted={granted}");
+                LastPurchaseKind = KindOf(e);
+                Debug.Log($"[IAP-DBG] ProcessPurchase → ok={e.ok}, active={e.active}, granted={granted}, kind={LastPurchaseKind}");
                 RemoteLog.Event("purchase_validated",
-                    $"ok={e.ok}; active={e.active}; source={e.source}; granted={granted}");
+                    $"ok={e.ok}; active={e.active}; source={e.source}; granted={granted}; " +
+                    $"kind={LastPurchaseKind}");
                 SyncState("purchase");
                 _purchaseCallback?.Invoke(granted);
                 _purchaseCallback = null;
@@ -422,6 +429,17 @@ namespace FairyTales.IAP
             Debug.Log("[IAP-DBG] Returning PurchaseProcessingResult.Complete");
             return PurchaseProcessingResult.Complete;
 #endif
+        }
+
+        /// <summary>The server asked the store about this very purchase, so only its answer
+        /// says whether money was taken. No answer (network error, older server) stays
+        /// Unknown rather than guessing: the device's receipt can't tell a sandbox buy,
+        /// and on Android it never reports a trial.</summary>
+        private static PurchaseKind KindOf(Entitlement e)
+        {
+            if (!e.ok || e.environment == null) return PurchaseKind.Unknown;
+            if (e.environment == "sandbox") return PurchaseKind.Test;
+            return e.trial ? PurchaseKind.Trial : PurchaseKind.Paid;
         }
 
         public void OnPurchaseFailed(Product product, PurchaseFailureReason reason)
