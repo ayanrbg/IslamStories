@@ -26,6 +26,13 @@ namespace FairyTales
     ///
     /// The parental gate is NOT one of the differences: both apps put it on the
     /// purchase and restore buttons, and let the child open the paywall itself.
+    ///
+    /// NOORIA 2.0 LESSONS (2026-11-23) are Islam-only and are not ported to Bala:
+    ///   - Assets/Scripts/FairyTales/Lessons/ exists only in Islam Stories;
+    ///   - every shared script (library, paywall, navigation) that touches lessons does
+    ///     so behind AppConfig.LessonsEnabled, so those files stay byte-identical and
+    ///     compile in Bala too, where the flag is false. Shared files must not
+    ///     reference types from Lessons/ directly.
     /// </summary>
     public static class AppConfig
     {
@@ -55,5 +62,10 @@ namespace FairyTales
         // Assets/Plugins/Android/AndroidManifest.xml — a push aimed at a channel the app
         // never created shows no banner at all on Android 8+.
         public const string PushChannelId = "islamstories_default";
+
+        // ── Features ────────────────────────────────────────
+        // Daily lessons (Nooria 2.0, see NOORIA_2_DEV_PLAN.md). Shared scripts check
+        // this before showing any lessons UI.
+        public const bool LessonsEnabled = true;
     }
 }
