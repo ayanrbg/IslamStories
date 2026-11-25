@@ -19,17 +19,13 @@ namespace FairyTales.Lessons
     /// persistentDataPath/avatars/avatars.json   which avatar each person uses
     /// persistentDataPath/avatars/&lt;person&gt;.png   the cut-out face photo
     /// </code>
-    /// A person without a record shows the drawn body as it is.
+    /// A person without a record shows the default drawn head on the body.
     /// </summary>
     public static class AvatarStore
     {
         public const string KindDrawn = "drawn";
         public const string KindFace = "face";
         public const string KindPhoto = "photo";
-
-        /// <summary>Size of the saved face photo; the oval is inscribed in it.</summary>
-        public const int PhotoWidth = 448, PhotoHeight = 512;
-        public const float PhotoAspect = (float)PhotoWidth / PhotoHeight;
 
         public static event Action Changed;
 
@@ -57,7 +53,7 @@ namespace FairyTales.Lessons
             return r.kind == KindFace ? r.face : -1;
         }
 
-        /// <summary>The cut-out face photo (oval with soft edges), or null.</summary>
+        /// <summary>The cut-out head (transparent around the hair), or null.</summary>
         public static Sprite PhotoSprite(AvatarPerson person)
         {
             if (Photos.TryGetValue(person, out var s) && s != null) return s;
@@ -80,21 +76,22 @@ namespace FairyTales.Lessons
 
         // ─────────────────────────── changes ───────────────────────────
 
-        /// <summary>A ready drawn face for the child. Drops the photo: nothing left on the phone that isn't used.</summary>
+        /// <summary>A ready drawn head. Drops the photo: nothing left on the phone that isn't used.</summary>
         public static void SetFace(AvatarPerson person, int index)
         {
             DeletePhotoFile(person);
-            Records[Key(person)] = new AvatarRecord { kind = KindFace, face = index };
+            var old = Get(person);
+            Records[Key(person)] = new AvatarRecord { kind = KindFace, face = index, body = old.kind == KindFace ? old.body : null };
             Save();
         }
 
-        /// <summary>Saves the cut-out face (<see cref="PhotoWidth"/>×<see cref="PhotoHeight"/>, oval in alpha).</summary>
-        public static bool SetPhoto(AvatarPerson person, Texture2D face)
+        /// <summary>Saves a head cut out of a photo (<see cref="HeadCutter"/>).</summary>
+        public static bool SetPhoto(AvatarPerson person, HeadCut cut)
         {
             try
             {
                 var path = PhotoPath(person);
-                LessonFiles.WriteAtomic(path, face.EncodeToPNG());
+                LessonFiles.WriteAtomic(path, cut.Texture.EncodeToPNG());
                 ExcludeFromBackup(path);
             }
             catch (Exception e)
@@ -103,9 +100,34 @@ namespace FairyTales.Lessons
                 return false;
             }
             ForgetPhoto(person);
-            Records[Key(person)] = new AvatarRecord { kind = KindPhoto };
+            Records[Key(person)] = new AvatarRecord
+            {
+                kind = KindPhoto, covered = cut.Covered,
+                chinX = cut.Chin.x, chinY = cut.Chin.y, faceWidth = cut.FaceWidth,
+            };
             Save();
             return true;
+        }
+
+        /// <summary>The girl's body chosen by the parent: "girl", "girl_hijab", or null for automatic.</summary>
+        public static void SetBody(AvatarPerson person, string body)
+        {
+            var r = Get(person);
+            r.body = body;
+            Records[Key(person)] = r;
+            Save();
+        }
+
+        /// <summary>Hand fitting of a photo head: size multiplier and offset in head widths.</summary>
+        public static void SetFit(AvatarPerson person, float scale, Vector2 offset, bool save = true)
+        {
+            var r = Get(person);
+            r.scale = Mathf.Clamp(scale, 0.6f, 1.6f);
+            r.dx = Mathf.Clamp(offset.x, -0.5f, 0.5f);
+            r.dy = Mathf.Clamp(offset.y, -0.5f, 0.5f);
+            Records[Key(person)] = r;
+            if (save) Save();
+            else Changed?.Invoke();
         }
 
         /// <summary>Back to the drawn body; the photo file is deleted.</summary>
@@ -180,8 +202,14 @@ namespace FairyTales.Lessons
     [Serializable, Preserve]
     public class AvatarRecord
     {
-        /// <summary>"drawn" (the body as drawn), "face" (a ready face) or "photo".</summary>
+        /// <summary>"drawn" (default head), "face" (a chosen ready head) or "photo".</summary>
         public string kind = AvatarStore.KindDrawn;
         public int face = -1;
+        /// <summary>A girl's body picked by hand: "girl" / "girl_hijab"; null = by the head.</summary>
+        public string body;
+        // Photo head: where its chin is and how wide the face is (HeadCut), plus hand fitting.
+        public bool covered;
+        public float chinX = 0.5f, chinY = 0.9f, faceWidth = 0.5f;
+        public float scale = 1f, dx, dy;
     }
 }

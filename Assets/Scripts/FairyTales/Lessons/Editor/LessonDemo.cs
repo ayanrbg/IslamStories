@@ -27,7 +27,7 @@ namespace FairyTales.Lessons.EditorTools
             ["story_2"] = "story_shukr.jpg",
             ["quiz_tv"] = "quiz_tv.jpg",
             ["quiz_plate"] = "quiz_plate.jpg",
-            ["quiz_ball"] = "quiz_ball.jpg",
+            ["quiz_brush"] = "quiz_brush.jpg",
             ["deed"] = "cover_bismillah.jpg",
         };
 
@@ -41,7 +41,7 @@ namespace FairyTales.Lessons.EditorTools
                 },
                 "Юсуф", "Бисмиллях", "Во имя Аллаха",
                 "Что говорит {childName} перед едой?",
-                new[] { "Смотрит мультик", "Говорит «Бисмиллях»", "Играет в мяч" },
+                new[] { "Смотрит мультик", "Говорит «Бисмиллях»", "Чистит зубы" },
                 "Скажите «Бисмиллях» вместе перед обедом", "Бисмиллях перед едой", "Бисмиллях"),
             ["kz"] = (new[]
                 {
@@ -50,7 +50,7 @@ namespace FairyTales.Lessons.EditorTools
                 },
                 "Жүсіп", "Бисмиллә", "Алланың атымен",
                 "{childName} тамақ алдында не айтады?",
-                new[] { "Мультфильм көреді", "«Бисмиллә» дейді", "Доп ойнайды" },
+                new[] { "Мультфильм көреді", "«Бисмиллә» дейді", "Тісін тазалайды" },
                 "Түскі ас алдында бірге «Бисмиллә» деңіздер", "Тамақ алдында Бисмиллә", "Бисмиллә"),
             ["en"] = (new[]
                 {
@@ -59,7 +59,7 @@ namespace FairyTales.Lessons.EditorTools
                 },
                 "Yusuf", "Bismillah", "In the name of Allah",
                 "What does {childName} say before eating?",
-                new[] { "Watches cartoons", "Says \"Bismillah\"", "Plays ball" },
+                new[] { "Watches cartoons", "Says \"Bismillah\"", "Brushes teeth" },
                 "Say \"Bismillah\" together before lunch", "Bismillah before meals", "Bismillah"),
         };
 
@@ -102,7 +102,7 @@ namespace FairyTales.Lessons.EditorTools
                         {
                             new { text = t.options[0], image = "quiz_tv", correct = false },
                             new { text = t.options[1], image = "quiz_plate", correct = true },
-                            new { text = t.options[2], image = "quiz_ball", correct = false },
+                            new { text = t.options[2], image = "quiz_brush", correct = false },
                         } },
                         new { type = "deed", title = t.deed, leafLabel = t.leaf, image = "deed" },
                         new { type = "reward" },

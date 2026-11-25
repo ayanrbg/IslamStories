@@ -12,59 +12,76 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ba8952b5eae47894f83f3dca28fe7755, type: 3}
   m_Name: LessonAvatarArt
   m_EditorClassIdentifier: Assembly-CSharp::FairyTales.Lessons.AvatarArt
-  girl:
-    sprite: {fileID: 21300000, guid: 95bffd5029a7fc642b71a83742d609bf, type: 3}
-    face:
-      serializedVersion: 2
-      x: 0.402
-      y: 0.19
-      width: 0.35
-      height: 0.21
-    head:
-      serializedVersion: 2
-      x: 0.385
-      y: 0.17
-      width: 0.5
-      height: 0.35
   boy:
-    sprite: {fileID: 21300000, guid: f6b2948e710b20848a0d105eef92c41c, type: 3}
-    face:
-      serializedVersion: 2
-      x: 0.696
-      y: 0.258
-      width: 0.45
-      height: 0.23
-    head:
-      serializedVersion: 2
-      x: 0.688
-      y: 0.19
-      width: 0.62
-      height: 0.38
+    id: body_boy
+    sprite: {fileID: 21300000, guid: 51beeb410c9d6c84881fa67129d982f7, type: 3}
+    front: {fileID: 0}
+    neck: {x: 0.49136814, y: 0}
+    headWidth: 1
+    faceWidth: 0.72
+  girl:
+    id: body_girl
+    sprite: {fileID: 21300000, guid: 9a0af7bb7d25184439fcc7fc459c5962, type: 3}
+    front: {fileID: 0}
+    neck: {x: 0.5162773, y: 0}
+    headWidth: 1
+    faceWidth: 0.72
+  girlHijab:
+    id: body_girl_hijab
+    sprite: {fileID: 21300000, guid: 0df8450a1150dc646ad157f523df23a1, type: 3}
+    front: {fileID: 0}
+    neck: {x: 0.5089014, y: 0}
+    headWidth: 1
+    faceWidth: 0.72
   mom:
-    sprite: {fileID: 21300000, guid: 229a052ff6ef9964d981d1f468bde0b9, type: 3}
-    face:
-      serializedVersion: 2
-      x: 0.5
-      y: 0.165
-      width: 0.5
-      height: 0.17
-    head:
-      serializedVersion: 2
-      x: 0.505
-      y: 0.15
-      width: 0.8
-      height: 0.3
-  faces:
-  - {fileID: 21300000, guid: a91a0cf54e21acc40b5de1e77fb35f75, type: 3}
-  - {fileID: 21300000, guid: b6aa499e75033814c842d8c5c2f41095, type: 3}
-  - {fileID: 21300000, guid: 649c1ab8943d2ef48b0c9417a5c7b041, type: 3}
-  - {fileID: 21300000, guid: 1c3a8b585b2ba5646b8c09efb31b7fff, type: 3}
-  - {fileID: 21300000, guid: a3c0ae30259ed6142afc96885b17228f, type: 3}
-  - {fileID: 21300000, guid: 3780149ed09393f4a8e466466d788292, type: 3}
-  - {fileID: 21300000, guid: 365b5d5ed6510af41934d56e78afcbcb, type: 3}
-  - {fileID: 21300000, guid: 81ea85bcab59858439a4d77f7b1cba45, type: 3}
-  - {fileID: 21300000, guid: bd12e75ec58074e429499bb052af08c8, type: 3}
-  - {fileID: 21300000, guid: f08cafe6926351f4992c10cec7bd1cc1, type: 3}
-  - {fileID: 21300000, guid: 57eb0871f7b6f2f418a26d190f0e30af, type: 3}
-  - {fileID: 21300000, guid: b8c778c3a1bfd204ab90e90f2ff20c3b, type: 3}
+    id: body_mom
+    sprite: {fileID: 21300000, guid: e67f27df770cd1c438ecd0409b8e9419, type: 3}
+    front: {fileID: 0}
+    neck: {x: 0.49712518, y: 0}
+    headWidth: 0.86
+    faceWidth: 0.58
+  kidHeads:
+  - sprite: {fileID: 21300000, guid: 681158adbe0d5de44863af52be3f30df, type: 3}
+    chin: {x: 0.5036545, y: 0.7587629}
+    hijab: 1
+  - sprite: {fileID: 21300000, guid: 478f9703dc914a74ba616f901e7363be, type: 3}
+    chin: {x: 0.50169665, y: 0.77319586}
+    hijab: 1
+  - sprite: {fileID: 21300000, guid: b9f4378fb50a24d4780c8f220f9e9500, type: 3}
+    chin: {x: 0.501816, y: 0.6933333}
+    hijab: 1
+  - sprite: {fileID: 21300000, guid: fb633641104ecf74d8190af0106eacf5, type: 3}
+    chin: {x: 0.50736797, y: 0.6904232}
+    hijab: 1
+  - sprite: {fileID: 21300000, guid: 6bff2de1330a56241a6a550beee1e635, type: 3}
+    chin: {x: 0.50306123, y: 0.6969697}
+    hijab: 1
+  - sprite: {fileID: 21300000, guid: 3d1eb57fd5e36ff408598a97211e212b, type: 3}
+    chin: {x: 0.4995431, y: 0.9454094}
+    hijab: 0
+  - sprite: {fileID: 21300000, guid: 6de01519deb889a4dbaaba0f7da71beb, type: 3}
+    chin: {x: 0.5007798, y: 0.96428573}
+    hijab: 0
+  - sprite: {fileID: 21300000, guid: 7dead3bd03f24d44eb03958781eca15a, type: 3}
+    chin: {x: 0.50940686, y: 0.9657702}
+    hijab: 0
+  - sprite: {fileID: 21300000, guid: 35d66aaa3e57f594987f7ced900e094f, type: 3}
+    chin: {x: 0.5, y: 0.9639423}
+    hijab: 0
+  - sprite: {fileID: 21300000, guid: 9efade14787dd124186122c7474e98a5, type: 3}
+    chin: {x: 0.5033722, y: 0.9640288}
+    hijab: 0
+  - sprite: {fileID: 21300000, guid: bc28073bc7729d947bbba7139eacda3c, type: 3}
+    chin: {x: 0.50735295, y: 0.7191781}
+    hijab: 0
+  - sprite: {fileID: 21300000, guid: de235ab696274ec429772ea57a21d9e1, type: 3}
+    chin: {x: 0.51153105, y: 0.9625935}
+    hijab: 0
+  momHeads:
+  - sprite: {fileID: 21300000, guid: ec6cd1a38fa95914ab9a6480ca76a4e8, type: 3}
+    chin: {x: 0.49838123, y: 0.71235955}
+    hijab: 1
+  - sprite: {fileID: 21300000, guid: 70ed4d10cbdd0ea42b4ea2c222b957ad, type: 3}
+    chin: {x: 0.5035299, y: 0.7294118}
+    hijab: 1
   circle: {fileID: 21300000, guid: fdce4b23e3c19944e83e13540a023d0c, type: 3}

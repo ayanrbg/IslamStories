@@ -4,6 +4,7 @@ using System.Linq;
 using FairyTales.UI.Core;
 using FairyTales.UI.Library;
 using TMPro;
+using Unity.InferenceEngine;
 using UnityEngine;
 using UnityEngine.UI;
 #if UNITY_ANDROID
@@ -13,18 +14,18 @@ using UnityEngine.Android;
 namespace FairyTales.Lessons
 {
     /// <summary>
-    /// Making the child's and mum's avatars (spec «Профиль, аватар и семья», design 13):
-    /// a photo from the front camera fitted into the oval, or one of 12 ready faces for
-    /// the child. Photos are taken behind the parental gate and stay on the phone
-    /// (<see cref="AvatarStore"/>). Built by AvatarScreenBuilder.
+    /// Making the child's and mum's avatars, Speech Blubs style: the real head, hair and all,
+    /// cut out of a photo (<see cref="HeadCutter"/>) and stood on a drawn body — or one of
+    /// the ready drawn heads. Photos are taken or picked behind the parental gate and stay
+    /// on the phone (<see cref="AvatarStore"/>). Built by AvatarScreenBuilder.
     /// </summary>
     public class AvatarScreen : BaseScreen
     {
-        /// <summary>
-        /// Picks a photo from the gallery and hands back a readable texture (or null), or is
-        /// unset — then the gallery button is hidden. No gallery plugin ships yet.
-        /// </summary>
-        public static Action<Action<Texture2D>> PickFromGallery;
+        /// <summary>Picks a photo from the gallery; set by default to the system picker.</summary>
+        public static Action<Action<Texture2D>> PickFromGallery = NativePhotoPicker.Supported ? NativePhotoPicker.Pick : null;
+
+        [Header("Model")]
+        public ModelAsset headModel;
 
         [Header("Main")]
         public Button back;
@@ -35,17 +36,27 @@ namespace FairyTales.Lessons
         public TMP_Text tabChildLabel;
         public TMP_Text tabMomLabel;
         public AvatarView preview;
+        public AvatarFitter fitter;
+        public GameObject fitBlock;
+        public Button sizeMinus;
+        public Button sizePlus;
+        public GameObject bodyBlock;
+        public Button bodyPlain;
+        public Button bodyHijab;
+        public Image bodyPlainBg;
+        public Image bodyHijabBg;
         public TMP_Text title;
         public Button takePhoto;
         public Button gallery;
         public Button removePhoto;
-        public GameObject facesBlock;
-        public Button[] faces = Array.Empty<Button>();
-        public GameObject[] faceSelected = Array.Empty<GameObject>();
-        public GameObject momHint;
+        public TMP_Text headsLabel;
+        public Button[] heads = Array.Empty<Button>();
+        public Image[] headImages = Array.Empty<Image>();
+        public GameObject[] headSelected = Array.Empty<GameObject>();
         public Button done;
         public Color tabOn = new(0.878f, 0.341f, 0.482f);
         public Color tabOffText = new(0.424f, 0.388f, 0.569f);
+        public Color chipOff = new(0.953f, 0.933f, 1f);
 
         [Header("Photo")]
         public GameObject photoPanel;
@@ -53,16 +64,16 @@ namespace FairyTales.Lessons
         public TMP_Text photoHint;
         public Button shoot;
         public Button retake;
-        public Button savePhoto;
         public Button photoClose;
 
         private AvatarPerson _person;
         private Type _returnTo;
         private bool _bound;
         private WebCamTexture _cam;
-        private Texture2D _shot;
         private Coroutine _camRoutine;
         private bool _mirror;
+        private HeadCutter _cutter;
+        private bool _busy;
 
         // ─────────────────────────── opening ───────────────────────────
 
@@ -88,14 +99,17 @@ namespace FairyTales.Lessons
             takePhoto.onClick.AddListener(() => ChildGatePopup.Show(OpenCamera));
             gallery.onClick.AddListener(() => ChildGatePopup.Show(OpenGallery));
             removePhoto.onClick.AddListener(() => { AvatarStore.Reset(_person); Paint(); });
-            for (int i = 0; i < faces.Length; i++)
+            sizeMinus.onClick.AddListener(() => { fitter.Resize(1f / 1.08f); fitter.Commit(); });
+            sizePlus.onClick.AddListener(() => { fitter.Resize(1.08f); fitter.Commit(); });
+            bodyPlain.onClick.AddListener(() => { AvatarStore.SetBody(_person, "girl"); Paint(); });
+            bodyHijab.onClick.AddListener(() => { AvatarStore.SetBody(_person, "girl_hijab"); Paint(); });
+            for (int i = 0; i < heads.Length; i++)
             {
                 int index = i;
-                faces[i].onClick.AddListener(() => { AvatarStore.SetFace(AvatarPerson.Child, index); Paint(); });
+                heads[i].onClick.AddListener(() => { AvatarStore.SetFace(_person, index); Paint(); });
             }
             shoot.onClick.AddListener(Shoot);
             retake.onClick.AddListener(OpenCamera);
-            savePhoto.onClick.AddListener(SavePhoto);
             photoClose.onClick.AddListener(ClosePhoto);
         }
 
@@ -107,7 +121,12 @@ namespace FairyTales.Lessons
             SetPerson(_person);
         }
 
-        protected override void OnHidden() => StopCamera(true);
+        protected override void OnHidden()
+        {
+            StopCamera();
+            _cutter?.Dispose();
+            _cutter = null;
+        }
 
         private void Update()
         {
@@ -120,7 +139,8 @@ namespace FairyTales.Lessons
 
         private void Close()
         {
-            StopCamera(true);
+            if (_busy) return;
+            StopCamera();
             var sm = FindAnyObjectByType<ScreenManager>();
             if (sm != null) sm.Show(_returnTo ?? typeof(LibraryScreen));
         }
@@ -131,25 +151,48 @@ namespace FairyTales.Lessons
         {
             _person = person;
             preview.person = person;
+            fitter.view = preview;
             tabChildLabel.text = string.IsNullOrWhiteSpace(TaleText.ChildName) ? LessonStrings.T("avatar_child_tab") : TaleText.ChildName;
             Paint();
         }
 
         private void Paint()
         {
+            var art = AvatarArt.Instance;
             bool child = _person == AvatarPerson.Child;
+            var record = AvatarStore.Get(_person);
+            bool photo = record.kind == AvatarStore.KindPhoto;
+
             tabChildBg.color = child ? tabOn : Color.clear;
             tabMomBg.color = child ? Color.clear : tabOn;
             tabChildLabel.color = child ? Color.white : tabOffText;
             tabMomLabel.color = child ? tabOffText : Color.white;
             title.text = child ? LessonStrings.AvatarTitleChild() : LessonStrings.T("avatar_title_mom");
+            headsLabel.text = LessonStrings.T(child ? "avatar_or_face" : "avatar_or_face_mom");
 
-            facesBlock.SetActive(child);
-            momHint.SetActive(!child);
-            int chosen = child ? AvatarStore.FaceIndex(AvatarPerson.Child) : -1;
-            for (int i = 0; i < faceSelected.Length; i++) faceSelected[i].SetActive(i == chosen);
+            var list = art != null ? art.HeadsFor(_person) : Array.Empty<AvatarArt.Head>();
+            int chosen = record.kind == AvatarStore.KindFace ? record.face : record.kind == AvatarStore.KindPhoto ? -1 : art?.DefaultHead(_person) ?? 0;
+            for (int i = 0; i < heads.Length; i++)
+            {
+                bool used = i < list.Length;
+                heads[i].gameObject.SetActive(used);
+                headSelected[i].SetActive(used && i == chosen);
+                if (used) headImages[i].sprite = list[i].sprite;
+            }
+
+            fitBlock.SetActive(photo);
+            removePhoto.gameObject.SetActive(photo);
+            bool girl = child && UserProfile.ChildGender == "female";
+            bodyBlock.SetActive(girl);
+            if (girl && art != null)
+            {
+                bool hijab = art.BodyFor(_person, record) == art.girlHijab;
+                bodyPlainBg.color = hijab ? chipOff : tabOn;
+                bodyHijabBg.color = hijab ? tabOn : chipOff;
+                bodyPlain.GetComponentInChildren<TMP_Text>().color = hijab ? tabOffText : Color.white;
+                bodyHijab.GetComponentInChildren<TMP_Text>().color = hijab ? Color.white : tabOffText;
+            }
             LessonPlayerScreen.SetShown(gallery, PickFromGallery != null);
-            removePhoto.gameObject.SetActive(AvatarStore.Get(_person).kind == AvatarStore.KindPhoto);
             preview.Refresh();
         }
 
@@ -157,12 +200,10 @@ namespace FairyTales.Lessons
 
         private void OpenCamera()
         {
-            DropShot();
             photoPanel.SetActive(true);
             photoHint.text = LessonStrings.T("avatar_fit");
             LessonPlayerScreen.SetShown(shoot, false);
             LessonPlayerScreen.SetShown(retake, false);
-            LessonPlayerScreen.SetShown(savePhoto, false);
             if (_camRoutine != null) StopCoroutine(_camRoutine);
             _camRoutine = StartCoroutine(StartCamera());
         }
@@ -186,25 +227,15 @@ namespace FairyTales.Lessons
             bool allowed = Application.HasUserAuthorization(UserAuthorization.WebCam);
 #endif
             var devices = WebCamTexture.devices;
-            if (!allowed || devices.Length == 0)
-            {
-                photoHint.text = LessonStrings.T("avatar_no_camera");
-                yield break;
-            }
+            if (!allowed || devices.Length == 0) { Fail("avatar_no_camera"); yield break; }
             var device = devices.FirstOrDefault(d => d.isFrontFacing);
             if (string.IsNullOrEmpty(device.name)) device = devices[0];
 
             _cam = new WebCamTexture(device.name, 1280, 720, 30);
             _cam.Play();
-            // The size is known once the first frame arrives (16×16 before that).
             float t = 0;
             while (_cam.width <= 16 && t < 3f) { t += Time.unscaledDeltaTime; yield return null; }
-            if (_cam.width <= 16)
-            {
-                photoHint.text = LessonStrings.T("avatar_no_camera");
-                StopCamera(false);
-                yield break;
-            }
+            if (_cam.width <= 16) { StopCamera(); Fail("avatar_no_camera"); yield break; }
             _mirror = device.isFrontFacing;
             cropper.ShowCamera(_cam, _cam.videoRotationAngle, _mirror, _cam.videoVerticallyMirrored);
             LessonPlayerScreen.SetShown(shoot, true);
@@ -213,10 +244,10 @@ namespace FairyTales.Lessons
 
         private void Shoot()
         {
-            if (_cam == null || !_cam.isPlaying) return;
-            _shot = Upright(_cam, _cam.videoRotationAngle, _mirror, _cam.videoVerticallyMirrored);
-            StopCamera(false);
-            ShowShot();
+            if (_cam == null || !_cam.isPlaying || _busy) return;
+            var shot = Upright(_cam, _cam.videoRotationAngle, _mirror, _cam.videoVerticallyMirrored);
+            StopCamera();
+            StartCoroutine(CutAndSave(shot));
         }
 
         private void OpenGallery()
@@ -224,39 +255,61 @@ namespace FairyTales.Lessons
             PickFromGallery?.Invoke(tex =>
             {
                 if (tex == null) return;
-                DropShot();
-                _shot = tex;
                 photoPanel.SetActive(true);
-                photoHint.text = LessonStrings.T("avatar_fit");
-                ShowShot();
+                LessonPlayerScreen.SetShown(shoot, false);
+                LessonPlayerScreen.SetShown(retake, false);
+                cropper.SetPhoto(tex);
+                StartCoroutine(CutAndSave(tex));
             });
         }
 
-        private void ShowShot()
+        /// <summary>Cuts the head out and puts it on the avatar. The photo itself is dropped right after.</summary>
+        private IEnumerator CutAndSave(Texture2D photo)
         {
-            cropper.SetPhoto(_shot);
+            _busy = true;
+            cropper.SetPhoto(photo);
+            photoHint.text = LessonStrings.T("avatar_cutting");
             LessonPlayerScreen.SetShown(shoot, false);
-            LessonPlayerScreen.SetShown(retake, true);
-            LessonPlayerScreen.SetShown(savePhoto, true);
+            LessonPlayerScreen.SetShown(retake, false);
+            yield return null; // let the hint draw before the model runs
+            yield return null;
+
+            HeadCut cut = null;
+            try
+            {
+                _cutter ??= new HeadCutter(headModel);
+                cut = _cutter.Cut(photo);
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[Avatar] head cut failed: {e.Message}");
+            }
+            cropper.photo.texture = null;
+            Destroy(photo);
+            _busy = false;
+
+            if (cut == null) { Fail("avatar_no_face"); yield break; }
+            AvatarStore.SetPhoto(_person, cut);
+            Destroy(cut.Texture);
+            photoPanel.SetActive(false);
+            Paint();
         }
 
-        private void SavePhoto()
+        private void Fail(string key)
         {
-            var face = cropper.Crop();
-            if (face == null) return;
-            AvatarStore.SetPhoto(_person, face);
-            Destroy(face);
-            ClosePhoto();
-            Paint();
+            photoHint.text = LessonStrings.T(key);
+            LessonPlayerScreen.SetShown(shoot, false);
+            LessonPlayerScreen.SetShown(retake, true);
         }
 
         private void ClosePhoto()
         {
-            StopCamera(true);
+            if (_busy) return;
+            StopCamera();
             photoPanel.SetActive(false);
         }
 
-        private void StopCamera(bool dropShot)
+        private void StopCamera()
         {
             if (_camRoutine != null) { StopCoroutine(_camRoutine); _camRoutine = null; }
             if (_cam != null)
@@ -265,17 +318,7 @@ namespace FairyTales.Lessons
                 Destroy(_cam);
                 _cam = null;
             }
-            if (cropper != null && cropper.photo != null && _shot == null) cropper.photo.texture = null;
-            if (dropShot) DropShot();
-        }
-
-        /// <summary>The camera frames are never kept: the shot lives only until saved or dropped.</summary>
-        private void DropShot()
-        {
-            if (_shot == null) return;
-            if (cropper != null && cropper.photo != null) cropper.photo.texture = null;
-            Destroy(_shot);
-            _shot = null;
+            if (cropper != null && cropper.photo != null && !_busy) cropper.photo.texture = null;
         }
 
         /// <summary>A still of the camera turned upright and mirrored like the preview.</summary>
@@ -287,6 +330,7 @@ namespace FairyTales.Lessons
             bool sideways = angle == 90 || angle == 270;
             int ow = sideways ? h : w, oh = sideways ? w : h;
             var dst = new Color32[ow * oh];
+            var (flipU, flipV) = PhotoCropper.Flips(angle, mirror, flipY);
             for (int y = 0; y < oh; y++)
             for (int x = 0; x < ow; x++)
             {
@@ -299,8 +343,6 @@ namespace FairyTales.Lessons
                     case 270: sx = y; sy = h - 1 - x; break;
                     default: sx = x; sy = y; break;
                 }
-                // The same flips the preview applies to the texture (PhotoCropper.Flips).
-                var (flipU, flipV) = PhotoCropper.Flips(angle, mirror, flipY);
                 if (flipU) sx = w - 1 - sx;
                 if (flipV) sy = h - 1 - sy;
                 dst[y * ow + x] = src[sy * w + sx];

@@ -7,7 +7,7 @@ namespace FairyTales.Lessons
     /// <summary>
     /// Fitting a face into the avatar oval: the photo sits under a frame with an oval
     /// hole; a finger drags it, two fingers (or the mouse wheel) zoom it, and the oval
-    /// always stays covered. <see cref="Crop"/> cuts the oval out with soft edges.
+    /// always stays covered.
     ///
     /// Also shows the live front camera before the shot (<see cref="ShowCamera"/>).
     /// </summary>
@@ -127,41 +127,6 @@ namespace FairyTales.Lessons
             var size = oval.rect.size;
             Vector2 c = View.InverseTransformPoint(oval.TransformPoint(oval.rect.center));
             return new Rect(c - size / 2, size);
-        }
-
-        /// <summary>
-        /// The face inside the oval as a new readable texture of <paramref name="w"/>×<paramref name="h"/>,
-        /// transparent outside the oval with a soft edge. Null without a still photo.
-        /// </summary>
-        public Texture2D Crop(int w = AvatarStore.PhotoWidth, int h = AvatarStore.PhotoHeight)
-        {
-            if (_texture == null || !_texture.isReadable) return null;
-            var ov = OvalRect();
-            var shown = _size * _zoom;
-            var result = new Texture2D(w, h, TextureFormat.RGBA32, false);
-            var pixels = new Color32[w * h];
-            const float feather = 0.06f;
-            for (int y = 0; y < h; y++)
-            {
-                float v = (y + 0.5f) / h;
-                for (int x = 0; x < w; x++)
-                {
-                    float u = (x + 0.5f) / w;
-                    float dx = (u - 0.5f) * 2f, dy = (v - 0.5f) * 2f;
-                    float r = Mathf.Sqrt(dx * dx + dy * dy);
-                    if (r >= 1f) { pixels[y * w + x] = default; continue; }
-                    // Point in the viewport → in the photo's uv.
-                    var p = new Vector2(ov.xMin + u * ov.width, ov.yMin + v * ov.height);
-                    float pu = (p.x - _pan.x) / shown.x + 0.5f;
-                    float pv = (p.y - _pan.y) / shown.y + 0.5f;
-                    var c = _texture.GetPixelBilinear(pu, pv);
-                    c.a = Mathf.Clamp01((1f - r) / feather);
-                    pixels[y * w + x] = c;
-                }
-            }
-            result.SetPixels32(pixels);
-            result.Apply();
-            return result;
         }
     }
 }

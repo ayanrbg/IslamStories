@@ -63,3 +63,8 @@
 # SourceFile rename keeps the mapping honest while staying obfuscated.
 -keepattributes SourceFile, LineNumberTable
 -renamesourcefileattribute SourceFile
+
+# -- Avatar photo picker (Nooria) --------------------------------------------
+# NativePhotoPicker.cs calls com.nooria.picker.NooriaPhotoPicker.pick by name, and the
+# system recreates its headless PickerFragment by class name.
+-keep class com.nooria.picker.** { *; }

@@ -1,7 +1,9 @@
 using System.Collections.Generic;
 using System.IO;
 using FairyTales.UI.Core;
+using Newtonsoft.Json.Linq;
 using TMPro;
+using Unity.InferenceEngine;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -13,54 +15,84 @@ using TA = TMPro.TextAlignmentOptions;
 namespace FairyTales.Lessons.EditorTools
 {
     /// <summary>
-    /// The avatar parts asset and the avatar screen (design 13):
+    /// The avatar parts asset, the head-cutting model and the avatar screen:
     ///
-    ///   Nooria ▸ Lessons ▸ Build avatar screen — Resources/LessonAvatarArt.asset, the prefab, the scene instance
+    ///   Nooria ▸ Lessons ▸ Build avatar screen — Resources/LessonAvatarArt.asset (from
+    ///   Assets/UI/Lessons/Avatar2D + parts.json), the float16 model, the prefab, the scene instance
     /// </summary>
     public static class AvatarScreenBuilder
     {
         public const string PrefabPath = "Assets/Prefabs/Lessons/AvatarScreen.prefab";
         public const string ArtAssetPath = "Assets/Resources/" + AvatarArt.ResourcePath + ".asset";
         private const string ArtDir = "Assets/UI/Lessons/Art";
-        private const string HolePath = Shapes.Dir + "/oval_hole.png";
+        private const string PartsDir = "Assets/UI/Lessons/Avatar2D";
+        private const string ModelSource = "Assets/ThirdParty/MediaPipe/selfie_multiclass_256x256.tflite";
+        private const string ModelFp16 = "Assets/ThirdParty/MediaPipe/selfie_multiclass_fp16.sentis";
+        private const string GuidePath = Shapes.Dir + "/head_guide.png";
         private const string ScenePath = "Assets/Scenes/SampleScene.unity";
 
-        /// <summary>The face oval inside the photo viewport (share of its size), also cut into the hole sprite.</summary>
-        private const float OvalShare = 0.8f;
+        // Sizes in body widths. Kids get big heads (the paper-doll look), grown-ups a little less.
+        private const float KidHead = 1.0f, KidFace = 0.72f, MomHead = 0.86f, MomFace = 0.58f;
 
         private static Sprite Art(string name)
             => AssetDatabase.LoadAssetAtPath<Sprite>($"{ArtDir}/{name}.png")
                ?? AssetDatabase.LoadAssetAtPath<Sprite>($"{ArtDir}/{name}.jpg");
 
+        private static Sprite Part(string name) => AssetDatabase.LoadAssetAtPath<Sprite>($"{PartsDir}/{name}.png");
+
         [MenuItem("Nooria/Lessons/Build avatar screen")]
         public static string BuildAll()
         {
             var art = BuildArt();
-            var msg = BuildPrefab(art) + " | " + InstallInScene();
+            var model = BuildModel();
+            var msg = BuildPrefab(art, model) + " | " + InstallInScene();
             Debug.Log(msg);
             return msg;
         }
 
         // ─────────────────────────── art ───────────────────────────
 
-        /// <summary>
-        /// Face and head rects measured on the stand-in bodies (Assets/UI/Lessons/Art).
-        /// New art → measure again, or edit the asset in the Inspector.
-        /// </summary>
+        /// <summary>Bodies and heads from Avatar2D; neck and chin points from parts.json (art2/parts.js measured them).</summary>
         public static AvatarArt BuildArt()
         {
             Shapes.Ensure();
+            foreach (var file in Directory.GetFiles(PartsDir, "*.png"))
+                Shapes.Import(file.Replace('\\', '/'), 0, 1024, compress: true);
+            var parts = JObject.Parse(File.ReadAllText(Path.Combine(PartsDir, "parts.json")));
+
             Directory.CreateDirectory(Path.GetDirectoryName(ArtAssetPath)!);
             var art = AssetDatabase.LoadAssetAtPath<AvatarArt>(ArtAssetPath);
             bool created = art == null;
             if (created) art = ScriptableObject.CreateInstance<AvatarArt>();
 
-            art.girl = new AvatarArt.Body { sprite = Art("char_girl"), face = new Rect(0.402f, 0.19f, 0.35f, 0.21f), head = new Rect(0.385f, 0.17f, 0.5f, 0.35f) };
-            art.boy = new AvatarArt.Body { sprite = Art("char_boy"), face = new Rect(0.696f, 0.258f, 0.45f, 0.23f), head = new Rect(0.688f, 0.19f, 0.62f, 0.38f) };
-            art.mom = new AvatarArt.Body { sprite = Art("char_mom"), face = new Rect(0.5f, 0.165f, 0.5f, 0.17f), head = new Rect(0.505f, 0.15f, 0.8f, 0.3f) };
-            var faces = new List<Sprite>();
-            for (int i = 1; i <= 12; i++) faces.Add(Art($"face_{i:00}"));
-            art.faces = faces.ToArray();
+            AvatarArt.Body Body(string id, float head, float face)
+            {
+                var m = parts[id];
+                return new AvatarArt.Body
+                {
+                    id = id, sprite = Part(id),
+                    neck = new Vector2((float)m["neck"][0], (float)m["neck"][1]),
+                    headWidth = head, faceWidth = face,
+                };
+            }
+            AvatarArt.Head Head(string id, bool hijab)
+            {
+                var m = parts[id];
+                return new AvatarArt.Head { sprite = Part(id), chin = new Vector2((float)m["chin"][0], (float)m["chin"][1]), hijab = hijab };
+            }
+
+            art.boy = Body("body_boy", KidHead, KidFace);
+            art.girl = Body("body_girl", KidHead, KidFace);
+            art.girlHijab = Body("body_girl_hijab", KidHead, KidFace);
+            art.mom = Body("body_mom", MomHead, MomFace);
+            art.kidHeads = new[]
+            {
+                Head("head_g1", true), Head("head_g2", true), Head("head_g3", true),
+                Head("head_g4", true), Head("head_g5", true), Head("head_g6", false),
+                Head("head_b1", false), Head("head_b2", false), Head("head_b3", false),
+                Head("head_b4", false), Head("head_b5", false), Head("head_b6", false),
+            };
+            art.momHeads = new[] { Head("head_m1", true), Head("head_m2", true) };
             art.circle = Shapes.Circle;
 
             if (created) AssetDatabase.CreateAsset(art, ArtAssetPath);
@@ -69,8 +101,22 @@ namespace FairyTales.Lessons.EditorTools
             return art;
         }
 
+        /// <summary>The segmentation model at half precision (~8 MB): what the app ships.</summary>
+        public static ModelAsset BuildModel()
+        {
+            if (!File.Exists(ModelFp16))
+            {
+                var src = AssetDatabase.LoadAssetAtPath<ModelAsset>(ModelSource);
+                var model = ModelLoader.Load(src);
+                ModelQuantizer.QuantizeWeights(QuantizationType.Float16, ref model);
+                ModelWriter.Save(ModelFp16, model);
+                AssetDatabase.ImportAsset(ModelFp16);
+            }
+            return AssetDatabase.LoadAssetAtPath<ModelAsset>(ModelFp16);
+        }
+
         /// <summary>
-        /// An avatar node. A placeholder body sprite keeps the prefab readable in the editor;
+        /// An avatar node. A placeholder sprite keeps the prefab readable in the editor;
         /// AvatarView redraws it at runtime. A bust gets the circle mask.
         /// </summary>
         internal static AvatarView Avatar(Box p, string name, AvatarPerson person, float cx, float cy, float w, float h,
@@ -93,11 +139,11 @@ namespace FairyTales.Lessons.EditorTools
 
         // ─────────────────────────── screen ───────────────────────────
 
-        public static string BuildPrefab(AvatarArt art)
+        public static string BuildPrefab(AvatarArt art, ModelAsset model)
         {
             Shapes.Ensure();
             LoadFonts();
-            EnsureHoleSprite();
+            EnsureGuideSprite();
             Directory.CreateDirectory(Path.GetDirectoryName(PrefabPath)!);
             var scene = EditorSceneManager.NewPreviewScene();
             try
@@ -113,6 +159,7 @@ namespace FairyTales.Lessons.EditorTools
                 so.FindProperty("slideFromBottom").boolValue = false;
                 so.FindProperty("animDuration").floatValue = 0.3f;
                 so.ApplyModifiedPropertiesWithoutUndo();
+                s.headModel = model;
 
                 BuildMain(root, s, art);
                 BuildPhoto(root, s);
@@ -125,6 +172,22 @@ namespace FairyTales.Lessons.EditorTools
             }
             AssetDatabase.SaveAssets();
             return $"[AvatarScreen] built {PrefabPath}";
+        }
+
+        private static Button Chip(Box p, string name, string key, float cx, float cy, float w, out Image bg)
+        {
+            var b = Rect(p, name, Pal.LavSoft, cx, cy, w, 64, 32);
+            bg = b.Go.GetComponent<Image>();
+            LessonPlayerBuilder.Label(AutoSize(Txt(b, "", FontXB, 28, Pal.Sub, w / 2, 31, w - 24, 56), 18), key);
+            return LessonPlayerBuilder.Clickable(b);
+        }
+
+        private static Button RoundText(Box p, string name, string text, float cx, float cy, float d)
+        {
+            Shadow(p, cx, cy, d * 0.8f, d * 0.8f, 0.12f, 8);
+            var b = Circle(p, name, Color.white, cx, cy, d);
+            Txt(b, text, FontXB, d * 0.55f, Pal.LavDeep, d / 2, d / 2 - 3, d, d);
+            return LessonPlayerBuilder.Clickable(b);
         }
 
         private static void BuildMain(Box root, AvatarScreen s, AvatarArt art)
@@ -146,50 +209,65 @@ namespace FairyTales.Lessons.EditorTools
             s.tabMomBg = tm.Go.GetComponent<Image>();
             s.tabMomLabel = LessonPlayerBuilder.Label(AutoSize(Txt(tm, "", FontXB, 36, Pal.Sub, 126, 36, 230, 60), 24), "avatar_mom_tab");
 
-            Img(safe, "Glow", Shapes.Radial("avglow", new Color(1, 1, 1, 0.9f), new Color(1, 1, 1, 0)), 500, 600, 900, 900, A.L);
-            s.preview = Avatar(safe, "Preview", AvatarPerson.Child, 450, 640, 470, 760, A.L);
-            var remove = Rect(safe, "RemovePhoto", Color.white, 450, 1010, 320, 72, 36, A.L);
-            s.removePhoto = LessonPlayerBuilder.Clickable(remove);
-            LessonPlayerBuilder.Label(Txt(remove, "", FontXB, 30, Pal.Rose, 160, 34, 300, 60), "avatar_remove");
+            // The figure, with a finger area over it for fitting a photo head.
+            Img(safe, "Glow", Shapes.Radial("avglow", new Color(1, 1, 1, 0.9f), new Color(1, 1, 1, 0)), 440, 600, 900, 900, A.L);
+            s.preview = Avatar(safe, "Preview", AvatarPerson.Child, 440, 590, 520, 760, A.L);
+            var hit = Node(safe, "FitArea", 440, 590, 520, 760, A.L);
+            AddImage(hit, null, new Color(1, 1, 1, 0)).raycastTarget = true;
+            s.fitter = hit.Go.AddComponent<AvatarFitter>();
+            s.fitter.view = s.preview;
+
+            var fit = Node(safe, "Fit", 110, 520, 120, 300, A.L);
+            s.fitBlock = fit.Go;
+            s.sizePlus = RoundText(fit, "Bigger", "+", 60, 70, 96);
+            s.sizeMinus = RoundText(fit, "Smaller", "−", 60, 190, 96);
+            fit.Go.SetActive(false);
+
+            var body = Node(safe, "Body", 440, 1010, 500, 80, A.L);
+            s.bodyBlock = body.Go;
+            s.bodyPlain = Chip(body, "Plain", "avatar_body_plain", 125, 40, 236, out s.bodyPlainBg);
+            s.bodyHijab = Chip(body, "Hijab", "avatar_body_hijab", 375, 40, 236, out s.bodyHijabBg);
 
             var panel = Card(safe, "Panel", 1370, 560, 880, 820, 56, null, 0.14f, A.R);
             s.title = AutoSize(Txt(panel, "", FontXB, 56, Pal.Ink, 440, 80, 800, 80), 36);
 
-            var row = Node(panel, "PhotoButtons", 440, 200, 860, 180);
+            var row = Node(panel, "PhotoButtons", 440, 195, 860, 160);
             var layout = row.Go.AddComponent<HorizontalLayoutGroup>();
             layout.childAlignment = TextAnchor.MiddleCenter;
             layout.childControlWidth = layout.childControlHeight = false;
             layout.childForceExpandWidth = layout.childForceExpandHeight = false;
-            s.takePhoto = LessonPlayerBuilder.Raised(row, "TakePhoto", "avatar_take", Pal.Rose, 0, 90, 340, 100, A.C, null, 36);
-            s.gallery = LessonPlayerBuilder.Raised(row, "Gallery", "avatar_gallery", Pal.LavSoft, 0, 90, 340, 100, A.C, Pal.Ink, 36);
+            s.takePhoto = LessonPlayerBuilder.Raised(row, "TakePhoto", "avatar_take", Pal.Rose, 0, 80, 340, 100, A.C, null, 36);
+            s.gallery = LessonPlayerBuilder.Raised(row, "Gallery", "avatar_gallery", Pal.LavSoft, 0, 80, 340, 100, A.C, Pal.Ink, 36);
 
-            var faces = Node(panel, "Faces", 440, 470, 860, 360);
-            s.facesBlock = faces.Go;
-            LessonPlayerBuilder.Label(Txt(faces, "", FontB, 32, Pal.Sub, 430, 20, 800, 50), "avatar_or_face");
+            var remove = Node(panel, "RemovePhoto", 440, 288, 360, 50);
+            AddImage(remove, null, new Color(1, 1, 1, 0)).raycastTarget = true;
+            s.removePhoto = LessonPlayerBuilder.Clickable(remove);
+            LessonPlayerBuilder.Label(Txt(remove, "", FontXB, 28, Pal.Rose, 180, 25, 360, 50), "avatar_remove");
+
+            s.headsLabel = AutoSize(Txt(panel, "", FontB, 30, Pal.Sub, 440, 340, 800, 46), 22);
             var buttons = new List<Button>();
+            var images = new List<Image>();
             var selected = new List<GameObject>();
             for (int i = 0; i < 12; i++)
             {
                 int col = i % 6, r = i / 6;
-                float x = 105 + col * 130, y = 105 + r * 128;
-                var ring = Circle(faces, $"Selected{i + 1}", Pal.Rose, x, y, 118);
+                float x = 115 + col * 130, y = 440 + r * 124;
+                var ring = Circle(panel, $"Selected{i + 1}", Pal.Rose, x, y, 116);
                 ring.Go.SetActive(false);
                 selected.Add(ring.Go);
-                var f = Circle(faces, $"Face{i + 1}", Pal.LavSoft, x, y, 106);
+                var f = Circle(panel, $"Head{i + 1}", Pal.LavSoft, x, y, 104);
                 buttons.Add(LessonPlayerBuilder.Clickable(f));
-                Img(f, "Face", art.Face(i), 53, 53, 98, 98);
+                var sprite = i < art.kidHeads.Length ? art.kidHeads[i].sprite : null;
+                images.Add(Img(f, "Head", sprite, 52, 54, 92, 92).Go.GetComponent<Image>());
             }
-            s.faces = buttons.ToArray();
-            s.faceSelected = selected.ToArray();
+            s.heads = buttons.ToArray();
+            s.headImages = images.ToArray();
+            s.headSelected = selected.ToArray();
 
-            var hint = LessonPlayerBuilder.Label(AutoSize(Txt(panel, "", FontB, 36, Pal.Sub, 440, 430, 760, 140), 26), "avatar_mom_hint");
-            s.momHint = hint.gameObject;
-            s.momHint.SetActive(false);
-
-            var note = Rect(panel, "Privacy", Pal.Hex("E6F6EC"), 440, 655, 800, 80, 30);
-            Img(note, "Lock", Shapes.Lock, 50, 40, 40, 40, A.C, Pal.GreenDark);
-            LessonPlayerBuilder.Label(AutoSize(Txt(note, "", FontB, 28, Pal.GreenDark, 430, 40, 700, 60, TA.Left), 20), "avatar_privacy");
-            s.done = LessonPlayerBuilder.Raised(panel, "Done", "done", Pal.Green, 440, 755, 420, 96, A.C, null, 42);
+            var note = Rect(panel, "Privacy", Pal.Hex("E6F6EC"), 440, 665, 800, 70, 30);
+            Img(note, "Lock", Shapes.Lock, 50, 35, 38, 38, A.C, Pal.GreenDark);
+            LessonPlayerBuilder.Label(AutoSize(Txt(note, "", FontB, 28, Pal.GreenDark, 430, 35, 700, 56, TA.Left), 20), "avatar_privacy");
+            s.done = LessonPlayerBuilder.Raised(panel, "Done", "done", Pal.Green, 440, 760, 420, 96, A.C, null, 42);
         }
 
         private static void BuildPhoto(Box root, AvatarScreen s)
@@ -201,52 +279,57 @@ namespace FairyTales.Lessons.EditorTools
             var safe = Fill(panel, "Safe");
             safe.Go.AddComponent<SafeAreaFitter>();
 
-            const float vw = 588, vh = 672; // aspect of the saved photo (448×512)
+            const float vw = 588, vh = 672;
             var view = Rect(safe, "Viewport", Pal.Night, 900, 560, vw, vh, 48);
-            view.Go.GetComponent<Image>().raycastTarget = true;
             view.Go.AddComponent<Mask>().showMaskGraphic = true;
             var photoGo = Node(view, "Photo", vw / 2, vh / 2, vw, vh);
             var raw = photoGo.Go.AddComponent<RawImage>();
             raw.raycastTarget = false;
-            var hole = Fill(view, "Hole");
-            AddImage(hole, AssetDatabase.LoadAssetAtPath<Sprite>(HolePath), Color.white);
-            var oval = Node(view, "Oval", vw / 2, vh / 2, vw * OvalShare, vh * OvalShare);
-            Img(oval, "Ring", Shapes.DashedRing, vw * OvalShare / 2, vh * OvalShare / 2, vw * OvalShare + 8, vh * OvalShare + 8,
-                A.C, Color.white, preserve: false);
+            // Head-and-shoulders outline: where the child should be in the frame.
+            var guide = Fill(view, "Guide");
+            AddImage(guide, AssetDatabase.LoadAssetAtPath<Sprite>(GuidePath), Color.white);
 
             var cropper = view.Go.AddComponent<PhotoCropper>();
             cropper.viewport = view.Rt;
             cropper.photo = raw;
-            cropper.oval = oval.Rt;
             s.cropper = cropper;
 
-            s.photoHint = AutoSize(Txt(safe, "", FontXB, 44, Color.white, 900, 150, 1100, 80, TA.Center, A.T), 28);
+            s.photoHint = AutoSize(Txt(safe, "", FontXB, 44, Color.white, 900, 150, 1200, 80, TA.Center, A.T), 26);
             s.photoClose = LessonPlayerBuilder.Icon(safe, "Close", Shapes.Cross, Color.white, Pal.Sub, 90, 78, 92, A.TL, 0.4f);
             s.shoot = LessonPlayerBuilder.Icon(safe, "Shoot", Art("icon_camera"), Pal.Rose, Color.white, 1530, 560, 180, A.R, 0.6f, holder: true);
-            s.retake = LessonPlayerBuilder.Raised(safe, "Retake", "avatar_retake", Pal.LavSoft, 1530, 480, 340, 100, A.R, Pal.Ink, 38);
-            s.savePhoto = LessonPlayerBuilder.Raised(safe, "Save", "done", Pal.Green, 1530, 640, 340, 100, A.R, null, 42);
+            s.retake = LessonPlayerBuilder.Raised(safe, "Retake", "avatar_retake", Pal.LavSoft, 1530, 560, 340, 100, A.R, Pal.Ink, 38);
         }
 
-        /// <summary>Dark veil with a soft oval hole, stretched over the photo viewport.</summary>
-        private static void EnsureHoleSprite()
+        /// <summary>Dark veil with a head-and-shoulders hole and a white outline, over the camera picture.</summary>
+        private static void EnsureGuideSprite()
         {
-            if (File.Exists(HolePath)) return;
-            const int n = 256;
-            var tex = new Texture2D(n, n, TextureFormat.RGBA32, false);
-            var px = new Color32[n * n];
-            for (int y = 0; y < n; y++)
-            for (int x = 0; x < n; x++)
+            if (File.Exists(GuidePath)) return;
+            const int w = 448, h = 512;
+            var tex = new Texture2D(w, h, TextureFormat.RGBA32, false);
+            var px = new Color32[w * h];
+            // Implicit shape: < 1 inside. Head ellipse and a shoulders ellipse below it (y from the top).
+            float Shape(float u, float v)
             {
-                float dx = (x + 0.5f - n / 2f) / (n / 2f * OvalShare), dy = (y + 0.5f - n / 2f) / (n / 2f * OvalShare);
-                float r = Mathf.Sqrt(dx * dx + dy * dy);
-                float a = Mathf.Clamp01((r - 1f) / 0.02f) * 0.8f;
-                px[y * n + x] = new Color32(20, 14, 45, (byte)(a * 255));
+                float hx = (u - 0.5f) / 0.27f, hy = (v - 0.4f) / 0.27f * (h / (float)w) * 0.82f;
+                float sx = (u - 0.5f) / 0.5f, sy = (v - 1.05f) / 0.3f;
+                return Mathf.Min(Mathf.Sqrt(hx * hx + hy * hy), Mathf.Sqrt(sx * sx + sy * sy));
+            }
+            for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+            {
+                float u = (x + 0.5f) / w, v = 1f - (y + 0.5f) / h;
+                float f = Shape(u, v);
+                Color32 c;
+                if (Mathf.Abs(f - 1f) < 0.012f) c = new Color32(255, 255, 255, 230);
+                else if (f > 1f) c = new Color32(20, 14, 45, 150);
+                else c = new Color32(0, 0, 0, 0);
+                px[y * w + x] = c;
             }
             tex.SetPixels32(px);
-            File.WriteAllBytes(HolePath, tex.EncodeToPNG());
+            File.WriteAllBytes(GuidePath, tex.EncodeToPNG());
             Object.DestroyImmediate(tex);
-            AssetDatabase.ImportAsset(HolePath);
-            Shapes.Import(HolePath, 0, 512);
+            AssetDatabase.ImportAsset(GuidePath);
+            Shapes.Import(GuidePath, 0, 512);
         }
 
         private static TMP_Text AutoSize(TMP_Text t, float min)
