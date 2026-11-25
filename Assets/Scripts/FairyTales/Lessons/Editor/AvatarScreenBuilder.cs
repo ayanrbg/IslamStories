@@ -73,7 +73,7 @@ namespace FairyTales.Lessons.EditorTools
         /// An avatar node. A placeholder body sprite keeps the prefab readable in the editor;
         /// AvatarView redraws it at runtime. A bust gets the circle mask.
         /// </summary>
-        public static AvatarView Avatar(Box p, string name, AvatarPerson person, float cx, float cy, float w, float h,
+        internal static AvatarView Avatar(Box p, string name, AvatarPerson person, float cx, float cy, float w, float h,
             A a = A.C, bool bust = false, Color? bustBg = null)
         {
             var node = Node(p, name, cx, cy, w, h, a);
