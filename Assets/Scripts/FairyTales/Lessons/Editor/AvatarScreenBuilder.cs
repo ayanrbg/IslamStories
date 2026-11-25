@@ -147,8 +147,8 @@ namespace FairyTales.Lessons.EditorTools
             s.tabMomLabel = LessonPlayerBuilder.Label(AutoSize(Txt(tm, "", FontXB, 36, Pal.Sub, 126, 36, 230, 60), 24), "avatar_mom_tab");
 
             Img(safe, "Glow", Shapes.Radial("avglow", new Color(1, 1, 1, 0.9f), new Color(1, 1, 1, 0)), 500, 600, 900, 900, A.L);
-            s.preview = Avatar(safe, "Preview", AvatarPerson.Child, 500, 640, 470, 760, A.L);
-            var remove = Rect(safe, "RemovePhoto", Color.white, 500, 1010, 320, 72, 36, A.L);
+            s.preview = Avatar(safe, "Preview", AvatarPerson.Child, 450, 640, 470, 760, A.L);
+            var remove = Rect(safe, "RemovePhoto", Color.white, 450, 1010, 320, 72, 36, A.L);
             s.removePhoto = LessonPlayerBuilder.Clickable(remove);
             LessonPlayerBuilder.Label(Txt(remove, "", FontXB, 30, Pal.Rose, 160, 34, 300, 60), "avatar_remove");
 
@@ -160,24 +160,24 @@ namespace FairyTales.Lessons.EditorTools
             layout.childAlignment = TextAnchor.MiddleCenter;
             layout.childControlWidth = layout.childControlHeight = false;
             layout.childForceExpandWidth = layout.childForceExpandHeight = false;
-            s.takePhoto = LessonPlayerBuilder.Raised(row, "TakePhoto", "avatar_take", Pal.Rose, 0, 90, 380, 100, A.C, null, 36);
-            s.gallery = LessonPlayerBuilder.Raised(row, "Gallery", "avatar_gallery", Pal.LavSoft, 0, 90, 380, 100, A.C, Pal.Ink, 36);
+            s.takePhoto = LessonPlayerBuilder.Raised(row, "TakePhoto", "avatar_take", Pal.Rose, 0, 90, 340, 100, A.C, null, 36);
+            s.gallery = LessonPlayerBuilder.Raised(row, "Gallery", "avatar_gallery", Pal.LavSoft, 0, 90, 340, 100, A.C, Pal.Ink, 36);
 
             var faces = Node(panel, "Faces", 440, 470, 860, 360);
             s.facesBlock = faces.Go;
-            LessonPlayerBuilder.Label(Txt(faces, "", FontB, 32, Pal.Sub, 430, 30, 800, 50), "avatar_or_face");
+            LessonPlayerBuilder.Label(Txt(faces, "", FontB, 32, Pal.Sub, 430, 20, 800, 50), "avatar_or_face");
             var buttons = new List<Button>();
             var selected = new List<GameObject>();
             for (int i = 0; i < 12; i++)
             {
                 int col = i % 6, r = i / 6;
-                float x = 105 + col * 130, y = 130 + r * 140;
-                var ring = Circle(faces, $"Selected{i + 1}", Pal.Rose, x, y, 124);
+                float x = 105 + col * 130, y = 105 + r * 128;
+                var ring = Circle(faces, $"Selected{i + 1}", Pal.Rose, x, y, 118);
                 ring.Go.SetActive(false);
                 selected.Add(ring.Go);
-                var f = Circle(faces, $"Face{i + 1}", Pal.LavSoft, x, y, 112);
+                var f = Circle(faces, $"Face{i + 1}", Pal.LavSoft, x, y, 106);
                 buttons.Add(LessonPlayerBuilder.Clickable(f));
-                Img(f, "Face", art.Face(i), 56, 56, 104, 104);
+                Img(f, "Face", art.Face(i), 53, 53, 98, 98);
             }
             s.faces = buttons.ToArray();
             s.faceSelected = selected.ToArray();
@@ -197,7 +197,7 @@ namespace FairyTales.Lessons.EditorTools
             var panel = Fill(root, "PhotoPanel");
             s.photoPanel = panel.Go;
             var dim = Fill(panel, "Dim");
-            AddImage(dim, null, new Color(0.1f, 0.07f, 0.22f, 0.94f)).raycastTarget = true;
+            AddImage(dim, null, new Color(0.1f, 0.07f, 0.22f, 1f)).raycastTarget = true;
             var safe = Fill(panel, "Safe");
             safe.Go.AddComponent<SafeAreaFitter>();
 
@@ -239,7 +239,7 @@ namespace FairyTales.Lessons.EditorTools
             {
                 float dx = (x + 0.5f - n / 2f) / (n / 2f * OvalShare), dy = (y + 0.5f - n / 2f) / (n / 2f * OvalShare);
                 float r = Mathf.Sqrt(dx * dx + dy * dy);
-                float a = Mathf.Clamp01((r - 1f) / 0.02f) * 0.62f;
+                float a = Mathf.Clamp01((r - 1f) / 0.02f) * 0.8f;
                 px[y * n + x] = new Color32(20, 14, 45, (byte)(a * 255));
             }
             tex.SetPixels32(px);

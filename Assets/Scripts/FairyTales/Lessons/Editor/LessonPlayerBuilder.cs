@@ -392,8 +392,8 @@ namespace FairyTales.Lessons.EditorTools
             AddImage(bg, Shapes.Gradient("peach_rose", Pal.Peach, Pal.RoseSoft), Color.white);
             var safe = Safe(r);
             Img(safe, "Glow", Shapes.Radial("deedglow", new Color(1, 1, 1, 0.85f), new Color(1, 1, 1, 0)), 520, 600, 900, 900, A.L);
-            v.momAvatar = AvatarScreenBuilder.Avatar(safe, "Mom", AvatarPerson.Mom, 400, 640, 400, 760, A.L);
-            v.childAvatar = AvatarScreenBuilder.Avatar(safe, "Child", AvatarPerson.Child, 700, 720, 330, 540, A.L);
+            v.momAvatar = AvatarScreenBuilder.Avatar(safe, "Mom", AvatarPerson.Mom, 330, 640, 400, 760, A.L);
+            v.childAvatar = AvatarScreenBuilder.Avatar(safe, "Child", AvatarPerson.Child, 580, 720, 330, 540, A.L);
 
             var card = Card(safe, "DeedCard", 1360, 560, 860, 760, 56, null, 0.18f, A.R);
             Label(Txt(card, "", FontXB, 32, Pal.Rose, 430, 80, 640, 50), "deed_header");
