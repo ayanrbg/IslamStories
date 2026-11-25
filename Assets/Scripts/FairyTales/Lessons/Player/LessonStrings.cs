@@ -57,6 +57,23 @@ namespace FairyTales.Lessons
                 "Today's star for this lesson is already yours. Come back tomorrow!"),
             ["reward_tree"] = ("Посмотреть дерево", "Ағашты көру", "See the tree"),
             ["reward_home"] = ("На главную", "Басты бетке", "Home"),
+
+            ["avatar_child_tab"] = ("Ребёнок", "Бала", "Child"),
+            ["avatar_mom_tab"] = ("Мама", "Анасы", "Mum"),
+            ["avatar_title_mom"] = ("Аватар мамы", "Ананың аватары", "Mum's avatar"),
+            ["avatar_take"] = ("Сделать фото", "Суретке түсіру", "Take a photo"),
+            ["avatar_gallery"] = ("Из галереи", "Галереядан", "From gallery"),
+            ["avatar_or_face"] = ("или выбери готовое лицо", "немесе дайын бетті таңда", "or pick a drawn face"),
+            ["avatar_mom_hint"] = ("Без фото мама остаётся нарисованной", "Суретсіз ана суретте салынғандай қалады",
+                "Without a photo, mum stays drawn"),
+            ["avatar_privacy"] = ("Фото остаётся только на этом телефоне", "Сурет тек осы телефонда қалады",
+                "The photo stays on this phone only"),
+            ["avatar_remove"] = ("Убрать фото", "Суретті алып тастау", "Remove photo"),
+            ["avatar_fit"] = ("Помести лицо в овал", "Бетті сопақтың ішіне орналастыр", "Fit the face inside the oval"),
+            ["avatar_retake"] = ("Заново", "Қайта", "Retake"),
+            ["avatar_no_camera"] = ("Нет доступа к камере. Разрешите его в настройках телефона",
+                "Камераға рұқсат жоқ. Телефон баптауларынан рұқсат беріңіз",
+                "No camera access. Allow it in the phone settings"),
         };
 
         /// <summary>Content language of the player texts: ru | kz | en (English as the fallback).</summary>
@@ -71,6 +88,21 @@ namespace FairyTales.Lessons
         }
 
         public static string T(string key, params object[] args) => string.Format(T(key), args);
+
+        /// <summary>«Аватар для Айши» / «Айшаға арналған аватар» / «Aisha's avatar».</summary>
+        public static string AvatarTitleChild()
+        {
+            var name = TaleText.ChildName;
+            if (string.IsNullOrWhiteSpace(name))
+                return Lang switch { "ru" => "Аватар ребёнка", "kz" => "Баланың аватары", _ => "Child's avatar" };
+            var form = ChildNameForms.ForDedication(name, TaleText.ChildGender, Lang);
+            return Lang switch
+            {
+                "ru" => "Аватар для " + form,
+                "kz" => form + " арналған аватар",
+                _ => name + "'s avatar",
+            };
+        }
 
         /// <summary>"+1 звезда", "+2 звезды", "+2 жұлдыз", "+2 stars".</summary>
         public static string Stars(int n) => "+" + n + " " + Lang switch

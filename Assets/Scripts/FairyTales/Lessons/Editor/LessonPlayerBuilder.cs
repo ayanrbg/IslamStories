@@ -105,7 +105,7 @@ namespace FairyTales.Lessons.EditorTools
             return b;
         }
 
-        private static TMP_Text Label(TMP_Text t, string key)
+        internal static TMP_Text Label(TMP_Text t, string key)
         {
             t.gameObject.AddComponent<LessonLabel>().key = key;
             t.text = LessonStrings.T(key);
@@ -120,7 +120,7 @@ namespace FairyTales.Lessons.EditorTools
             return t;
         }
 
-        private static Button Clickable(Box b)
+        internal static Button Clickable(Box b)
         {
             var img = b.Go.GetComponent<Image>();
             if (img != null) img.raycastTarget = true;
@@ -131,7 +131,7 @@ namespace FairyTales.Lessons.EditorTools
         /// The design's raised button inside a holder ("…Holder") so its shadow and base
         /// hide and pop together with it (<see cref="LessonPlayerScreen.Holder"/>).
         /// </summary>
-        private static Button Raised(Box p, string name, string key, Color c, float cx, float cy, float w, float h,
+        internal static Button Raised(Box p, string name, string key, Color c, float cx, float cy, float w, float h,
             A a = A.C, Color? text = null, float size = 44, Sprite icon = null)
         {
             var holder = Node(p, name + "Holder", cx, cy, w + 80, h + 80, a);
@@ -141,7 +141,7 @@ namespace FairyTales.Lessons.EditorTools
             return Clickable(face);
         }
 
-        private static Button Icon(Box p, string name, Sprite icon, Color bg, Color fg, float cx, float cy, float d,
+        internal static Button Icon(Box p, string name, Sprite icon, Color bg, Color fg, float cx, float cy, float d,
             A a = A.C, float scale = 0.46f, bool holder = false)
         {
             var parent = holder ? Node(p, name + "Holder", cx, cy, d + 40, d + 40, a) : p;
@@ -211,8 +211,8 @@ namespace FairyTales.Lessons.EditorTools
             var bg = Fill(r, "Background");
             AddImage(bg, Shapes.Gradient("lav_peach", Pal.Lav, Pal.Peach), Color.white).raycastTarget = true;
             var safe = Safe(r);
-            Img(safe, "Child", Art("char_girl"), 330, 640, 420, 700, A.BL);
-            Img(safe, "Mom", Art("char_mom"), 1600, 600, 440, 820, A.BR);
+            AvatarScreenBuilder.Avatar(safe, "Child", AvatarPerson.Child, 330, 640, 420, 700, A.BL);
+            AvatarScreenBuilder.Avatar(safe, "Mom", AvatarPerson.Mom, 1600, 600, 440, 820, A.BR);
             s.prepareClose = Icon(safe, "Close", Shapes.Cross, Color.white, Pal.Sub, 90, 78, 92, A.TL, 0.4f);
 
             var card = Card(safe, "Card", 960, 520, 820, 760, 60);
@@ -392,10 +392,8 @@ namespace FairyTales.Lessons.EditorTools
             AddImage(bg, Shapes.Gradient("peach_rose", Pal.Peach, Pal.RoseSoft), Color.white);
             var safe = Safe(r);
             Img(safe, "Glow", Shapes.Radial("deedglow", new Color(1, 1, 1, 0.85f), new Color(1, 1, 1, 0)), 520, 600, 900, 900, A.L);
-            Img(safe, "Mom", Art("char_mom"), 400, 640, 400, 760, A.L);
-            v.childGirl = Img(safe, "ChildGirl", Art("char_girl"), 700, 720, 330, 540, A.L).Go;
-            v.childBoy = Img(safe, "ChildBoy", Art("char_boy"), 700, 720, 330, 540, A.L).Go;
-            v.childBoy.SetActive(false);
+            v.momAvatar = AvatarScreenBuilder.Avatar(safe, "Mom", AvatarPerson.Mom, 400, 640, 400, 760, A.L);
+            v.childAvatar = AvatarScreenBuilder.Avatar(safe, "Child", AvatarPerson.Child, 700, 720, 330, 540, A.L);
 
             var card = Card(safe, "DeedCard", 1360, 560, 860, 760, 56, null, 0.18f, A.R);
             Label(Txt(card, "", FontXB, 32, Pal.Rose, 430, 80, 640, 50), "deed_header");
@@ -431,6 +429,8 @@ namespace FairyTales.Lessons.EditorTools
             v.rays = Img(r, "Rays", Shapes.Radial("rays", new Color(1, 1, 1, 0.9f), new Color(1, 1, 1, 0)), 960, 340, 800, 800).Rt;
             v.star = Img(r, "Star", Art("reward_star"), 960, 330, 430, 430).Rt;
             var safe = Safe(r);
+            // The child cheering next to the star (spec: the avatar shows up in the reward).
+            AvatarScreenBuilder.Avatar(safe, "Child", AvatarPerson.Child, 250, 720, 330, 560, A.BL);
             var brown = Pal.Hex("5B3410");
             v.title = AutoSize(Txt(safe, "", FontXB, 92, brown, 960, 640, 1400, 120), 56);
 

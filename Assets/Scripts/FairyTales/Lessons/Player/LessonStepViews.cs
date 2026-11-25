@@ -381,8 +381,9 @@ namespace FairyTales.Lessons
     [Serializable]
     public class DeedStepView : LessonStepView
     {
-        public GameObject childBoy;
-        public GameObject childGirl;
+        /// <summary>Mum and the child as their avatars (photo, ready face or drawn).</summary>
+        public AvatarView childAvatar;
+        public AvatarView momAvatar;
         public TMP_Text title;
         public GameObject pictureFrame;
         public Image picture;
@@ -415,9 +416,6 @@ namespace FairyTales.Lessons
         public override void Begin(LessonStep step)
         {
             _step = (DeedStep)step;
-            bool girl = UserProfile.ChildGender == "female";
-            childGirl.SetActive(girl);
-            childBoy.SetActive(!girl);
             title.text = P.Text(_step.title);
 
             var sprite = P.Picture(_step.image);
