@@ -73,9 +73,17 @@ namespace FairyTales.Lessons
 
             // ── pass 2: a tighter square around the head — more of the model's 256 points on it ──
             // Hair or a cap above the face (~0.6 of its height), a hijab's drape below the chin.
-            float side2 = Mathf.Max(2.45f * faceH, 3.1f * faceW);
+            float baseSide = Mathf.Max(2.45f * faceH, 3.1f * faceW);
+            float side2 = baseSide;
             var box2 = new Rect(fcx - side2 / 2f, fTop - 0.68f * faceH, side2, side2);
             var p = Run(photo, box2);
+            if (HairAtEdge(p))
+            {
+                // Big curly hair runs out of the square: look again at a larger one, grown mostly upward.
+                side2 = baseSide * 1.45f;
+                box2 = new Rect(fcx - side2 / 2f, fTop - 0.68f * faceH - (side2 - baseSide) * 0.45f, side2, side2);
+                p = Run(photo, box2);
+            }
             var face = FaceBlob(p);
             if (face == null || face.Count < N * N * 0.01f) return null;
             Bounds(face, out fx0, out fy0, out fx1, out fy1);
@@ -103,6 +111,7 @@ namespace FairyTales.Lessons
             int midY = (fy0 + fy1) / 2;
             int cloth = 0, band = 0;
             var hijabSum = Vector3.zero;
+            var samples = new List<Vector3>();
             for (int y = midY; y <= fy1; y++)
             {
                 for (int x = fx0 - sideW; x < fx0; x++) Count(x, y);
@@ -115,10 +124,29 @@ namespace FairyTales.Lessons
                 int k = ArgMax(p, y * N + x);
                 if (k != Clothes && k != Others) return;
                 cloth++;
-                hijabSum += Rgb(src, photo.width, photo.height, box2.x + (x + 0.5f) * s2, box2.y + (y + 0.5f) * s2);
+                var c = Rgb(src, photo.width, photo.height, box2.x + (x + 0.5f) * s2, box2.y + (y + 0.5f) * s2);
+                hijabSum += c;
+                samples.Add(c);
             }
-            bool covered = band > 0 && cloth > band * 0.45f;
+            // A tight scarf shows only a strip of cloth beside the cheeks (25–45% of the band),
+            // while hair or bare skin there gives none at all.
+            bool covered = band > 0 && cloth > band * 0.15f;
             var hijabColor = cloth > 0 ? hijabSum / cloth : Vector3.zero;
+            // Patterned cloth (flowers on a scarf) has no single colour: then any of its colours
+            // counts. Told by the spread of tints, not of brightness — shade, folds and a bit of
+            // wall in the band spread brightness on plain scarves too (plain ≤ 0.06, floral ≥ 0.077).
+            float hl = (hijabColor.x + hijabColor.y + hijabColor.z) / 3f;
+            var meanTint = hijabColor - new Vector3(hl, hl, hl);
+            float tintSpread = 0;
+            foreach (var c in samples)
+            {
+                float l0 = (c.x + c.y + c.z) / 3f;
+                tintSpread += (c - new Vector3(l0, l0, l0) - meanTint).magnitude;
+            }
+            tintSpread = samples.Count > 0 ? tintSpread / samples.Count : 0;
+            bool patterned = tintSpread > 0.07f;
+            var palette = new List<Vector3>();
+            for (int i = 0; i < samples.Count; i += Mathf.Max(1, samples.Count / 48)) palette.Add(samples[i]);
 
             // How much a grid cell looks like the hijab. The tint decides, brightness barely:
             // folds and shade on the scarf pass, a grey wall's shadow or a white shirt don't.
@@ -127,9 +155,23 @@ namespace FairyTales.Lessons
             float HijabLike(int x, int y)
             {
                 var c = Rgb(src, photo.width, photo.height, box2.x + (x + 0.5f) * s2, box2.y + (y + 0.5f) * s2);
+                if (patterned)
+                {
+                    float best = float.MaxValue;
+                    foreach (var q in palette) best = Mathf.Min(best, (c - q).sqrMagnitude);
+                    return Mathf.Exp(-best / (2f * 0.12f * 0.12f));
+                }
                 float l = (c.x + c.y + c.z) / 3f;
                 var tint = c - new Vector3(l, l, l);
                 float d2 = 0.1f * (l - hijabL) * (l - hijabL) + 2f * (tint - hijabTint).sqrMagnitude;
+                // Below the chin a much brighter patch next to the drape is something else — a white
+                // shirt under a beige scarf, a grey sofa by a black one. Not above: the lit top of a
+                // scarf is brighter than its shaded sides by the cheeks, where its colour was taken.
+                if (y > chinY)
+                {
+                    float brighter = Mathf.Max(0f, l - hijabL - 0.08f);
+                    d2 += 3f * brighter * brighter;
+                }
                 return Mathf.Exp(-d2 / (2f * 0.1f * 0.1f));
             }
 
@@ -138,8 +180,8 @@ namespace FairyTales.Lessons
             // The drape ends in a soft round edge — inside the photo, so the photo's own edge
             // never makes a straight cut.
             float photoBottom = (H - box2.y) / s2 - 2f;
-            float drapeBottom = Mathf.Min(chinY + gFaceH * 0.7f, photoBottom);
-            float drapeHalf = gFaceW * 1.3f;
+            float drapeBottom = Mathf.Min(chinY + gFaceH * 0.55f, photoBottom); // to the shoulders: the drawn body carries the rest of the scarf
+            float drapeHalf = gFaceW * 1.2f;
             float capLine = fy0 + gFaceH * 0.35f;                  // above the eyes: a cap, a scarf's top
             for (int y = 0; y < N; y++)
                 for (int x = 0; x < N; x++)
@@ -155,14 +197,14 @@ namespace FairyTales.Lessons
                         // never the neck beside the jaw.
                         if (y >= fy0 + gFaceH * 0.22f && y <= fy0 + gFaceH * 0.62f
                             && x >= fx0 - gFaceW * 0.3f && x <= fx1 + gFaceW * 0.3f) k += skinP;
-                        if (covered) k += (clothP + otherP) * HijabLike(x, y);   // the scarf, not the wall's shadow
+                        if (covered && clothP + otherP > 0.05f) k += (clothP + otherP) * HijabLike(x, y); // the scarf, not the wall's shadow
                         else if (y < capLine) k += clothP + otherP;              // a cap; never a collar
                     }
                     else
                     {
                         k = hairP;                                               // long hair over the shoulders
                         if (y <= chinY + 2) k += faceP;
-                        if (covered && y < drapeBottom)
+                        if (covered && y < drapeBottom && clothP + otherP > 0.05f)
                         {
                             // Hijab down to the shoulders, with a soft round edge (no straight cut).
                             float ex = (x - chinX) / drapeHalf, ey = (y - chinY) / Mathf.Max(1f, drapeBottom - chinY);
@@ -187,6 +229,21 @@ namespace FairyTales.Lessons
                 int a = -1, b = -1;
                 for (int x = 0; x < N; x++) if (core[y * N + x]) { if (a < 0) a = x; b = x; }
                 for (int x = a + 1; x < b; x++) if (!core[y * N + x]) hole[y * N + x] = true;
+            }
+            if (covered)
+            {
+                // Below the chin the drape wraps the neck: what shows between its two sides
+                // (the neck, a hand on the cheek) belongs to the head, inside the drape's outline.
+                for (int y = chinY + 1; y < drapeBottom && y < N; y++)
+                {
+                    int a = -1, b = -1;
+                    for (int x = 0; x < N; x++) if (core[y * N + x]) { if (a < 0) a = x; b = x; }
+                    for (int x = a + 1; x < b; x++)
+                    {
+                        float ex = (x - chinX) / drapeHalf, ey = (y - chinY) / Mathf.Max(1f, drapeBottom - chinY);
+                        if (!core[y * N + x] && ex * ex + ey * ey < 0.9f) hole[y * N + x] = true;
+                    }
+                }
             }
             for (int i = 0; i < hole.Length; i++) if (hole[i]) { solid[i] = true; keep[i] = 1f; }
 
@@ -364,6 +421,25 @@ namespace FairyTales.Lessons
                     if (sub >= 0) { sum -= tmp[sub * w + x]; count--; }
                 }
             }
+        }
+
+        /// <summary>Hair running into the top or the sides of the square (big curly hair).</summary>
+        private static bool HairAtEdge(float[] p)
+        {
+            int hits = 0;
+            for (int i = 0; i < N; i++)
+            {
+                for (int d = 0; d < 2; d++)
+                {
+                    if (ArgMax(p, d * N + i) == Hair) hits++;                       // top rows
+                    if (i < N * 0.6f)
+                    {
+                        if (ArgMax(p, i * N + d) == Hair) hits++;                   // left columns
+                        if (ArgMax(p, i * N + N - 1 - d) == Hair) hits++;           // right columns
+                    }
+                }
+            }
+            return hits > 16;
         }
 
         /// <summary>Cells outside <paramref name="m"/> that the picture's border can't reach.</summary>

@@ -8,7 +8,7 @@ namespace FairyTales.Lessons.EditorTools
     /// <summary>
     /// Makes the friend's head for a lesson (the «friendHead» media of the repeat step) from a
     /// face photo of the child actor: the same head cutter as the app, then the standard
-    /// framing the app expects — 512×768, chin at (256, 512), face 256 px wide — so no anchors
+    /// framing the app expects — 768×1024, chin at (384, 683), face 256 px wide — so no anchors
     /// have to travel with the picture.
     ///
     ///   Nooria ▸ Lessons ▸ Make friend head from photo…
@@ -17,7 +17,7 @@ namespace FairyTales.Lessons.EditorTools
     /// </summary>
     public static class FriendHeadTool
     {
-        public const int Width = 512, Height = 768;
+        public const int Width = 768, Height = 1024;
 
         [MenuItem("Nooria/Lessons/Make friend head from photo…")]
         public static void Menu()

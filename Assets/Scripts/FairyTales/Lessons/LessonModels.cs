@@ -170,10 +170,10 @@ namespace FairyTales.Lessons
         public string friendBody;
         public LessonPhrase phrase = new();
 
-        /// <summary>Chin of a friend head PNG (512×768): centre, two thirds down (y from the top).</summary>
+        /// <summary>Chin of a friend head PNG (768×1024): centre, two thirds down (y from the top).</summary>
         public static readonly UnityEngine.Vector2 FriendHeadChin = new(0.5f, 2f / 3f);
-        /// <summary>Face width (cheek to cheek) in a friend head PNG: half the picture's width.</summary>
-        public const float FriendHeadFace = 0.5f;
+        /// <summary>Face width (cheek to cheek) in a friend head PNG: a third of the picture's width (256 px), room for big hair.</summary>
+        public const float FriendHeadFace = 1f / 3f;
 
         public bool FriendIsGirl => friendBody == "girl";
     }
