@@ -120,7 +120,7 @@ namespace FairyTales.UI.Onboarding
             }
             else
             {
-                FadeOutAndNavigate(() => _screens.Show<LibraryScreen>());
+                FadeOutAndNavigate(() => _screens.ShowHome());
             }
         }
 

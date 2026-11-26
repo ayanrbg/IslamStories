@@ -203,7 +203,7 @@ namespace FairyTales.UI.Onboarding
             }
 
             _screens.Get<LibraryScreen>()?.MarkNeedsRefresh();
-            FadeOutAndNavigate(() => _screens.Show<LibraryScreen>());
+            FadeOutAndNavigate(() => _screens.ShowHome());
         }
 
         private void FadeOutAndNavigate(Action navigate)

@@ -14,9 +14,10 @@ namespace FairyTales.Lessons.EditorTools
 {
     /// <summary>
     /// Builds the lessons home (design 29 «Урок дня + разделы») and «Все уроки»
-    /// (design 30) as screens of the app, and gives the tales library a home button.
+    /// (design 30) and «Дерево добрых дел» (design 14) as screens of the app, and
+    /// gives the tales library a home button.
     ///
-    ///   Nooria ▸ Lessons ▸ Build lessons home            — the two prefabs
+    ///   Nooria ▸ Lessons ▸ Build lessons home            — the three prefabs
     ///   Nooria ▸ Lessons ▸ Install lessons home in scene — instances under [UICanvas] + library home button
     ///   Nooria ▸ Lessons ▸ Render lessons home PNGs      — Design/Home/*.png with sample content
     /// </summary>
@@ -24,6 +25,7 @@ namespace FairyTales.Lessons.EditorTools
     {
         public const string HomePrefab = "Assets/Prefabs/Lessons/LessonHomeScreen.prefab";
         public const string ListPrefab = "Assets/Prefabs/Lessons/LessonListScreen.prefab";
+        public const string TreePrefab = "Assets/Prefabs/Lessons/LessonTreeScreen.prefab";
         private const string ArtDir = "Assets/UI/Lessons/Art";
         private const string ScenePath = "Assets/Scenes/SampleScene.unity";
         private const string PngDir = "Design/Home";
@@ -43,7 +45,8 @@ namespace FairyTales.Lessons.EditorTools
         {
             Shapes.Ensure();
             LoadFonts();
-            foreach (var n in new[] { "home_button", "cover_night", "cover_bismillah", "tree_full", "reward_star", "topic_mosque" })
+            foreach (var n in new[] { "home_button", "cover_night", "cover_bismillah", "tree_full", "reward_star", "topic_mosque",
+                         "tree_stage1", "tree_stage2", "tree_stage3", "tree_stage4", "leaf_green", "leaf_gold", "topic_sleep", "icon_camera" })
                 ForceSingle($"{ArtDir}/{n}");
             Directory.CreateDirectory(Path.GetDirectoryName(HomePrefab)!);
             var scene = EditorSceneManager.NewPreviewScene();
@@ -58,13 +61,17 @@ namespace FairyTales.Lessons.EditorTools
                 var list = Screen<LessonListScreen>(holder.transform, "LessonListScreen");
                 BuildList(list.root, list.screen);
                 PrefabUtility.SaveAsPrefabAsset(list.root.Go, ListPrefab);
+
+                var tree = Screen<LessonTreeScreen>(holder.transform, "LessonTreeScreen");
+                BuildTree(tree.root, tree.screen);
+                PrefabUtility.SaveAsPrefabAsset(tree.root.Go, TreePrefab);
             }
             finally
             {
                 EditorSceneManager.ClosePreviewScene(scene);
             }
             AssetDatabase.SaveAssets();
-            return $"[LessonHome] built {HomePrefab}, {ListPrefab}";
+            return $"[LessonHome] built {HomePrefab}, {ListPrefab}, {TreePrefab}";
         }
 
         private static void ForceSingle(string pathNoExt)
@@ -157,7 +164,202 @@ namespace FairyTales.Lessons.EditorTools
             s.tales = View(Tile(safe, "Tales", 1630, 420, 400, 340, Pal.Night2, Art("cover_night"), true, A.C, 52, "Сказки", 30, allBadges: true));
             s.tree = View(Tile(safe, "Tree", 1190, 820, 400, 340, TMint, Art("tree_full"), false, A.C, 52, "Дерево", 30, allBadges: true));
             s.games = View(Tile(safe, "Games", 1630, 820, 400, 340, TSky, Art("reward_star"), false, A.C, 52, "Игры", 30, locked: true, allBadges: true));
+
+            // «Ждёт отметки: 1» hanging on the tree tile's top edge, for the parent.
+            const float cw = 330, ch = 64;
+            var chip = Node(safe, "DeedsChip", 1190, 652, cw + 40, ch + 40);
+            Shadow(chip, (cw + 40) / 2, (ch + 40) / 2, cw, ch, 0.16f, 8);
+            var chipFace = Rect(chip, "Face", Pal.Orange, (cw + 40) / 2, (ch + 40) / 2, cw, ch, ch / 2);
+            Circle(chipFace, "LeafRing", Color.white, 34, ch / 2, 52);
+            Img(chipFace, "Leaf", Art("leaf_gold"), 34, ch / 2, 38, 38);
+            s.deedsChipText = AutoFit(Txt(chipFace, "Ждёт отметки: 1", FontXB, 28, Color.white, 70 + (cw - 84) / 2, ch / 2 - 1, cw - 90, ch), 20);
+            s.deedsChip = chip.Go;
+
+            BuildAvatarOffer(r, s);
         }
+
+        // ─────────────────────────── avatar offer ───────────────────────────
+
+        /// <summary>
+        /// «Сделаем тебя героем!» over the home: the child's bust with a camera badge on
+        /// a sticker card, «Сделать» opens the avatar screen, «Потом» closes it.
+        /// </summary>
+        private static void BuildAvatarOffer(Box r, LessonHomeScreen s)
+        {
+            var offer = Fill(r, "AvatarOffer");
+            offer.Go.AddComponent<CanvasGroup>();
+            AddImage(offer, null, new Color(0.17f, 0.13f, 0.32f, 0.55f)).raycastTarget = true;
+            s.avatarOffer = offer.Go;
+
+            const float w = 940, h = 560;
+            var cardHolder = Node(offer, "Card", 960, 600, w + 200, h + 360);
+            s.avatarOfferCard = cardHolder.Rt;
+            float x = (w + 200) / 2, y = (h + 360) / 2 + 60;
+            var card = Sticker(cardHolder, "Face", x, y, w, h, 56, Color.white, 14);
+
+            // The bust sits on the card's top edge.
+            float top = y - h / 2;
+            Circle(cardHolder, "AvatarRing", Color.white, x, top, 262);
+            SketchFrame(cardHolder, x, top, 262, 262, 131);
+            AvatarScreenBuilder.Avatar(cardHolder, "Avatar", AvatarPerson.Child, x, top, 240, 240, A.C, true, Pal.Lav);
+            CornerBadge(cardHolder, "Camera", x + 92, top + 84, 84, Color.white, Art("icon_camera"), Color.white, A.C, 0.62f);
+
+            Label(AutoFit(Txt(card, "", FontXB, 56, Pal.Ink, w / 2, 200, w - 120, 80), 36), "home_avatar_title");
+            Label(Txt(card, "", FontM, 34, Pal.Sub, w / 2, 290, w - 200, 100), "home_avatar_text");
+            var go = Button(card, "Go", Pal.Rose, 320, 450, 400, 104, A.C, null, 42);
+            Label(PillText(go), "home_avatar_go");
+            s.avatarOfferGo = go.Go.GetComponent<Button>();
+            var later = Button(card, "Later", Pal.LavSoft, 690, 450, 260, 104, A.C, Pal.Ink, 38);
+            Label(PillText(later), "home_avatar_later");
+            s.avatarOfferLater = later.Go.GetComponent<Button>();
+            offer.Go.SetActive(false);
+        }
+
+        /// <summary>A sticker card: darker base under it, hand-drawn outlines, a crayon-papered face.</summary>
+        private static Box Sticker(Box p, string name, float cx, float cy, float w, float h, float r, Color fill, float depth, A a = A.C)
+        {
+            Shadow(p, cx, cy + depth, w, h, 0.16f, 12, a);
+            Rect(p, name + "Base", Pal.Darker(fill, 0.8f), cx, cy + depth, w, h, r, a);
+            SketchFrame(p, cx, cy + depth, w, h, r, a);
+            var face = Rect(p, name, fill, cx, cy, w, h, r, a);
+            face.Go.AddComponent<Mask>().showMaskGraphic = true;
+            Paper(face, Pal.Darker(fill, 0.8f), 0.16f);
+            SketchFrame(p, cx, cy, w, h, r, a);
+            return face;
+        }
+
+        // ─────────────────────────── tree ───────────────────────────
+
+        private const float RowW = 800, ListW = 840;
+
+        private static void BuildTree(Box r, LessonTreeScreen s)
+        {
+            Painted(r, "sky_mint_tree", Pal.Hex("CDE7FF"), Pal.Hex("DCF4E2"), 0.16f);
+            var safe = Safe(r);
+
+            var homeBtn = IconButton(safe, "Home", Shapes.Home, Color.white, Pal.MintDark, 96, 92, 112, A.TL, 0.5f);
+            s.home = homeBtn.Go.GetComponent<Button>();
+            Label(AutoFit(Txt(safe, "", FontXB, 56, Pal.Ink, 600, 94, 760, 90, TA.Left, A.TL), 36), "tree_title");
+            s.stars = PillText(Pill(safe, Art("reward_star"), "12", 1606, 92, 168, A.TR));
+            s.leaves = PillText(Pill(safe, Art("leaf_green"), "3", 1772, 92, 146, A.TR));
+
+            // The tree stands on the bottom of its area (from under the title to the
+            // screen's bottom: wide phones are shorter), a soft light behind its crown.
+            const float th = 840, tw = th * 745f / 1006f;
+            var area = Node(safe, "TreeArea", 520, 600, 900, th, A.L);
+            StretchY(area.Rt, 160, 22);
+            s.treeArea = area.Rt;
+            var glow = Img(area, "Glow", Shapes.Radial("tree_glow", new Color(1, 1, 1, 0.8f), new Color(1, 1, 1, 0)), 450, th * 0.45f, 1000, 1000, A.C, null, false);
+            glow.Rt.anchorMin = glow.Rt.anchorMax = new Vector2(0.5f, 0.55f);
+            glow.Rt.anchoredPosition = Vector2.zero;
+            var tree = Img(area, "Tree", Art("tree_stage4"), 450, th - th / 2, tw, th, A.B, null, false);
+            tree.Rt.pivot = new Vector2(0.5f, 0f);
+            tree.Rt.anchoredPosition = Vector2.zero;
+            s.tree = tree.Go.GetComponent<Image>();
+            s.treeMaxHeight = th;
+            var leafLayer = Fill(tree, "Leaves");
+            s.leafLayer = leafLayer.Rt;
+            s.leafImage = Img(leafLayer, "LeafTemplate", Art("leaf_green"), tw / 2, th / 2, 80, 100, A.C, null, false).Go.GetComponent<Image>();
+            s.stages = new[] { Art("tree_stage1"), Art("tree_stage2"), Art("tree_stage3"), Art("tree_stage4") };
+            s.leafGreen = Art("leaf_green");
+            s.leafGold = Art("leaf_gold");
+
+            // How far to the next growth.
+            var growth = Sticker(safe, "Growth", 1400, 250, RowW, 150, 44, Color.white, 10, A.TR);
+            Circle(growth, "IconBg", Pal.Mint, 88, 75, 116);
+            s.growthIcon = Img(growth, "Icon", Art("tree_stage2"), 88, 75, 92, 92).Go.GetComponent<Image>();
+            s.growthText = AutoFit(Txt(growth, "Ещё 2 листка — и дерево подрастёт", FontXB, 34, Pal.Ink, 480, 54, 600, 56, TA.Left), 24);
+            var track = Rect(growth, "Track", Pal.Hex("E2F1E7"), 480, 106, 600, 26, 13);
+            var fill = Rect(track, "Fill", Pal.Green, 150, 13, 300, 26, 13, A.L);
+            fill.Rt.pivot = new Vector2(0f, 0.5f);
+            fill.Rt.anchoredPosition = Vector2.zero;
+            s.growthFill = fill.Rt;
+
+            // The list: deeds waiting for the tick, then the leaves.
+            var view = Node(safe, "Scroll", 1400, 700, ListW, 660, A.R);
+            StretchY(view.Rt, 362, 10);
+            view.Go.AddComponent<RectMask2D>().padding = new Vector4(-30, 0, -30, 0);
+            var scroll = view.Go.AddComponent<ScrollRect>();
+            scroll.horizontal = false;
+            scroll.movementType = ScrollRect.MovementType.Elastic;
+            AddImage(view, null, new Color(1, 1, 1, 0)).raycastTarget = true;
+
+            var content = new GameObject("Content", typeof(RectTransform)).GetComponent<RectTransform>();
+            content.SetParent(view.Rt, false);
+            content.anchorMin = new Vector2(0, 1);
+            content.anchorMax = new Vector2(1, 1);
+            content.pivot = new Vector2(0.5f, 1);
+            content.anchoredPosition = Vector2.zero;
+            content.sizeDelta = new Vector2(0, 600);
+            var v = content.gameObject.AddComponent<VerticalLayoutGroup>();
+            v.spacing = 8;
+            v.padding = new RectOffset(0, 0, 4, 40);
+            v.childAlignment = TextAnchor.UpperCenter;
+            v.childControlWidth = v.childControlHeight = false;
+            v.childForceExpandWidth = v.childForceExpandHeight = false;
+            content.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            scroll.viewport = view.Rt;
+            scroll.content = content;
+            s.scroll = scroll;
+            s.content = content;
+            var c = new Box { Rt = content, W = ListW, H = 600 };
+
+            s.waitingHeader = Header(c, "WaitingHeader", "tree_waiting");
+            s.deedTemplate = Row(c, "DeedTemplate", Pal.Hex("FFF3D1"), Art("leaf_gold"), "Сказали Бисмиллях вместе", true);
+            s.leavesHeader = Header(c, "LeavesHeader", "tree_leaves");
+            s.leafRowTemplate = Row(c, "LeafTemplate", Color.white, Art("leaf_green"), "Бисмиллях", false);
+
+            var empty = Node(c, "Empty", ListW / 2, 70, ListW, 150);
+            var hint = Sticker(empty, "Hint", ListW / 2, 66, RowW, 120, 40, Pal.Hex("F1FAF4"), 8);
+            Img(hint, "Moon", Art("topic_sleep"), 72, 60, 84, 84);
+            Label(Txt(hint, "", FontB, 30, Pal.Ink, 450, 60, 620, 100, TA.Left), "tree_empty");
+            s.empty = empty.Go;
+        }
+
+        /// <summary>Stretches a node from <paramref name="top"/> to <paramref name="bottom"/> of its parent, keeping its x.</summary>
+        private static void StretchY(RectTransform rt, float top, float bottom)
+        {
+            float ax = rt.anchorMin.x, x = rt.anchoredPosition.x, w = rt.sizeDelta.x;
+            rt.anchorMin = new Vector2(ax, 0);
+            rt.anchorMax = new Vector2(ax, 1);
+            rt.sizeDelta = new Vector2(w, -(top + bottom));
+            rt.anchoredPosition = new Vector2(x, (bottom - top) / 2);
+        }
+
+        private static GameObject Header(Box c, string name, string key)
+        {
+            var b = Node(c, name, ListW / 2, 40, ListW, 76);
+            Label(AutoFit(Txt(b, "", FontXB, 40, Pal.Ink, ListW / 2, 44, RowW - 20, 64, TA.Left), 28), key);
+            return b.Go;
+        }
+
+        private static LessonTreeRow Row(Box c, string name, Color fill, Sprite leaf, string title, bool deed)
+        {
+            const float h = 96;
+            var holder = Node(c, name, ListW / 2, 60, ListW, h + 22);
+            var face = Sticker(holder, "Row", ListW / 2, h / 2 + 4, RowW, h, 34, fill, 7);
+            var row = holder.Go.AddComponent<LessonTreeRow>();
+            row.icon = Img(face, "Leaf", leaf, 58, h / 2, 64, 64).Go.GetComponent<Image>();
+            float right = deed ? 250 : 230;
+            var t = Txt(face, title, FontXB, 32, Pal.Ink, 110 + (RowW - 110 - right) / 2, h / 2, RowW - 110 - right, h - 12, TA.Left);
+            t.enableAutoSizing = true;
+            t.fontSizeMax = 32;
+            t.fontSizeMin = 22;
+            t.overflowMode = TextOverflowModes.Ellipsis;
+            row.title = t;
+            if (deed)
+            {
+                var b = Button(face, "Mark", Pal.MintDark, RowW - 128, h / 2 - 3, 210, 66, A.C, null, 30);
+                Label(AutoFit(PillText(b), 20), "tree_mark");
+                row.button = b.Go.GetComponent<Button>();
+            }
+            else
+            {
+                row.note = AutoFit(Txt(face, "новый!", FontM, 26, Pal.Sub, RowW - 125, h / 2, 210, h, TA.Right), 18);
+            }
+            return row;
+        }
+
 
         private static TMP_Text AutoFit(TMP_Text t, float min)
         {
@@ -226,7 +428,7 @@ namespace FairyTales.Lessons.EditorTools
         // ─────────────────────────── scene ───────────────────────────
 
         /// <summary>
-        /// Puts both screens under [UICanvas] (before the lesson player), gives the tales
+        /// Puts the screens under [UICanvas] (before the lesson player), gives the tales
         /// library a home button left of its settings, and saves SampleScene.
         /// </summary>
         [MenuItem("Nooria/Lessons/Install lessons home in scene")]
@@ -238,7 +440,7 @@ namespace FairyTales.Lessons.EditorTools
             if (sm == null) return "no ScreenManager in the scene";
 
             var player = sm.GetComponentInChildren<LessonPlayerScreen>(true);
-            foreach (var path in new[] { HomePrefab, ListPrefab })
+            foreach (var path in new[] { HomePrefab, ListPrefab, TreePrefab })
             {
                 var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
                 if (prefab == null) return "no prefab — build it first";

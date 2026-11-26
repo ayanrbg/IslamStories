@@ -71,7 +71,7 @@ namespace FairyTales.UI.Onboarding
             // Everything is already on disk: no loading screen, and the grid is built.
             if (_preload != null) HandOver();
             else Screens.Get<LibraryScreen>()?.MarkNeedsRefresh();
-            Screens.Show<LibraryScreen>();
+            Screens.ShowHome();
         }
     }
 }

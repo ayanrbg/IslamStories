@@ -23,6 +23,14 @@ namespace FairyTales.UI.Core
 
         public static System.Type HomeScreen => Home?.Invoke();
 
+        /// <summary>Goes to the app's home: <see cref="Home"/> when there is one, else the tales library.</summary>
+        public void ShowHome()
+        {
+            var home = HomeScreen;
+            if (home != null && _screens.ContainsKey(home)) Show(home);
+            else Show<LibraryScreen>();
+        }
+
         private AspectRatioFitter _bgArf;
         private readonly Dictionary<System.Type, BaseScreen> _screens = new();
         private BaseScreen _current;

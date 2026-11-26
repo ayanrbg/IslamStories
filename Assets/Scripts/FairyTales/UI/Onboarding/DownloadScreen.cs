@@ -104,7 +104,7 @@ namespace FairyTales.UI.Onboarding
             if (progressBar) progressBar.value = 1f;
             yield return new WaitForSeconds(0.3f);
 
-            _screens.Show<Library.LibraryScreen>();
+            _screens.ShowHome();
         }
 
         private IEnumerator DownloadCovers()
@@ -114,7 +114,7 @@ namespace FairyTales.UI.Onboarding
             if (progressBar) progressBar.value = 1f;
             yield return new WaitForSeconds(0.3f);
 
-            _screens.Show<Library.LibraryScreen>();
+            _screens.ShowHome();
         }
 
         /// <summary>Covers, then default narration, then the covers decoded into memory.</summary>

@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using DG.Tweening;
 using FairyTales.Api;
 using FairyTales.Diagnostics;
 using FairyTales.IAP;
@@ -40,6 +41,16 @@ namespace FairyTales.Lessons
         public LessonTileView tales;
         public LessonTileView tree;
         public LessonTileView games;
+        /// <summary>«Ждёт отметки: N» on the tree tile while deeds wait for the parent's tick.</summary>
+        public GameObject deedsChip;
+        public TMP_Text deedsChipText;
+
+        [Header("Avatar offer")]
+        /// <summary>«Сделаем тебя героем!» — once, on the first visit, while the child has no face of their own.</summary>
+        public GameObject avatarOffer;
+        public RectTransform avatarOfferCard;
+        public Button avatarOfferGo;
+        public Button avatarOfferLater;
 
         /// <summary>The catalog the home last drew (cached or fresh) — the lessons list reads it too.</summary>
         public static LessonCatalog Catalog { get; private set; }
@@ -49,6 +60,7 @@ namespace FairyTales.Lessons
         private LessonSummary _day;
         private Sprite _dayArt;
         private bool _loading;
+        private const string AvatarOfferKey = "lessons_avatar_offered";
 
         private static bool Subscribed => IAPManager.Instance != null && IAPManager.Instance.IsSubscribed;
 
@@ -62,14 +74,21 @@ namespace FairyTales.Lessons
             day.button.onClick.AddListener(OnDay);
             all.button.onClick.AddListener(() => _sm.Show<LessonListScreen>());
             tales.button.onClick.AddListener(() => _sm.Show<LibraryScreen>());
-            tree.button.onClick.AddListener(() => Toast.Show(LessonStrings.T("home_tree_soon")));
+            tree.button.onClick.AddListener(() => _sm.Show<LessonTreeScreen>());
             games.button.onClick.AddListener(() => Toast.Show(LessonStrings.T("home_soon")));
             parents.onClick.AddListener(() => ChildGatePopup.Show(() => _sm.Show<PersonalizationScreen>()));
             avatarButton.onClick.AddListener(() => AvatarScreen.Open(AvatarPerson.Child));
+            avatarOfferGo.onClick.AddListener(() => { HideOffer(); AvatarScreen.Open(AvatarPerson.Child); });
+            avatarOfferLater.onClick.AddListener(HideOffer);
+            avatarOffer.SetActive(false);
             LessonProgressStore.Changed += OnProgressChanged;
         }
 
-        private void OnDestroy() => LessonProgressStore.Changed -= OnProgressChanged;
+        private void OnDestroy()
+        {
+            LessonProgressStore.Changed -= OnProgressChanged;
+            DOTween.Kill(this);
+        }
 
         private void OnProgressChanged()
         {
@@ -99,13 +118,52 @@ namespace FairyTales.Lessons
         {
             Analytics.Log("lessons_home_view");
             if (!_loading) StartCoroutine(Load());
+            MaybeOfferAvatar();
         }
+
+        protected override void OnHidden() => avatarOffer.SetActive(false);
 
         private void RefreshStats()
         {
             var p = LessonProgressStore.Data;
             stars.text = p.stars.ToString();
             leaves.text = p.LeafCount.ToString();
+            int waiting = p.pendingDeeds.Count;
+            deedsChip.SetActive(waiting > 0);
+            if (waiting > 0) deedsChipText.text = LessonStrings.T("home_deeds", waiting);
+        }
+
+        // ─────────────────────────── avatar offer ───────────────────────────
+
+        private static bool HasOwnFace
+        {
+            get
+            {
+                var kind = AvatarStore.Get(AvatarPerson.Child).kind;
+                return kind == AvatarStore.KindFace || kind == AvatarStore.KindPhoto;
+            }
+        }
+
+        private void MaybeOfferAvatar()
+        {
+            if (PlayerPrefs.GetInt(AvatarOfferKey, 0) == 1 || HasOwnFace) return;
+            PlayerPrefs.SetInt(AvatarOfferKey, 1);
+            PlayerPrefs.Save();
+            Analytics.Log("lessons_avatar_offer");
+
+            avatarOffer.SetActive(true);
+            var group = avatarOffer.GetComponent<CanvasGroup>();
+            group.alpha = 0f;
+            group.DOFade(1f, 0.3f).SetDelay(0.5f).SetId(this);
+            avatarOfferCard.localScale = new Vector3(0.7f, 0.7f, 1f);
+            avatarOfferCard.DOScale(1f, 0.5f).SetEase(Ease.OutBack).SetDelay(0.5f).SetId(this);
+        }
+
+        private void HideOffer()
+        {
+            DOTween.Kill(this);
+            var group = avatarOffer.GetComponent<CanvasGroup>();
+            group.DOFade(0f, 0.2f).SetId(this).OnComplete(() => avatarOffer.SetActive(false));
         }
 
         // ─────────────────────────── data ───────────────────────────

@@ -116,6 +116,26 @@ namespace FairyTales.Lessons
                 "The tree of good deeds will grow here soon"),
             ["home_no_lessons"] = ("Уроки загрузятся, когда появится интернет", "Интернет болғанда сабақтар жүктеледі",
                 "Lessons will load once there is internet"),
+            ["home_deeds"] = ("Ждёт отметки: {0}", "Белгі күтуде: {0}", "To tick: {0}"),
+            ["home_avatar_title"] = ("Сделаем тебя героем!", "Сені кейіпкер етейік!", "Let's make you the hero!"),
+            ["home_avatar_text"] = ("Выбери лицо или сфотографируйся — и ты появишься в уроках",
+                "Бет таңда немесе суретке түс — сабақтарда өзің боласың",
+                "Pick a face or take a photo, and you'll be in the lessons"),
+            ["home_avatar_go"] = ("Сделать", "Жасау", "Let's go"),
+            ["home_avatar_later"] = ("Потом", "Кейін", "Later"),
+            ["tree_title"] = ("Дерево добрых дел", "Игі істер ағашы", "Tree of good deeds"),
+            ["tree_waiting"] = ("Ждут отметки мамы", "Анасының белгісін күтеді", "Waiting for mum's tick"),
+            ["tree_mark"] = ("Отметить", "Белгілеу", "Tick"),
+            ["tree_leaves"] = ("Листки", "Жапырақтар", "Leaves"),
+            ["tree_empty"] = ("Пройди урок — и на дереве появится новый листок",
+                "Сабақтан өт — ағашта жаңа жапырақ пайда болады",
+                "Finish a lesson and a new leaf will grow on the tree"),
+            ["tree_grow"] = ("Ещё {0} — и дерево подрастёт", "Тағы {0} — ағаш өседі", "{0} more and the tree will grow"),
+            ["tree_big"] = ("Какое большое дерево!", "Қандай үлкен ағаш!", "What a big tree!"),
+            ["leaf_new"] = ("новый!", "жаңа!", "new!"),
+            ["leaf_mum"] = ("отметила мама", "анасы белгіледі", "ticked by mum"),
+            ["leaf_today"] = ("сегодня", "бүгін", "today"),
+            ["leaf_yesterday"] = ("вчера", "кеше", "yesterday"),
             ["avatar_no_camera"] = ("Нет доступа к камере. Разрешите его в настройках телефона",
                 "Камераға рұқсат жоқ. Телефон баптауларынан рұқсат беріңіз",
                 "No camera access. Allow it in the phone settings"),
@@ -158,7 +178,10 @@ namespace FairyTales.Lessons
         };
 
         /// <summary>"+1 листок", "+2 листка", "+2 жапырақ", "+2 leaves".</summary>
-        public static string Leaves(int n) => "+" + n + " " + Lang switch
+        public static string Leaves(int n) => "+" + LeavesCount(n);
+
+        /// <summary>"1 листок", "2 листка", "2 жапырақ", "2 leaves".</summary>
+        public static string LeavesCount(int n) => n + " " + Lang switch
         {
             "ru" => RuPlural(n, "листок", "листка", "листков"),
             "kz" => "жапырақ",
