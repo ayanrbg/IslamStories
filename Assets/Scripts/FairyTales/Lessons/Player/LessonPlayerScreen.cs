@@ -153,6 +153,7 @@ namespace FairyTales.Lessons
         {
             Cleanup();
             ShowOnly(prepare: true);
+            prepareTitle.transform.parent.gameObject.SetActive(true);
             exitPopup.SetActive(false);
             resumePopup.SetActive(false);
             prepareTitle.text = _launch?.Title ?? "";
@@ -201,6 +202,8 @@ namespace FairyTales.Lessons
                 resumeRestart.onClick.RemoveAllListeners();
                 resumeGo.onClick.AddListener(() => resume = true);
                 resumeRestart.onClick.AddListener(() => resume = false);
+                // The question replaces the download card; the avatars stay around it.
+                prepareTitle.transform.parent.gameObject.SetActive(false);
                 resumePopup.SetActive(true);
                 while (resume == null) yield return null;
                 resumePopup.SetActive(false);

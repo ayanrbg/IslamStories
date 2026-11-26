@@ -361,7 +361,7 @@ namespace FairyTales.Lessons.EditorTools
             v.cameraView = cam.Go.AddComponent<RawImage>();
             v.cameraView.raycastTarget = false;
             v.cameraView.enabled = false;
-            v.meAvatar = AvatarScreenBuilder.Avatar(meFrame, "Me", AvatarPerson.Child, 370, 350, 300, 400);
+            v.meAvatar = AvatarScreenBuilder.Avatar(meFrame, "Me", AvatarPerson.Child, 370, 375, 270, 350);
             v.meJaw = v.meAvatar.gameObject.AddComponent<AvatarJaw>();
             v.meJaw.enabled = false;
             v.sticker = Img(meFrame, "Sticker", Art("mask_crown"), 380, 90, 220, 165).Go.GetComponent<Image>();
@@ -664,13 +664,15 @@ namespace FairyTales.Lessons.EditorTools
             var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath);
             if (prefab == null) return "no prefab";
             Directory.CreateDirectory(PngDir);
+            var lang = Loc.Lang;
+            Loc.Lang = "ru";
             var states = new (string id, Action<LessonPlayerScreen> setup)[]
             {
                 ("P1_Prepare", PrevPrepare), ("P2_Story", PrevStory), ("P3_Repeat", PrevRepeat),
                 ("P3a_RepeatIntro", PrevRepeatIntro), ("P3b_RepeatListen", PrevRepeatListen), ("P3c_Permissions", PrevPermissions),
                 ("P4_Quiz", PrevQuiz), ("P5_Deed", PrevDeed), ("P6_Reward", PrevReward),
                 ("P7_Exit", s => { PrevStory(s); s.exitPopup.SetActive(true); }),
-                ("P8_Resume", s => { PrevPrepare(s); s.resumePopup.SetActive(true); s.resumeNote.text = LessonStrings.T("resume_note", 3, 5); }),
+                ("P8_Resume", s => { PrevPrepare(s); s.prepareTitle.transform.parent.gameObject.SetActive(false); s.resumePopup.SetActive(true); s.resumeNote.text = LessonStrings.T("resume_note", 3, 5); }),
             };
             var scene = EditorSceneManager.NewPreviewScene();
             var rtex = new RenderTexture(1920, 1080, 24, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB) { antiAliasing = 4 };
@@ -726,6 +728,7 @@ namespace FairyTales.Lessons.EditorTools
                 UnityEngine.Object.DestroyImmediate(tex);
                 rtex.Release();
                 UnityEngine.Object.DestroyImmediate(rtex);
+                Loc.Lang = lang;
             }
             return $"[LessonPlayer] rendered {done} PNGs into {Path.GetFullPath(PngDir)}";
         }
@@ -778,10 +781,23 @@ namespace FairyTales.Lessons.EditorTools
             s.story.pageLabel.text = "1 / 2";
         }
 
+        private static void PreviewFriend(AvatarView view)
+        {
+            var art = AvatarArt.Instance;
+            if (art == null || art.kidHeads.Length == 0) return;
+            var head = art.kidHeads[art.kidHeads.Length - 1];
+            view.ShowFigure(art.friendBoy, head.sprite, head.chin, 0f);
+        }
+
         private static void PrevRepeat(LessonPlayerScreen s)
         {
             Step(s, s.repeat, 2);
             var v = s.repeat;
+            PreviewFriend(v.friendFigure);
+            // The mask sits on the head as in the app (laid out once the canvas has its size).
+            Canvas.ForceUpdateCanvases();
+            v.meAvatar.Refresh();
+            typeof(RepeatStepView).GetMethod("PlaceSticker", BindingFlags.NonPublic | BindingFlags.Instance)?.Invoke(v, null);
             v.turn.SetActive(true);
             v.videoFrame.SetActive(false);
             LessonPlayerScreen.SetShown(v.replay, false);
@@ -794,6 +810,7 @@ namespace FairyTales.Lessons.EditorTools
             Step(s, s.repeat, 2);
             s.repeat.intro.SetActive(true);
             s.repeat.introChildName.text = "Айша";
+            PreviewFriend(s.repeat.introFriend);
         }
 
         private static void PrevRepeatListen(LessonPlayerScreen s)
@@ -817,7 +834,7 @@ namespace FairyTales.Lessons.EditorTools
         {
             Step(s, s.quiz, 3);
             s.quiz.question.text = "Что делает <color=#E0577B>Айша</color> перед едой?";
-            var items = new[] { ("quiz_tv", "Смотрит мультик"), ("quiz_plate", "Говорит «Бисмиллях»"), ("quiz_ball", "Играет в мяч") };
+            var items = new[] { ("quiz_tv", "Смотрит мультик"), ("quiz_plate", "Говорит «Бисмиллях»"), ("quiz_brush", "Чистит зубы") };
             for (int i = 0; i < 3; i++)
             {
                 var c = s.quiz.cards[i];

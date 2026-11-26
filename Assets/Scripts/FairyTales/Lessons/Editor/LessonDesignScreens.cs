@@ -247,6 +247,14 @@ namespace FairyTales.Lessons.EditorTools
 
         private static Box Head(Box p, string ch, float cx, float cy, float d, Color bg, A a = A.C, float ring = 0)
         {
+            if (ch == "char_girl")
+            {
+                if (ring > 0) Circle(p, "AvatarRing", Color.white, cx, cy, d + ring * 2, a);
+                var b = Circle(p, "Avatar", bg, cx, cy, d, a);
+                b.Go.AddComponent<Mask>().showMaskGraphic = true;
+                Img(b, "Head", Art("face_04"), d / 2, d * 0.56f, d * 1.02f, d * 1.02f);
+                return b;
+            }
             var (hy, z) = Heads.TryGetValue(ch, out var v) ? v : (0.2f, 1.8f);
             return Bust(p, "Avatar " + ch, Art(ch), cx, cy, d, bg, hy, z, a, ring);
         }
@@ -381,7 +389,7 @@ namespace FairyTales.Lessons.EditorTools
             Txt(card, "УРОК ДНЯ", FontXB, 30, Pal.Rose, 260, 62, 400, 50, TA.Left);
             Cover(card, "Cover", Art("cover_bismillah"), 300, 290, 520, 360, 40);
             Txt(card, "Бисмиллях", FontXB, 58, Pal.Ink, 300, 530, 480, 80, TA.Left);
-            Txt(card, "5 минут · история, повтори как друг, задание", FontM, 28, Pal.Sub, 300, 600, 480, 70, TA.TopLeft);
+            Txt(card, "5 минут · 5 шагов", FontM, 30, Pal.Sub, 300, 590, 480, 50, TA.Left);
             Button(card, "Начать", Pal.Rose, 300, 690, 520, 100, A.C, null, 44, Shapes.Triangle);
             Head(card, "char_girl", 530, 60, 100, Pal.Lav, A.C, 6);
 
@@ -512,7 +520,7 @@ namespace FairyTales.Lessons.EditorTools
             PlayerTop(r, 3);
             Txt(r, $"Что делает {Child} перед едой?", FontXB, 62, Pal.Ink, 960, 210, 1400, 90, TA.Center, A.T);
             IconButton(r, "Listen", Shapes.Speaker, Color.white, Pal.LavDeep, 1720, 210, 100, A.T, 0.5f);
-            var items = new[] { ("quiz_tv", "Смотрит мультик"), ("quiz_plate", "Говорит «Бисмиллях»"), ("quiz_ball", "Играет в мяч") };
+            var items = new[] { ("quiz_tv", "Смотрит мультик"), ("quiz_plate", "Говорит «Бисмиллях»"), ("quiz_brush", "Чистит зубы") };
             for (int i = 0; i < 3; i++)
             {
                 float x = 960 + (i - 1) * 520;
@@ -621,20 +629,20 @@ namespace FairyTales.Lessons.EditorTools
             Txt(panel, $"Аватар для {ChildGen}", FontXB, 56, Pal.Ink, 440, 80, 800, 80);
             Button(panel, "Сделать фото", Pal.Rose, 230, 200, 380, 100, A.C, null, 36);
             Button(panel, "Из галереи", Pal.LavSoft, 650, 200, 380, 100, A.C, Pal.Ink, 36);
-            Txt(panel, "или выбери готовое лицо", FontB, 32, Pal.Sub, 440, 300, 800, 50);
+            Txt(panel, "или выбери нарисованную голову", FontB, 32, Pal.Sub, 440, 290, 800, 50);
             for (int i = 0; i < 12; i++)
             {
                 int col = i % 6, row = i / 6;
-                float x = 115 + col * 130, y = 400 + row * 140;
+                float x = 115 + col * 130, y = 380 + row * 126;
                 if (i == 0) Circle(panel, "Selected", Pal.Rose, x, y, 124);
                 var f = Circle(panel, $"Face{i + 1}", Pal.LavSoft, x, y, 112);
                 f.Go.AddComponent<UnityEngine.UI.Button>();
                 Img(f, "Face", Art($"face_{i + 1:00}"), 56, 56, 104, 104);
             }
-            var note = Rect(panel, "Privacy", Pal.Hex("E6F6EC"), 440, 625, 800, 80, 30);
+            var note = Rect(panel, "Privacy", Pal.Hex("E6F6EC"), 440, 640, 800, 76, 30);
             Img(note, "Lock", Shapes.Lock, 50, 40, 40, 40, A.C, Pal.GreenDark);
             Txt(note, "Фото остаётся только на этом телефоне", FontB, 28, Pal.GreenDark, 430, 40, 700, 60, TA.Left);
-            Button(panel, "Готово", Pal.Green, 440, 740, 420, 100, A.C, null, 42);
+            Button(panel, "Готово", Pal.Green, 440, 748, 420, 96, A.C, null, 42);
         }
 
         private static void LeafRow(Box p, string title, string note, float cx, float cy, float w, bool fresh, bool mum)
@@ -666,7 +674,7 @@ namespace FairyTales.Lessons.EditorTools
         {
             S_Reward(r);
             var dim = Fill(r, "Dim");
-            AddImage(dim, null, new Color(0.12f, 0.08f, 0.28f, 0.6f));
+            AddImage(dim, null, new Color(1f, 0.97f, 0.93f, 0.62f));
             var pop = Card(r, "OfferPopup", 960, 540, 1100, 760, 60, null, 0.3f);
             Img(pop, "Kids", Art("cover_salam"), 550, 170, 420, 260);
             Txt(pop, "Понравились уроки?", FontXB, 60, Pal.Ink, 550, 360, 1000, 80);
