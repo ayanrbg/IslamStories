@@ -40,6 +40,9 @@ namespace FairyTales.Lessons.EditorTools
         public static readonly Color NightCard = Hex("3D3375");
         public static readonly Color Purple = Hex("B45CFA");
         public static readonly Color PurpleDark = Hex("8F3FD6");
+        /// <summary>Crayon outline of the sticker tiles.</summary>
+        public static readonly Color Outline = Hex("2B2547");
+        public static readonly Color MintDark = Hex("3DBE95");
 
         public static Color Darker(Color c, float k = 0.78f) => new(c.r * k, c.g * k, c.b * k, c.a);
     }
@@ -335,6 +338,18 @@ namespace FairyTales.Lessons.EditorTools
         }
     }
 
+    /// <summary>The parts of a sticker tile a screen fills at runtime.</summary>
+    internal struct TileParts
+    {
+        public Box Holder, Face;
+        public Image Base, Picture;
+        public AspectRatioFitter Fit;
+        public UnityEngine.UI.Button Button;
+        public TextMeshProUGUI Label;
+        public RectTransform LabelPill;
+        public GameObject Lock, Play, Done;
+    }
+
     /// <summary>Where a child sticks inside its parent when the parent resizes.</summary>
     internal enum A { TL, T, TR, L, C, R, BL, B, BR, Fill }
 
@@ -564,6 +579,112 @@ namespace FairyTales.Lessons.EditorTools
             var b = Rect(p, "Progress", track, cx, cy, w, h, h / 2, a);
             Rect(b, "Fill", fill, w * value / 2, h / 2, Mathf.Max(h, w * value), h, h / 2, A.L);
             return b;
+        }
+
+        // ── Sticker tiles (the Speech Blubs look) ──────────────────────────
+
+        /// <summary>Crayon texture over a flat fill, so it reads painted, not vector.</summary>
+        public static Box Paper(Box p, Color tint, float alpha)
+        {
+            var b = Fill(p, "Paper");
+            var img = AddImage(b, Shapes.Paper, new Color(tint.r, tint.g, tint.b, alpha));
+            img.type = Image.Type.Tiled;
+            return b;
+        }
+
+        /// <summary>Hand-drawn outline around a rounded rect of radius <paramref name="r"/>.</summary>
+        public static Box SketchFrame(Box p, float cx, float cy, float w, float h, float r, A a = A.C)
+        {
+            float pad = 7f * r / Shapes.SketchRadius;
+            var b = Node(p, "Outline", cx, cy, w + 2 * pad, h + 2 * pad, a);
+            var img = AddImage(b, Shapes.Sketch, Pal.Outline);
+            img.type = Image.Type.Sliced;
+            img.pixelsPerUnitMultiplier = Shapes.SketchRadius / r;
+            return b;
+        }
+
+        public static Box Sparkle(Box p, float cx, float cy, float size, A a = A.C, Color? c = null) =>
+            Img(p, "Sparkle", Shapes.Sparkle, cx, cy, size, size, a, c ?? Color.white);
+
+        /// <summary>Round badge hanging on a tile's corner (lock, play, done).</summary>
+        public static Box CornerBadge(Box p, string name, float cx, float cy, float d, Color bg, Sprite icon, Color fg, A a, float k = 0.5f)
+        {
+            var holder = Node(p, name, cx, cy, d + 40, d + 40, a);
+            Shadow(holder, (d + 40) / 2, (d + 40) / 2, d * 0.8f, d * 0.8f, 0.16f, 8);
+            var b = Circle(holder, "Circle", bg, (d + 40) / 2, (d + 40) / 2, d);
+            Img(b, "Icon", icon, d / 2 + (icon == Shapes.Triangle ? d * 0.04f : 0), d / 2, d * k, d * k, A.C, fg);
+            return holder;
+        }
+
+        /// <summary>
+        /// A sticker tile: darker base under it (thickness), white rim around a picture
+        /// (cover) or a coloured face with a picture on it (icon), a hand-drawn outline,
+        /// a label inside the bottom-left corner, a lock / play / done badge on the corner.
+        /// Everything sits in one holder, so a runtime template can be cloned.
+        /// </summary>
+        public static TileParts Tile(Box p, string name, float cx, float cy, float w, float h, Color fill, Sprite pic,
+            bool cover, A a = A.C, float r = 52, string label = null, float labelSize = 32,
+            bool locked = false, bool play = false, float picScale = 0.74f, Color? rim = null,
+            bool done = false, bool allBadges = false)
+        {
+            const float m = 80f;
+            var holder = Node(p, name, cx, cy, w + 2 * m, h + 2 * m, a);
+            float x = w / 2 + m, y = h / 2 + m;
+            var t = new TileParts { Holder = holder };
+
+            float depth = Mathf.Clamp(h * 0.035f, 10, 16);
+            Shadow(holder, x, y + depth, w, h, 0.18f, 16);
+            var baseRect = Rect(holder, "Base", Pal.Darker(fill, 0.68f), x, y + depth, w, h, r);
+            t.Base = baseRect.Go.GetComponent<Image>();
+            SketchFrame(holder, x, y + depth, w, h, r);
+
+            var face = Rect(holder, "Face", cover ? (rim ?? Color.white) : fill, x, y, w, h, r);
+            t.Face = face;
+            t.Button = face.Go.AddComponent<UnityEngine.UI.Button>();
+            face.Go.GetComponent<Image>().raycastTarget = true;
+            face.Go.AddComponent<Mask>().showMaskGraphic = true;
+            if (cover)
+            {
+                const float rimW = 12f;
+                var frame = Cover(face, "Frame", pic, w / 2, h / 2, w - 2 * rimW, h - 2 * rimW, r - rimW);
+                var picture = frame.Rt.Find("Picture");
+                t.Picture = picture.GetComponent<Image>();
+                t.Fit = picture.GetComponent<AspectRatioFitter>();
+            }
+            else
+            {
+                Paper(face, Pal.Darker(fill, 0.75f), 0.22f);
+                Circle(face, "Glow", new Color(1, 1, 1, 0.35f), w / 2, h * 0.44f, Mathf.Min(w, h) * 0.8f);
+                float s = Mathf.Min(w, h) * picScale;
+                t.Picture = Img(face, "Picture", pic, w / 2, h / 2 - (label != null ? h * 0.07f : 0), s, s)
+                    .Go.GetComponent<Image>();
+            }
+            SketchFrame(holder, x, y, w, h, r);
+
+            if (label != null)
+            {
+                float lh = labelSize * 1.75f, lw = label.Length * labelSize * 0.56f + 50;
+                float inset = cover ? 12f : 14f;
+                var pill = Rect(face, "Label", new Color(1, 1, 1, 0.96f), inset + lw / 2, h - inset - lh / 2, lw, lh, lh / 2);
+                var text = Txt(pill, label, FontXB, labelSize, Pal.Ink, lw / 2, lh / 2 - 1, lw, lh);
+                text.enableWordWrapping = false;
+                text.overflowMode = TMPro.TextOverflowModes.Ellipsis;
+                t.Label = text;
+                t.LabelPill = pill.Rt;
+            }
+            if (locked || allBadges)
+                t.Lock = CornerBadge(holder, "Lock", x + w / 2 - 26, y + h / 2 - 22, 96, Color.white, Shapes.Lock, Pal.MintDark, A.C, 0.52f).Go;
+            if (play || allBadges)
+                t.Play = CornerBadge(holder, "Play", x + w / 2 - 34, y + h / 2 - 30, 130, Pal.Rose, Shapes.Triangle, Color.white, A.C, 0.46f).Go;
+            if (done || allBadges)
+                t.Done = CornerBadge(holder, "Done", x + w / 2 - 26, y + h / 2 - 22, 96, Pal.Green, Shapes.Check, Color.white, A.C, 0.56f).Go;
+            if (allBadges)
+            {
+                t.Lock.SetActive(locked);
+                t.Play.SetActive(play);
+                t.Done.SetActive(done);
+            }
+            return t;
         }
 
         /// <summary>Square confetti and dots scattered over an area, from a fixed seed.</summary>

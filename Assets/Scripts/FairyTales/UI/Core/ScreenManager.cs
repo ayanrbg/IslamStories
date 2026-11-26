@@ -14,6 +14,15 @@ namespace FairyTales.UI.Core
         [SerializeField] private BaseScreen onboardedScreen;
         [SerializeField] private Image sharedBackground;
 
+        /// <summary>
+        /// A home screen that an app feature puts in front of the library (Islam Stories:
+        /// the lessons home, while lessons exist in the app language). Null when there is
+        /// none — always in Bala, which never sets it.
+        /// </summary>
+        public static System.Func<System.Type> Home;
+
+        public static System.Type HomeScreen => Home?.Invoke();
+
         private AspectRatioFitter _bgArf;
         private readonly Dictionary<System.Type, BaseScreen> _screens = new();
         private BaseScreen _current;
@@ -56,7 +65,10 @@ namespace FairyTales.UI.Core
             if (!string.IsNullOrEmpty(PlayerPrefs.GetString("ft_childName", "")))
             {
                 // Skip loading screen — LibraryScreen handles register + tales fetch
-                if (_screens.TryGetValue(typeof(LibraryScreen), out var lib))
+                var home = HomeScreen;
+                if (home != null && _screens.TryGetValue(home, out var homeScreen))
+                    start = homeScreen;
+                else if (_screens.TryGetValue(typeof(LibraryScreen), out var lib))
                     start = lib;
                 else if (onboardedScreen != null)
                     start = onboardedScreen;

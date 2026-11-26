@@ -25,6 +25,8 @@ namespace FairyTales.UI.Library
         [SerializeField] private Button btnMusic;
         [SerializeField] private Button btnUnlockAll;
         [SerializeField] private Button btnEmail;
+        /// <summary>Back to ScreenManager.HomeScreen; hidden while there is none (optional).</summary>
+        [SerializeField] private Button btnHome;
         [SerializeField] private GameObject selectionBtnMusicOff;
         [SerializeField] private GameObject selectionBtnMusicOn;
         [SerializeField] private BackgroundMusicManager backgroundMusicManager;
@@ -58,6 +60,7 @@ namespace FairyTales.UI.Library
             if (btnMusic) btnMusic.onClick.AddListener(OnMusicToggle);
             if (btnUnlockAll) btnUnlockAll.onClick.AddListener(OnUnlockAll);
             if (btnEmail) btnEmail.onClick.AddListener(OnEmail);
+            if (btnHome) btnHome.onClick.AddListener(OnHome);
 
             selectionBtnMusicOff.SetActive(backgroundMusicManager.IsMuted);
             selectionBtnMusicOn.SetActive(!backgroundMusicManager.IsMuted);
@@ -82,6 +85,7 @@ namespace FairyTales.UI.Library
             selectionBtnMusicOn.SetActive(!backgroundMusicManager.IsMuted);
             UpdateUnlockButton();
             UpdateForChildHeader();
+            if (btnHome) btnHome.gameObject.SetActive(ScreenManager.HomeScreen != null);
 
             // Invalidate cache if language changed since last load.
             var currentLang = PlayerPrefs.GetString("ft_lang", "ru");
@@ -634,6 +638,12 @@ namespace FairyTales.UI.Library
 
             detail.SetTale(tale);
             _screens.Show<TaleDetailScreen>();
+        }
+
+        private void OnHome()
+        {
+            var home = ScreenManager.HomeScreen;
+            if (home != null) _screens.Show(home);
         }
 
         private void OnSettings()

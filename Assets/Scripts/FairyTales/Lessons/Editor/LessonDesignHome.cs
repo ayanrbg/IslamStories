@@ -12,9 +12,6 @@ namespace FairyTales.Lessons.EditorTools
     /// </summary>
     public static partial class LessonDesignScreens
     {
-        private static readonly Color Outline = Pal.Hex("2B2547");
-        private static readonly Color MintDark = Pal.Hex("3DBE95");
-
         private static readonly Color TYellow = Pal.Hex("FFE08A");
         private static readonly Color TPeach = Pal.Hex("FFC9A8");
         private static readonly Color TRose = Pal.Hex("FFC2D3");
@@ -24,85 +21,10 @@ namespace FairyTales.Lessons.EditorTools
 
         // ───────────────────────────── pieces ─────────────────────────────
 
-        /// <summary>Crayon texture over a flat fill, so it reads painted, not vector.</summary>
-        private static void Paper(Box p, Color tint, float alpha)
-        {
-            var b = Fill(p, "Paper");
-            var img = AddImage(b, Shapes.Paper, new Color(tint.r, tint.g, tint.b, alpha));
-            img.type = Image.Type.Tiled;
-        }
-
         private static void Painted(Box r, string name, Color top, Color bottom, float paper = 0.16f)
         {
             Bg(r, name, top, bottom);
             Paper(r, Pal.Darker(bottom, 0.7f), paper);
-        }
-
-        private static Box SketchFrame(Box p, float cx, float cy, float w, float h, float r, A a = A.C)
-        {
-            float pad = 7f * r / Shapes.SketchRadius;
-            var b = Node(p, "Outline", cx, cy, w + 2 * pad, h + 2 * pad, a);
-            var img = AddImage(b, Shapes.Sketch, Outline);
-            img.type = Image.Type.Sliced;
-            img.pixelsPerUnitMultiplier = Shapes.SketchRadius / r;
-            return b;
-        }
-
-        private static void Sparkle(Box p, float cx, float cy, float size, A a = A.C, Color? c = null) =>
-            Img(p, "Sparkle", Shapes.Sparkle, cx, cy, size, size, a, c ?? Color.white);
-
-        private static Box CornerBadge(Box p, string name, float cx, float cy, float d, Color bg, Sprite icon, Color fg, A a, float k = 0.5f)
-        {
-            Shadow(p, cx, cy, d * 0.8f, d * 0.8f, 0.16f, 8, a);
-            var b = Circle(p, name, bg, cx, cy, d, a);
-            Img(b, "Icon", icon, d / 2 + (icon == Shapes.Triangle ? d * 0.04f : 0), d / 2, d * k, d * k, A.C, fg);
-            return b;
-        }
-
-        /// <summary>
-        /// A sticker tile: darker base under it (thickness), white rim around a picture
-        /// (cover) or a coloured face with a picture on it (icon), a hand-drawn outline,
-        /// a label inside the bottom-left corner, a lock or play badge on the corner.
-        /// </summary>
-        private static Box Tile(Box p, string name, float cx, float cy, float w, float h, Color fill, Sprite pic,
-            bool cover, A a = A.C, float r = 52, string label = null, float labelSize = 32,
-            bool locked = false, bool play = false, float picScale = 0.74f, Color? rim = null)
-        {
-            float depth = Mathf.Clamp(h * 0.035f, 10, 16);
-            Shadow(p, cx, cy + depth, w, h, 0.18f, 16, a);
-            Rect(p, name + " Base", Pal.Darker(fill, 0.68f), cx, cy + depth, w, h, r, a);
-            SketchFrame(p, cx, cy + depth, w, h, r, a);
-
-            var face = Rect(p, "Tile " + name, cover ? (rim ?? Color.white) : fill, cx, cy, w, h, r, a);
-            face.Go.AddComponent<UnityEngine.UI.Button>();
-            face.Go.GetComponent<Image>().raycastTarget = true;
-            face.Go.AddComponent<Mask>().showMaskGraphic = true;
-            if (cover)
-            {
-                const float rimW = 12f;
-                Cover(face, "Picture", pic, w / 2, h / 2, w - 2 * rimW, h - 2 * rimW, r - rimW);
-            }
-            else
-            {
-                Paper(face, Pal.Darker(fill, 0.75f), 0.22f);
-                Circle(face, "Glow", new Color(1, 1, 1, 0.35f), w / 2, h * 0.44f, Mathf.Min(w, h) * 0.8f);
-                float s = Mathf.Min(w, h) * picScale;
-                Img(face, "Picture", pic, w / 2, h / 2 - (label != null ? h * 0.07f : 0), s, s);
-            }
-            SketchFrame(p, cx, cy, w, h, r, a);
-
-            if (label != null)
-            {
-                float lh = labelSize * 1.75f, lw = label.Length * labelSize * 0.56f + 50;
-                float inset = cover ? 12f : 14f;
-                var pill = Rect(face, "Label", new Color(1, 1, 1, 0.96f), inset + lw / 2, h - inset - lh / 2, lw, lh, lh / 2);
-                Txt(pill, label, FontXB, labelSize, Pal.Ink, lw / 2, lh / 2 - 1, lw, lh);
-            }
-            if (locked)
-                CornerBadge(p, "Lock", cx + w / 2 - 26, cy + h / 2 - 22, 96, Color.white, Shapes.Lock, MintDark, a, 0.52f);
-            if (play)
-                CornerBadge(p, "Play", cx + w / 2 - 34, cy + h / 2 - 30, 130, Pal.Rose, Shapes.Triangle, Color.white, a, 0.46f);
-            return face;
         }
 
         /// <summary>White text with a soft dark copy under it, readable on painted bands.</summary>
@@ -123,7 +45,7 @@ namespace FairyTales.Lessons.EditorTools
             Shadow(r, 1700, 100, w, h, 0.12f, 8, A.TR);
             var parents = Rect(r, "Button Parents", Color.white, 1700, 100, w, h, h / 2, A.TR);
             parents.Go.AddComponent<UnityEngine.UI.Button>();
-            Txt(parents, "Для родителей", FontXB, 32, MintDark, 160, h / 2 - 1, 280, h);
+            Txt(parents, "Для родителей", FontXB, 32, Pal.MintDark, 160, h / 2 - 1, 280, h);
             Img(parents, "Icon", Art("topic_family"), w - 52, h / 2, 64, 64);
         }
 
@@ -244,7 +166,7 @@ namespace FairyTales.Lessons.EditorTools
         private static void S_LessonTopics(Box r)
         {
             Painted(r, "meadow", Pal.Hex("DDF2B0"), Pal.Hex("BCE28C"), 0.22f);
-            IconButton(r, "Home", Shapes.Home, Color.white, MintDark, 96, 92, 112, A.TL, 0.5f);
+            IconButton(r, "Home", Shapes.Home, Color.white, Pal.MintDark, 96, 92, 112, A.TL, 0.5f);
             Pill(r, Art("reward_star"), "12", 1780, 92, 168, A.TR);
 
             var topics = new (string art, string label, Color c, int state)[]
