@@ -25,7 +25,7 @@ namespace FairyTales.Lessons.EditorTools
     /// final set). Rebuilding overwrites the prefabs: tweak by hand only once the
     /// builder is retired.
     /// </summary>
-    public static class LessonDesignScreens
+    public static partial class LessonDesignScreens
     {
         private const string ArtDir = "Assets/UI/Lessons/Art";
         private const string PrefabDir = "Assets/Prefabs/Lessons/Design";
@@ -61,6 +61,11 @@ namespace FairyTales.Lessons.EditorTools
             ("23_Onboarding_Knows", "Р2 · Анкета: что ребёнок уже знает", S_Questionnaire),
             ("24_Onboarding_Plan", "Р2 · План для ребёнка", S_Plan),
             ("25_Paywall_Trial", "Р2 · Пейволл с пробным периодом", S_Paywall),
+            ("26_HomeA_TwoDoors", "Главная · вариант A «Две двери»", S_HomeDoors),
+            ("27_HomeB_Shelves", "Главная · вариант B «Полки»", S_HomeShelves),
+            ("28_HomeB_Scrolled", "Главная · вариант B, прокручено вниз", S_HomeShelvesDown),
+            ("29_HomeC_LessonFirst", "Главная · вариант C «Урок дня + разделы»", S_HomeLessonFirst),
+            ("30_Lessons_Topics", "Раздел «Уроки» · темы", S_LessonTopics),
         };
 
         // ───────────────────────────── menu ─────────────────────────────

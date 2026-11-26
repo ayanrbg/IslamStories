@@ -63,6 +63,15 @@ namespace FairyTales.Lessons.EditorTools
         public static Sprite Speaker => Load("speaker");
         public static Sprite Arrow => Load("arrow");
         public static Sprite Gear => Load("gear");
+        /// <summary>Hand-drawn outline of a rounded tile (crayon stroke, uneven width); 9-sliced, corner radius 64.</summary>
+        public static Sprite Sketch => Load("sketch");
+        public const float SketchRadius = 64f;
+        /// <summary>Tileable crayon/paper texture to lay over flat fills.</summary>
+        public static Sprite Paper => Load("paper");
+        /// <summary>Wavy top edge of a band (filled below the wave).</summary>
+        public static Sprite Wave => Load("wave");
+        public static Sprite Sparkle => Load("sparkle");
+        public static Sprite Home => Load("home");
 
         private static readonly Dictionary<string, Sprite> Cache = new();
 
@@ -135,6 +144,31 @@ namespace FairyTales.Lessons.EditorTools
                 float teeth = 46 + 8 * Mathf.Clamp(Mathf.Cos(ang * 8) * 3, -1, 1);
                 return Mathf.Max(r - teeth, 18 - r);
             });
+            WriteA("sketch", 256, 256, (x, y) =>
+            {
+                float d = RoundRect(x, y, 128, 128, 121, 121, 64);
+                float hw = 4.4f + 1.6f * VNoise(x / 11f, y / 11f, 24);
+                return Mathf.Clamp01(hw - Mathf.Abs(d) + 0.5f) * (0.88f + 0.12f * Hash((int)x, (int)y));
+            }, 100);
+            WriteA("paper", 256, 256, (x, y) =>
+                0.5f * VNoise(x / 32f, y / 32f, 8) + 0.3f * VNoise(x / 8f, y / 8f, 32) + 0.2f * Hash((int)x, (int)y));
+            WriteA("wave", 1024, 128, (x, y) =>
+            {
+                float edge = 64 + 22 * Mathf.Sin(x / 1024f * Mathf.PI * 4) + 1.5f * VNoise(x / 20f, 0, 51);
+                return Mathf.Clamp01(y - edge + 0.5f);
+            });
+            WriteA("sparkle", 128, 128, (x, y) =>
+            {
+                float s = Mathf.Sqrt(Mathf.Abs(x - 64)) + Mathf.Sqrt(Mathf.Abs(y - 64));
+                return Mathf.Clamp01((7.6f - s) * 5f);
+            });
+            Write("home", 128, 128, (x, y) =>
+            {
+                float roof = Tri(new Vector2(x, y), new Vector2(64, 18), new Vector2(16, 62), new Vector2(112, 62)) - 6;
+                float body = RoundRect(x, y, 64, 82, 34, 28, 8);
+                float door = RoundRect(x, y, 64, 96, 11, 16, 5);
+                return Mathf.Max(Mathf.Min(roof, body), -door);
+            });
             AssetDatabase.Refresh();
             foreach (var (name, border) in new[] { ("rounded", 56), ("shadow", 95) })
                 SetBorder($"{Dir}/{name}.png", border);
@@ -205,6 +239,45 @@ namespace FairyTales.Lessons.EditorTools
             UnityEngine.Object.DestroyImmediate(tex);
             AssetDatabase.ImportAsset(path);
             Import(path, border);
+        }
+
+        /// <summary>Like Write, but the function gives the alpha directly (textures, not shapes).</summary>
+        private static void WriteA(string name, int w, int h, Func<float, float, float> alpha, int border = 0)
+        {
+            var path = $"{Dir}/{name}.png";
+            if (File.Exists(path)) return;
+            var tex = new Texture2D(w, h, TextureFormat.RGBA32, false);
+            var px = new Color32[w * h];
+            for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+                px[y * w + x] = new Color32(255, 255, 255, (byte)(Mathf.Clamp01(alpha(x + 0.5f, h - y - 0.5f)) * 255));
+            tex.SetPixels32(px);
+            File.WriteAllBytes(path, tex.EncodeToPNG());
+            UnityEngine.Object.DestroyImmediate(tex);
+            AssetDatabase.ImportAsset(path);
+            Import(path, border, 1024);
+        }
+
+        private static float Hash(int x, int y)
+        {
+            unchecked
+            {
+                uint h = (uint)(x * 374761393 + y * 668265263);
+                h = (h ^ (h >> 13)) * 1274126177u;
+                return (h ^ (h >> 16)) / 4294967295f;
+            }
+        }
+
+        /// <summary>Smooth value noise, tileable with the given period in cells.</summary>
+        private static float VNoise(float x, float y, int period)
+        {
+            int xi = Mathf.FloorToInt(x), yi = Mathf.FloorToInt(y);
+            float fx = x - xi, fy = y - yi;
+            fx = fx * fx * (3 - 2 * fx); fy = fy * fy * (3 - 2 * fy);
+            int W(int v) => ((v % period) + period) % period;
+            float a = Hash(W(xi), W(yi)), b = Hash(W(xi + 1), W(yi));
+            float c = Hash(W(xi), W(yi + 1)), d = Hash(W(xi + 1), W(yi + 1));
+            return Mathf.Lerp(Mathf.Lerp(a, b, fx), Mathf.Lerp(c, d, fx), fy);
         }
 
         public static void Import(string path, int border, int maxSize = 512, bool compress = false)
