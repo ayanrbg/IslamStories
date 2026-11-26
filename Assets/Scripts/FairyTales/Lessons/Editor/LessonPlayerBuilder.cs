@@ -141,6 +141,14 @@ namespace FairyTales.Lessons.EditorTools
             return Clickable(face);
         }
 
+        /// <summary>The page-turn arrow of the tales reader, in the lessons' rose: "next" without a word.</summary>
+        internal static Button NextArrow(Box p, float cx, float cy, float h, A a = A.C)
+        {
+            float w = h * 208f / 232f;
+            var holder = Node(p, "NextHolder", cx, cy, w + 40, h + 40, a);
+            return Clickable(Img(holder, "Next", Art("next_rose"), (w + 40) / 2, (h + 40) / 2, w, h));
+        }
+
         internal static Button Icon(Box p, string name, Sprite icon, Color bg, Color fg, float cx, float cy, float d,
             A a = A.C, float scale = 0.46f, bool holder = false)
         {
@@ -281,14 +289,14 @@ namespace FairyTales.Lessons.EditorTools
             // The card spans the room between the two buttons, so on a notched phone (safe
             // area narrower) it shrinks instead of sliding under them.
             var card = Card(safe, "TextCard", 900, 905, 1300, 230, 50, null, 0.25f, A.B);
-            StretchX(card, 230, 370);
-            StretchX(new Box { Rt = (RectTransform)card.Rt.parent.GetChild(card.Rt.GetSiblingIndex() - 1) }, 230 - 35, 370 - 35);
+            StretchX(card, 230, 270);
+            StretchX(new Box { Rt = (RectTransform)card.Rt.parent.GetChild(card.Rt.GetSiblingIndex() - 1) }, 230 - 35, 270 - 35);
             v.textTap = Clickable(card);
             var text = AutoSize(Txt(card, "", FontB, 46, Pal.Ink, 650, 115, 1180, 200), 30);
             StretchX(new Box { Rt = text.rectTransform }, 40, 40);
             v.text = text;
             v.listen = Icon(safe, "Listen", Shapes.Speaker, Color.white, Pal.LavDeep, 120, 905, 140, A.BL, 0.5f);
-            v.next = Raised(safe, "Next", "next", Pal.Rose, 1720, 905, 300, 120, A.BR, null, 46);
+            v.next = NextArrow(safe, 1780, 900, 170, A.BR);
         }
 
         // ─────────────────────── 2. Повтори как друг ───────────────────────
@@ -420,9 +428,9 @@ namespace FairyTales.Lessons.EditorTools
                 bars.Add(Rect(wave, "Bar", Pal.Rose, 11 + i * 22.5f, 40, 12, 36, 6).Rt);
             v.waveBars = bars.ToArray();
             v.again = Icon(card, "Again", Art("icon_mic"), Pal.LavSoft, Color.white, 955, 90, 110, A.C, 0.62f);
-            v.praise = AutoSize(Txt(bottom, "", FontXB, 50, Pal.GreenDark, 1680, 95, 380, 70), 30);
+            v.praise = AutoSize(Txt(bottom, "", FontXB, 50, Pal.GreenDark, 1700, 45, 400, 70), 30);
             Label(v.praise, "repeat_praise");
-            v.next = Raised(bottom, "Next", "next", Pal.Rose, 1680, 200, 300, 110, A.C, null, 44);
+            v.next = NextArrow(bottom, 1750, 185, 160);
             listen.Go.SetActive(false);
             v.praise.gameObject.SetActive(false);
             PlayerHolderOff(v.next);
