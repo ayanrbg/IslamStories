@@ -27,6 +27,20 @@ namespace FairyTales.Lessons
         public Rect HeadRect { get; private set; }
         /// <summary>Width of the drawn body in local units, after the last layout.</summary>
         public float BodyWidth { get; private set; }
+        /// <summary>Bottom of the chin (local to this view) after the last layout.</summary>
+        public Vector2 Chin { get; private set; }
+        /// <summary>Width of the face, cheek to cheek, in local units after the last layout.</summary>
+        public float FaceWidth { get; private set; }
+        /// <summary>The head image (its sprite and rect are current after a layout).</summary>
+        public Image HeadImage => _head;
+        /// <summary>Called after every layout (the talking jaw follows the head).</summary>
+        public event System.Action LaidOut;
+
+        // A figure that isn't one of the family (the friend in the repeat step).
+        private AvatarArt.Body _figureBody;
+        private Sprite _figureHead;
+        private Vector2 _figureChin;
+        private float _figureFace;
 
         private void OnEnable()
         {
@@ -42,6 +56,21 @@ namespace FairyTales.Lessons
         private void OnRectTransformDimensionsChange()
         {
             if (isActiveAndEnabled) Layout();
+        }
+
+        /// <summary>
+        /// Shows a figure instead of the family member: <paramref name="body"/> with
+        /// <paramref name="head"/> (chin normalized, y from the top). <paramref name="faceWidth"/> —
+        /// the face's share of the head width for a photo head (sized like the child's photo),
+        /// or 0 for a drawn head (the body's drawn-head width). A null head shows the body alone.
+        /// </summary>
+        public void ShowFigure(AvatarArt.Body body, Sprite head, Vector2 chin, float faceWidth)
+        {
+            _figureBody = body;
+            _figureHead = head;
+            _figureChin = chin;
+            _figureFace = faceWidth;
+            Refresh();
         }
 
         public void Refresh()
@@ -95,12 +124,30 @@ namespace FairyTales.Lessons
         {
             var art = AvatarArt.Instance;
             if (art == null || _body == null) return;
-            var record = AvatarStore.Get(person);
-            var body = art.BodyFor(person, record);
+            bool figure = _figureBody?.sprite != null;
+            var record = figure ? new AvatarRecord() : AvatarStore.Get(person);
+            var body = figure ? _figureBody : art.BodyFor(person, record);
             var box = ((RectTransform)transform).rect.size;
             if (box.x <= 0 || box.y <= 0 || body?.sprite == null) return;
 
-            bool hasHead = ResolveHead(art, body, record, out var headSprite, out var chin, out float headW);
+            bool hasHead;
+            Sprite headSprite;
+            Vector2 chin;
+            float headW;
+            float faceShare; // face width as a share of the head width
+            if (figure)
+            {
+                hasHead = _figureHead != null;
+                headSprite = _figureHead;
+                chin = _figureChin;
+                headW = _figureFace > 0 ? body.faceWidth / _figureFace : body.headWidth;
+                faceShare = _figureFace > 0 ? _figureFace : DrawnFaceShare;
+            }
+            else
+            {
+                hasHead = ResolveHead(art, body, record, out headSprite, out chin, out headW);
+                faceShare = record.kind == AvatarStore.KindPhoto ? Mathf.Max(0.05f, record.faceWidth) : DrawnFaceShare;
+            }
             float headAspect = hasHead ? headSprite.rect.height / headSprite.rect.width : 1f;
             var offset = record.kind == AvatarStore.KindPhoto ? new Vector2(record.dx, record.dy) : Vector2.zero;
 
@@ -126,11 +173,22 @@ namespace FairyTales.Lessons
                 var size = new Vector2(hw * k, hh * k);
                 Place(_head, headSprite, c, size);
                 HeadRect = new Rect(c - size / 2f, size);
+                Chin = ToLocal(hx0 + chin.x * hw, hy0 + chin.y * hh);
+                FaceWidth = faceShare * hw * k;
             }
-            else _head.enabled = false;
+            else
+            {
+                _head.enabled = false;
+                Chin = ToLocal(body.neck.x, body.neck.y * bodyH);
+                FaceWidth = 0;
+            }
             if (body.front != null) Place(_front, body.front, ToLocal(0.5f, bodyH / 2f), new Vector2(k, bodyH * k));
             else _front.enabled = false;
+            LaidOut?.Invoke();
         }
+
+        /// <summary>A drawn head's face is about this share of its width (hair and scarf around it).</summary>
+        private const float DrawnFaceShare = 0.62f;
 
         private void LayoutBust(Vector2 box, bool hasHead, Sprite headSprite, Vector2 chin, float headAspect, AvatarRecord r)
         {

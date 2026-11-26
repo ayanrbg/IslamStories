@@ -350,6 +350,7 @@ namespace FairyTales.Lessons
 
         private void Update()
         {
+            if (_view == repeat) repeat.Tick();
             if (!IsVisible || !Input.GetKeyDown(KeyCode.Escape)) return;
             // The parental gate answers Back itself.
             var gate = FindAnyObjectByType<ChildGatePopup>();
@@ -357,6 +358,11 @@ namespace FairyTales.Lessons
             if (exitPopup.activeSelf) ShowExit(false);
             else if (prepare.activeSelf || resumePopup.activeSelf || _view == reward) Close();
             else AskExit();
+        }
+
+        private void OnApplicationPause(bool pause)
+        {
+            if (IsVisible) _view?.AppPause(pause);
         }
 
         private void AskExit() => ShowExit(true);

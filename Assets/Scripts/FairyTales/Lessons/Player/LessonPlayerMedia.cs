@@ -17,6 +17,10 @@ namespace FairyTales.Lessons
         /// <summary>Bundled phrases: Resources/LessonVoice/&lt;ru|kz|en&gt;/&lt;key&gt;. Missing ones are silent.</summary>
         public const string Correct = "correct";
         public const string TryAgain = "try_again";
+        /// <summary>«Послушай себя!» before the child's recording.</summary>
+        public const string ListenYourself = "listen_yourself";
+        /// <summary>«Скажи вместе с другом!» after a quiet try.</summary>
+        public const string SayWithFriend = "say_with_friend";
 
         private readonly MonoBehaviour _host;
         private readonly AudioSource _source;
@@ -52,6 +56,16 @@ namespace FairyTales.Lessons
             if (clip == null) { done?.Invoke(false); return; }
             _routine = _host.StartCoroutine(Run(null, clip, ++_ticket, done));
         }
+
+        /// <summary>Plays a clip made at runtime (the child's own voice); the voice does not own it.</summary>
+        public void PlayClip(AudioClip clip, Action<bool> done = null)
+        {
+            Stop();
+            if (clip == null) { done?.Invoke(false); return; }
+            _routine = _host.StartCoroutine(Run(null, clip, ++_ticket, done));
+        }
+
+        public bool IsPlaying => _source != null && _source.isPlaying;
 
         public void Stop()
         {

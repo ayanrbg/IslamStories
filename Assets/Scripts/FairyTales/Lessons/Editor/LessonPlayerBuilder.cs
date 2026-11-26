@@ -299,16 +299,32 @@ namespace FairyTales.Lessons.EditorTools
             v.root = r.Go;
             var bg = Fill(r, "Background");
             AddImage(bg, Shapes.Gradient("yellow", Pal.Hex("FFE9A0"), Pal.Hex("FFD45A")), Color.white);
-            var safe = Safe(r);
 
-            // Friend: the video, or the drawn friend while there is none.
-            var art = Node(safe, "FriendArt", 520, 470, 640, 640, A.L);
-            Card(art, "Card", 320, 320, 640, 640, 48, Pal.Mint, 0.14f);
-            Img(art, "Friend", Art("char_friend"), 320, 340, 400, 600);
+            BuildRepeatTurn(r, v);
+            BuildRepeatIntro(r, v);
+            BuildRepeatPermissions(r, v);
+            v.turn.SetActive(false);
+            v.intro.SetActive(false);
+            v.permissions.SetActive(false);
+        }
+
+        /// <summary>Design 05–07: the friend's video on the left, the child on the right, phrase and mic below.</summary>
+        private static void BuildRepeatTurn(Box r, RepeatStepView v)
+        {
+            var turn = Fill(r, "Turn");
+            v.turn = turn.Go;
+            var safe = Safe(turn);
+
+            // ── the friend ──
+            var friend = Node(safe, "FriendCard", 500, 465, 800, 540, A.L);
+            Shadow(friend, 400, 270, 800, 540, 0.16f, 14);
+            var art = Node(friend, "FriendArt", 400, 270, 800, 540);
+            Card(art, "Card", 400, 270, 800, 540, 48, Pal.Mint, 0f);
+            Img(art, "Glow", Shapes.Radial("friendglow", new Color(1, 1, 1, 0.75f), new Color(1, 1, 1, 0)), 400, 300, 640, 640);
+            v.friendFigure = AvatarScreenBuilder.Avatar(art, "Friend", AvatarPerson.Child, 400, 290, 330, 470);
             v.friendArt = art.Go;
 
-            Shadow(safe, 520, 470, 640, 640, 0.16f, 14, A.L);
-            var frame = Rect(safe, "FriendVideo", Pal.Night, 520, 470, 640, 640, 48, A.L);
+            var frame = Rect(friend, "FriendVideo", Pal.Night, 400, 270, 800, 540, 48);
             frame.Go.AddComponent<Mask>().showMaskGraphic = true;
             var vid = Fill(frame, "Video");
             v.video = vid.Go.AddComponent<RawImage>();
@@ -317,25 +333,164 @@ namespace FairyTales.Lessons.EditorTools
             v.videoFit.aspectMode = AspectRatioFitter.AspectMode.EnvelopeParent;
             v.videoFit.aspectRatio = 1f;
             v.videoFrame = frame.Go;
+            v.videoTap = Clickable(frame);
 
-            var label = Rect(safe, "FriendLabel", new Color(1, 1, 1, 0.94f), 520, 840, 300, 64, 32, A.L);
+            var label = Rect(friend, "FriendLabel", new Color(1, 1, 1, 0.94f), 174, 50, 300, 64, 32, A.TL);
             Circle(label, "Dot", Pal.Green, 36, 32, 20);
-            v.friendName = Txt(label, "Юсуф", FontXB, 32, Pal.Ink, 160, 31, 220, 60);
-            v.replay = Icon(safe, "Replay", Shapes.Triangle, Pal.Rose, Color.white, 790, 740, 110, A.L, 0.42f, holder: true);
+            v.friendName = AutoSize(Txt(label, "Юсуф", FontXB, 30, Pal.Ink, 172, 31, 220, 60, TA.Left), 20);
+            v.replay = Icon(friend, "Replay", Shapes.Triangle, Pal.Rose, Color.white, 730, 470, 96, A.C, 0.42f, holder: true);
 
-            // Speech bubble with its tail pointing back at the friend.
-            var bubble = Node(safe, "Bubble", 1300, 190, 600, 170, A.R);
-            Shadow(bubble, 300, 75, 560, 120, 0.12f, 10);
-            var tail = Rect(bubble, "Tail", Color.white, 70, 141, 44, 44, 8);
+            var bubble = Node(friend, "Bubble", 600, 110, 340, 130);
+            Shadow(bubble, 170, 55, 320, 100, 0.12f, 8);
+            var tail = Rect(bubble, "Tail", Color.white, 250, 100, 40, 40, 8);
             tail.Rt.localRotation = Quaternion.Euler(0, 0, 45);
-            var bubbleBox = Rect(bubble, "SpeechBubble", Color.white, 300, 75, 560, 120, 40);
-            Label(AutoSize(Txt(bubbleBox, "", FontXB, 40, Pal.Ink, 280, 60, 500, 100), 28), "repeat_bubble");
+            var bubbleBox = Rect(bubble, "SpeechBubble", Color.white, 170, 55, 320, 100, 40);
+            v.friendBubbleText = AutoSize(Txt(bubbleBox, "Бисмиллях!", FontXB, 40, Pal.Ink, 160, 48, 280, 80), 24);
+            v.friendBubble = bubble.Rt;
 
-            var card = Card(safe, "PhraseCard", 1300, 500, 820, 380, 48, null, 0.16f, A.R);
-            v.phraseAr = Txt(card, "بِسْمِ ٱللَّٰهِ", FontAr, 96, Pal.LavDeep, 410, 120, 760, 150);
-            v.phraseTranslit = AutoSize(Txt(card, "Бисмиллях", FontXB, 64, Pal.Ink, 410, 245, 760, 80), 40);
-            v.phraseMeaning = AutoSize(Txt(card, "«Во имя Аллаха»", FontM, 36, Pal.Sub, 410, 320, 760, 50), 26);
-            v.said = Raised(safe, "Said", "repeat_said", Pal.Green, 1300, 880, 460, 120, A.R, null, 44);
+            // ── the child: camera («Рамка») or the avatar in the mask («Персонаж») ──
+            var me = Node(safe, "MeCard", 1420, 465, 800, 540, A.R);
+            Shadow(me, 400, 270, 800, 540, 0.16f, 14);
+            var meFrame = Rect(me, "Frame", Pal.RoseSoft, 400, 270, 800, 540, 48);
+            meFrame.Go.AddComponent<Mask>().showMaskGraphic = true;
+            v.meFrame = meFrame.Rt;
+            var character = Fill(meFrame, "CharacterBg");
+            AddImage(character, Shapes.Radial("charglow", new Color(1, 1, 1, 0.8f), Pal.RoseSoft), Color.white);
+            v.characterBg = character.Go;
+            var cam = Fill(meFrame, "Camera");
+            v.cameraView = cam.Go.AddComponent<RawImage>();
+            v.cameraView.raycastTarget = false;
+            v.cameraView.enabled = false;
+            v.meAvatar = AvatarScreenBuilder.Avatar(meFrame, "Me", AvatarPerson.Child, 370, 350, 300, 400);
+            v.meJaw = v.meAvatar.gameObject.AddComponent<AvatarJaw>();
+            v.meJaw.enabled = false;
+            v.sticker = Img(meFrame, "Sticker", Art("mask_crown"), 380, 90, 220, 165).Go.GetComponent<Image>();
+            v.sticker.raycastTarget = false;
+            v.meHint = AutoSize(Txt(meFrame, "", FontB, 26, Pal.Sub, 640, 480, 280, 90), 18);
+            Label(v.meHint, "repeat_mouth");
+
+            var meLabel = Rect(me, "MeLabel", new Color(1, 1, 1, 0.94f), 24 + 200, 50, 400, 64, 32, A.TL);
+            v.meDot = Circle(meLabel, "Dot", Pal.Rose, 36, 32, 20).Go.GetComponent<Image>();
+            v.meLabel = AutoSize(Txt(meLabel, "", FontXB, 30, Pal.Ink, 222, 31, 320, 60, TA.Left), 20);
+
+            v.masks = new[] { Art("mask_crown"), Art("mask_fanous"), Art("mask_stars") };
+            var buttons = new List<Button>();
+            var rings = new List<GameObject>();
+            for (int i = 0; i < 3; i++)
+            {
+                float y = 250 + (i - 1) * 118;
+                var ring = Circle(me, "Selected" + (i + 1), Pal.Rose, 720, y, 112);
+                rings.Add(ring.Go);
+                var b = Circle(me, "Mask" + (i + 1), Color.white, 720, y, 100);
+                Img(b, "Icon", v.masks[i], 50, 50, 74, 74);
+                buttons.Add(Clickable(b));
+                ring.Go.SetActive(i == 0);
+            }
+            v.maskButtons = buttons.ToArray();
+            v.maskRings = rings.ToArray();
+
+            // ── phrase, microphone, «Я сказал(а)!» ──
+            var bottom = Node(safe, "Bottom", 960, 900, 1920, 300, A.B);
+            v.phraseTranslit = AutoSize(Txt(bottom, "Бисмиллях", FontXB, 66, Pal.Ink, 500, 120, 600, 90, TA.Right), 40);
+            v.phraseAr = Txt(bottom, "بِسْمِ ٱللَّٰهِ", FontAr, 70, Pal.LavDeep, 500, 210, 600, 100, TA.Right);
+
+            var micHolder = Node(bottom, "MicHolder", 960, 160, 360, 300);
+            v.micPulse = Circle(micHolder, "Pulse", new Color(Pal.Rose.r, Pal.Rose.g, Pal.Rose.b, 0.35f), 180, 150, 270).Rt;
+            Shadow(micHolder, 180, 150, 150, 150, 0.2f, 12);
+            var micButton = Circle(micHolder, "MicButton", Pal.Rose, 180, 150, 190);
+            Img(micButton, "Icon", Art("icon_mic"), 95, 95, 118, 118);
+            v.mic = Clickable(micButton);
+            // Not yet listening (the video plays): the button stays rose, just doesn't react.
+            var micColors = v.mic.colors;
+            micColors.disabledColor = Color.white;
+            v.mic.colors = micColors;
+            v.hint = AutoSize(Txt(bottom, "", FontXB, 40, Pal.Ink, 1290, 160, 460, 130, TA.Left), 26);
+            Label(v.hint, "repeat_hint");
+            v.said = Raised(bottom, "Said", "repeat_said", Pal.Green, 1460, 160, 420, 110, A.C, null, 42);
+
+            // ── «Послушай себя!» ──
+            var listen = Node(bottom, "ListenBar", 820, 180, 1040, 180);
+            v.listenBar = listen.Go;
+            var card = Card(listen, "Card", 520, 90, 1040, 180, 90);
+            v.listenPlay = Icon(card, "Play", Shapes.Triangle, Pal.Rose, Color.white, 100, 90, 130, A.C, 0.42f);
+            Label(AutoSize(Txt(card, "", FontXB, 44, Pal.Ink, 480, 52, 520, 64, TA.Left), 30), "repeat_listen");
+            var wave = Node(card, "Waveform", 510, 122, 620, 80);
+            var bars = new List<RectTransform>();
+            for (int i = 0; i < 28; i++)
+                bars.Add(Rect(wave, "Bar", Pal.Rose, 11 + i * 22.5f, 40, 12, 36, 6).Rt);
+            v.waveBars = bars.ToArray();
+            v.again = Icon(card, "Again", Art("icon_mic"), Pal.LavSoft, Color.white, 955, 90, 110, A.C, 0.62f);
+            v.praise = AutoSize(Txt(bottom, "", FontXB, 50, Pal.GreenDark, 1680, 95, 380, 70), 30);
+            Label(v.praise, "repeat_praise");
+            v.next = Raised(bottom, "Next", "next", Pal.Rose, 1680, 200, 300, 110, A.C, null, 44);
+            listen.Go.SetActive(false);
+            v.praise.gameObject.SetActive(false);
+            PlayerHolderOff(v.next);
+            PlayerHolderOff(v.said);
+        }
+
+        /// <summary>Design 04: the child's avatar and the friend side by side before the video.</summary>
+        private static void BuildRepeatIntro(Box r, RepeatStepView v)
+        {
+            var intro = Fill(r, "Intro");
+            v.intro = intro.Go;
+            Cover(intro, "Landscape", Art("bg_day"), 960, 540, 1920, 1080, 0, A.Fill);
+            var safe = Safe(intro);
+
+            v.introFriend = AvatarScreenBuilder.Avatar(safe, "Friend", AvatarPerson.Child, 520, 735, 420, 600, A.B);
+            v.introChild = AvatarScreenBuilder.Avatar(safe, "Child", AvatarPerson.Child, 1400, 745, 400, 580, A.B);
+            v.introFriendName = AutoSize(Txt(safe, "Юсуф", FontXB, 40, Pal.Ink, 520, 1060, 360, 50, TA.Center, A.B), 26);
+            v.introChildName = AutoSize(Txt(safe, "", FontXB, 40, Pal.Ink, 1400, 1060, 360, 50, TA.Center, A.B), 26);
+
+            var bubble = Node(safe, "Bubble", 450, 250, 560, 170, A.T);
+            Shadow(bubble, 280, 70, 520, 130, 0.12f, 10);
+            var tail = Rect(bubble, "Tail", Color.white, 120, 138, 44, 44, 8);
+            tail.Rt.localRotation = Quaternion.Euler(0, 0, 45);
+            var box = Rect(bubble, "SpeechBubble", Color.white, 280, 70, 520, 130, 44);
+            Label(AutoSize(Txt(box, "", FontXB, 42, Pal.Ink, 260, 63, 470, 110), 28), "repeat_bubble");
+            v.introBubble = bubble.Rt;
+
+            var card = Card(safe, "PhraseCard", 990, 255, 560, 236, 48, null, 0.16f, A.T);
+            v.introAr = Txt(card, "بِسْمِ ٱللَّٰهِ", FontAr, 80, Pal.LavDeep, 280, 78, 520, 112);
+            v.introTranslit = AutoSize(Txt(card, "Бисмиллях", FontXB, 52, Pal.Ink, 280, 160, 520, 66), 34);
+            v.introMeaning = AutoSize(Txt(card, "«Во имя Аллаха»", FontM, 30, Pal.Sub, 280, 208, 520, 40), 22);
+
+            v.watch = Raised(safe, "Watch", "repeat_watch", Pal.Rose, 960, 975, 380, 110, A.B, null, 42, Shapes.Triangle);
+            // The label was sized for one language at build time: give it all the room, on one line.
+            var watchLabel = v.watch.GetComponentInChildren<TMP_Text>();
+            watchLabel.enableWordWrapping = false;
+            AutoSize(watchLabel, 26);
+            var wl = watchLabel.rectTransform;
+            wl.anchoredPosition = new Vector2(20f + 46f + 18f + 138f - 190f, wl.anchoredPosition.y);
+            wl.sizeDelta = new Vector2(276f, wl.sizeDelta.y);
+            if (v.watch.transform.Find("Icon") is RectTransform wi)
+                wi.anchoredPosition = new Vector2(20f + 23f - 190f, wi.anchoredPosition.y);
+        }
+
+        /// <summary>Design 12: the parent's camera-and-microphone screen before the first system prompt.</summary>
+        private static void BuildRepeatPermissions(Box r, RepeatStepView v)
+        {
+            var p = Fill(r, "Permissions");
+            v.permissions = p.Go;
+            var bg = Fill(p, "Background");
+            AddImage(bg, Shapes.Gradient("lavsoft", Color.white, Pal.LavSoft), Color.white).raycastTarget = true;
+            var safe = Safe(p);
+            Label(Txt(safe, "", FontXB, 30, Pal.Rose, 960, 120, 800, 50, TA.Center, A.T), "perm_for_parents");
+            Label(AutoSize(Txt(safe, "", FontXB, 64, Pal.Ink, 960, 195, 1400, 90, TA.Center, A.T), 40), "perm_title");
+            var rows = new[] { ("icon_camera", "perm_camera", "perm_camera_note"), ("icon_mic", "perm_mic", "perm_mic_note") };
+            for (int i = 0; i < 2; i++)
+            {
+                var c = Card(safe, "Row" + (i + 1), 960, 385 + i * 168, 1240, 150, 44);
+                Rect(c, "IconBg", i == 0 ? Pal.Sky : Pal.RoseSoft, 95, 75, 110, 110, 32);
+                Img(c, "Icon", Art(rows[i].Item1), 95, 75, 88, 88);
+                Label(Txt(c, "", FontXB, 40, Pal.Ink, 700, 44, 960, 56, TA.Left), rows[i].Item2);
+                Label(AutoSize(Txt(c, "", FontM, 29, Pal.Sub, 700, 100, 960, 64, TA.TopLeft), 22), rows[i].Item3);
+            }
+            var note = Rect(safe, "PrivacyNote", Pal.Hex("E6F6EC"), 960, 700, 1240, 88, 34);
+            Img(note, "Lock", Shapes.Lock, 70, 44, 50, 50, A.C, Pal.GreenDark);
+            Label(AutoSize(Txt(note, "", FontB, 32, Pal.GreenDark, 660, 44, 1060, 76, TA.Left), 22), "perm_privacy");
+            v.permAllow = Raised(safe, "Allow", "perm_allow", Pal.Rose, 790, 950, 460, 110, A.B, null, 44);
+            v.permNoCamera = Raised(safe, "NoCamera", "perm_no_camera", Color.white, 1240, 950, 400, 110, A.B, Pal.Ink, 40);
         }
 
         // ─────────────────────────── 3. Задание ───────────────────────────
@@ -512,6 +667,7 @@ namespace FairyTales.Lessons.EditorTools
             var states = new (string id, Action<LessonPlayerScreen> setup)[]
             {
                 ("P1_Prepare", PrevPrepare), ("P2_Story", PrevStory), ("P3_Repeat", PrevRepeat),
+                ("P3a_RepeatIntro", PrevRepeatIntro), ("P3b_RepeatListen", PrevRepeatListen), ("P3c_Permissions", PrevPermissions),
                 ("P4_Quiz", PrevQuiz), ("P5_Deed", PrevDeed), ("P6_Reward", PrevReward),
                 ("P7_Exit", s => { PrevStory(s); s.exitPopup.SetActive(true); }),
                 ("P8_Resume", s => { PrevPrepare(s); s.resumePopup.SetActive(true); s.resumeNote.text = LessonStrings.T("resume_note", 3, 5); }),
@@ -625,8 +781,36 @@ namespace FairyTales.Lessons.EditorTools
         private static void PrevRepeat(LessonPlayerScreen s)
         {
             Step(s, s.repeat, 2);
-            s.repeat.videoFrame.SetActive(false);
-            LessonPlayerScreen.SetShown(s.repeat.replay, false);
+            var v = s.repeat;
+            v.turn.SetActive(true);
+            v.videoFrame.SetActive(false);
+            LessonPlayerScreen.SetShown(v.replay, false);
+            v.meLabel.text = LessonStrings.T("repeat_no_camera");
+            v.meDot.color = v.dotCharacter;
+        }
+
+        private static void PrevRepeatIntro(LessonPlayerScreen s)
+        {
+            Step(s, s.repeat, 2);
+            s.repeat.intro.SetActive(true);
+            s.repeat.introChildName.text = "Айша";
+        }
+
+        private static void PrevRepeatListen(LessonPlayerScreen s)
+        {
+            PrevRepeat(s);
+            var v = s.repeat;
+            LessonPlayerScreen.Holder(v.mic).SetActive(false);
+            v.hint.gameObject.SetActive(false);
+            v.listenBar.SetActive(true);
+            v.praise.gameObject.SetActive(true);
+            LessonPlayerScreen.SetShown(v.next, true);
+        }
+
+        private static void PrevPermissions(LessonPlayerScreen s)
+        {
+            Step(s, s.repeat, 2);
+            s.repeat.permissions.SetActive(true);
         }
 
         private static void PrevQuiz(LessonPlayerScreen s)

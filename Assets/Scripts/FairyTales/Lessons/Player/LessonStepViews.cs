@@ -6,7 +6,6 @@ using FairyTales.UI.Core;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
-using UnityEngine.Video;
 
 namespace FairyTales.Lessons
 {
@@ -26,6 +25,8 @@ namespace FairyTales.Lessons
         public virtual void End() { }
         /// <summary>The exit question is open over the step.</summary>
         public virtual void Pause(bool pause) { }
+        /// <summary>The app went to the background or came back.</summary>
+        public virtual void AppPause(bool pause) { }
     }
 
     // ─────────────────────────── 1. История ───────────────────────────
@@ -80,125 +81,7 @@ namespace FairyTales.Lessons
         }
     }
 
-    // ─────────────────────── 2. Повтори как друг ───────────────────────
-    // Release 1 player: the friend's video and the phrase, "I said it!" moves on.
-    // Microphone, camera, mask and the character mode are plan section 5.
-
-    [Serializable]
-    public class RepeatStepView : LessonStepView
-    {
-        public GameObject videoFrame;
-        public RawImage video;
-        public AspectRatioFitter videoFit;
-        public GameObject friendArt;
-        public TMP_Text friendName;
-        public TMP_Text phraseAr;
-        public TMP_Text phraseTranslit;
-        public TMP_Text phraseMeaning;
-        public Button replay;
-        public Button said;
-
-        private VideoPlayer _player;
-        private RenderTexture _texture;
-        private bool _ended;
-
-        public override void Bind(LessonPlayerScreen player)
-        {
-            base.Bind(player);
-            replay.onClick.AddListener(PlayVideo);
-            said.onClick.AddListener(() => P.Next());
-        }
-
-        public override void Begin(LessonStep step)
-        {
-            var s = (RepeatStep)step;
-            var phrase = s.phrase ?? new LessonPhrase();
-            phraseAr.text = phrase.ar ?? "";
-            phraseTranslit.text = P.Text(phrase.translit);
-            phraseMeaning.text = string.IsNullOrEmpty(phrase.meaning) ? "" : "«" + P.Text(phrase.meaning) + "»";
-            friendName.text = P.Text(s.friendName);
-            friendName.transform.parent.gameObject.SetActive(!string.IsNullOrEmpty(s.friendName));
-
-            var path = P.Package.MediaPath(s.video, UserProfile.ChildGender);
-            bool hasVideo = path != null;
-            videoFrame.SetActive(hasVideo);
-            friendArt.SetActive(!hasVideo);
-            LessonPlayerScreen.SetShown(replay, hasVideo);
-            LessonPlayerScreen.SetShown(said, false);
-
-            if (hasVideo)
-            {
-                EnsurePlayer();
-                _player.url = new Uri(path).AbsoluteUri;
-                PlayVideo();
-                P.StepRoutine(ShowSaidAfterVideo());
-            }
-            else
-            {
-                P.ShowAfter(said, 3f);
-            }
-        }
-
-        private void EnsurePlayer()
-        {
-            if (_player != null) return;
-            _player = videoFrame.AddComponent<VideoPlayer>();
-            _player.playOnAwake = false;
-            _player.isLooping = false;
-            _player.renderMode = VideoRenderMode.RenderTexture;
-            _player.audioOutputMode = VideoAudioOutputMode.Direct;
-            _player.skipOnDrop = true;
-            _player.prepareCompleted += OnPrepared;
-            _player.loopPointReached += _ => _ended = true;
-            _player.errorReceived += (_, msg) => { Debug.LogWarning($"[Lesson] video: {msg}"); _ended = true; };
-        }
-
-        private void OnPrepared(VideoPlayer vp)
-        {
-            int w = (int)vp.width, h = (int)vp.height;
-            if (w <= 0 || h <= 0) { w = h = 720; }
-            if (_texture == null || _texture.width != w || _texture.height != h)
-            {
-                if (_texture != null) _texture.Release();
-                _texture = new RenderTexture(w, h, 0);
-            }
-            vp.targetTexture = _texture;
-            video.texture = _texture;
-            videoFit.aspectRatio = (float)w / h;
-            vp.Play();
-        }
-
-        private void PlayVideo()
-        {
-            if (_player == null || string.IsNullOrEmpty(_player.url)) return;
-            _ended = false;
-            P.Voice.Stop();
-            if (_player.isPrepared) { _player.time = 0; _player.Play(); }
-            else _player.Prepare();
-        }
-
-        private IEnumerator ShowSaidAfterVideo()
-        {
-            // Video end, or 8 s (the longest allowed video) if it never reports one.
-            float t = 0;
-            while (!_ended && t < 9f) { if (!P.Paused) t += Time.unscaledDeltaTime; yield return null; }
-            P.PopIn(said);
-        }
-
-        public override void Pause(bool pause)
-        {
-            if (_player == null || !_player.isPrepared) return;
-            if (pause) _player.Pause();
-            else if (!_ended) _player.Play();
-        }
-
-        public override void End()
-        {
-            if (_player != null) { _player.Stop(); _player.url = null; }
-            video.texture = null;
-            if (_texture != null) { _texture.Release(); UnityEngine.Object.Destroy(_texture); _texture = null; }
-        }
-    }
+    // 2. «Повтори как друг» — Repeat/RepeatStepView.cs
 
     // ─────────────────────────── 3. Задание ───────────────────────────
 

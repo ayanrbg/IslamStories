@@ -46,6 +46,10 @@ namespace FairyTales.Lessons
         public Body girl = new();
         public Body girlHijab = new();
         public Body mom = new();
+        /// <summary>The friend of the repeat step: a drawn body for the real child's head from the lesson.</summary>
+        public Body friendBoy = new();
+        /// <summary>The friend as a girl: the body has the hijab drape.</summary>
+        public Body friendGirl = new();
         /// <summary>The 12 ready heads the child can pick instead of a photo (girls first).</summary>
         public Head[] kidHeads = Array.Empty<Head>();
         /// <summary>Ready heads for mum.</summary>

@@ -32,7 +32,7 @@ namespace FairyTales.Lessons.EditorTools
         private const string ScenePath = "Assets/Scenes/SampleScene.unity";
 
         // Sizes in body widths. Kids get big heads (the paper-doll look), grown-ups a little less.
-        private const float KidHead = 1.0f, KidFace = 0.72f, MomHead = 0.86f, MomFace = 0.58f;
+        private const float KidHead = 1.0f, KidFace = 0.84f, MomHead = 0.86f, MomFace = 0.58f;
 
         private static Sprite Art(string name)
             => AssetDatabase.LoadAssetAtPath<Sprite>($"{ArtDir}/{name}.png")
@@ -85,6 +85,8 @@ namespace FairyTales.Lessons.EditorTools
             art.girl = Body("body_girl", KidHead, KidFace);
             art.girlHijab = Body("body_girl_hijab", KidHead, KidFace);
             art.mom = Body("body_mom", MomHead, MomFace);
+            art.friendBoy = Body("body_friend_boy", KidHead, KidFace);
+            art.friendGirl = Body("body_friend_girl", KidHead, KidFace);
             art.kidHeads = new[]
             {
                 Head("head_g1", true), Head("head_g2", true), Head("head_g3", true),

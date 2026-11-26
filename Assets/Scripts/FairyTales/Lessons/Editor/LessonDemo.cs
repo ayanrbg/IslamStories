@@ -80,6 +80,16 @@ namespace FairyTales.Lessons.EditorTools
                 media[key] = new { url = $"/api/lessons/{Id}/media/{file}", bytes };
                 records[key] = new { bytes, files = new[] { file } };
             }
+            // The friend's real head, cut from the stand-in photo the way content will be made.
+            var headFile = "friend_head.png";
+            var headPath = Path.Combine(dir, LessonCache.MediaFolder, headFile);
+            Debug.Log(FriendHeadTool.Make(Path.Combine(ArtDir, "photo_friend.jpg"), headPath));
+            if (File.Exists(headPath))
+            {
+                long hb = new FileInfo(headPath).Length;
+                media["friend_head"] = new { url = $"/api/lessons/{Id}/media/{headFile}", bytes = hb };
+                records["friend_head"] = new { bytes = hb, files = new[] { headFile } };
+            }
             File.WriteAllText(Path.Combine(dir, "manifest.json"),
                 JsonConvert.SerializeObject(new { contentVersion = 1, media = records }, Formatting.Indented));
 
@@ -96,7 +106,7 @@ namespace FairyTales.Lessons.EditorTools
                             new { text = t.pages[0], image = "story_1" },
                             new { text = t.pages[1], image = "story_2" },
                         } },
-                        new { type = "repeat", video = "friend", friendName = t.friend,
+                        new { type = "repeat", video = "friend", friendName = t.friend, friendHead = "friend_head", friendBody = "boy",
                               phrase = new { ar = "بِسْمِ ٱللَّٰهِ", translit = t.translit, meaning = t.meaning } },
                         new { type = "quiz", question = t.question, options = new[]
                         {
@@ -115,6 +125,48 @@ namespace FairyTales.Lessons.EditorTools
             var msg = $"[LessonDemo] installed {Id} into {dir}";
             Debug.Log(msg);
             return msg;
+        }
+
+        /// <summary>
+        /// A Play Mode screenshot of the UI into <paramref name="path"/>. The game view can't
+        /// capture the overlay canvas, so [UICanvas] is drawn once through a temporary camera.
+        /// </summary>
+        public static string Capture(string path, int width = 1792, int height = 828)
+        {
+            var canvas = GameObject.Find("[UICanvas]")?.GetComponent<Canvas>();
+            if (canvas == null) return "no [UICanvas]";
+            var mode = canvas.renderMode;
+            var camGo = new GameObject("CaptureCam", typeof(Camera));
+            var cam = camGo.GetComponent<Camera>();
+            cam.clearFlags = CameraClearFlags.SolidColor;
+            cam.backgroundColor = Color.black;
+            cam.orthographic = true;
+            var rt = new RenderTexture(width, height, 24, RenderTextureFormat.ARGB32);
+            cam.targetTexture = rt;
+            var tex = new Texture2D(width, height, TextureFormat.RGB24, false);
+            try
+            {
+                canvas.renderMode = RenderMode.ScreenSpaceCamera;
+                canvas.worldCamera = cam;
+                canvas.planeDistance = 5;
+                Canvas.ForceUpdateCanvases();
+                cam.Render();
+                RenderTexture.active = rt;
+                tex.ReadPixels(new Rect(0, 0, width, height), 0, 0);
+                tex.Apply();
+                RenderTexture.active = null;
+                File.WriteAllBytes(path, tex.EncodeToPNG());
+            }
+            finally
+            {
+                canvas.renderMode = mode;
+                canvas.worldCamera = null;
+                Object.DestroyImmediate(camGo);
+                Object.DestroyImmediate(tex);
+                rt.Release();
+                Object.DestroyImmediate(rt);
+            }
+            return "captured " + path;
         }
 
         [MenuItem("Nooria/Lessons/Play demo lesson")]

@@ -159,7 +159,23 @@ namespace FairyTales.Lessons
         /// <summary>Media key of the friend's video.</summary>
         public string video;
         public string friendName;
+        /// <summary>
+        /// Media key of the friend's real head (PNG with transparency) for the scene before the
+        /// video. Standard framing made by the head tool, so no anchors travel with it: see
+        /// <see cref="FriendHeadChin"/> and <see cref="FriendHeadFace"/>. Optional — without it
+        /// the drawn friend stands in.
+        /// </summary>
+        public string friendHead;
+        /// <summary>"boy" | "girl": the drawn body under the friend's head.</summary>
+        public string friendBody;
         public LessonPhrase phrase = new();
+
+        /// <summary>Chin of a friend head PNG (512×768): centre, two thirds down (y from the top).</summary>
+        public static readonly UnityEngine.Vector2 FriendHeadChin = new(0.5f, 2f / 3f);
+        /// <summary>Face width (cheek to cheek) in a friend head PNG: half the picture's width.</summary>
+        public const float FriendHeadFace = 0.5f;
+
+        public bool FriendIsGirl => friendBody == "girl";
     }
 
     [Serializable, Preserve]
