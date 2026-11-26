@@ -166,7 +166,7 @@ namespace FairyTales.Lessons
                         {
                             // Hijab down to the shoulders, with a soft round edge (no straight cut).
                             float ex = (x - chinX) / drapeHalf, ey = (y - chinY) / Mathf.Max(1f, drapeBottom - chinY);
-                            k += (clothP + otherP) * HijabLike(x, y) * (1f - Smooth(0.8f, 1f, ex * ex + ey * ey));
+                            k += (clothP + otherP) * HijabLike(x, y) * (1f - Smooth(0.9f, 1f, ex * ex + ey * ey));
                         }
                     }
                     keep[i] = Mathf.Clamp01(k);
@@ -224,6 +224,13 @@ namespace FairyTales.Lessons
                     if (holeCore[gy * N + gx]) alpha[oy * Out + ox] = 1f;
                 }
 
+            // A clean cut, not a feathered one: the mask is evened out (so knitted caps and
+            // fabric texture don't make it ragged), cut at the middle, then given a ~2 px
+            // anti-aliased edge like a hand-made cut-out.
+            BoxMean(alpha, Out, Out, 2);
+            for (int o = 0; o < alpha.Length; o++) alpha[o] = Smooth(0.44f, 0.56f, alpha[o]);
+            BoxMean(alpha, Out, Out, 1);
+
             var pixels = new Color32[Out * Out];
             int minX = Out, minY = Out, maxX = -1, maxY = -1;
             for (int oy = 0; oy < Out; oy++)
@@ -232,8 +239,7 @@ namespace FairyTales.Lessons
                 {
                     int o = oy * Out + ox;
                     if (!near[o]) continue;
-                    // Crisp but anti-aliased: the filter leaves a soft ramp on real edges.
-                    float a = Smooth(0.2f, 0.8f, alpha[o]);
+                    float a = alpha[o];
                     if (a <= 0.02f) continue;
                     var g = guide[o];
                     var c = new Color32((byte)(g.x * 255f), (byte)(g.y * 255f), (byte)(g.z * 255f), (byte)(a * 255f));
