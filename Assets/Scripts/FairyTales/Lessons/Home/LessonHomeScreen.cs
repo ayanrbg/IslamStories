@@ -19,7 +19,7 @@ namespace FairyTales.Lessons
     /// <summary>
     /// The app's home while lessons exist in the app language (Nooria 2.0, design 29
     /// «Урок дня + разделы»): the lesson of the day big on the left, the sections as
-    /// sticker tiles on the right — all lessons, the tales library, the Tree, games.
+    /// sticker tiles on the right — all lessons, the tales library, the Tree, coloring.
     /// The child's avatar, stars and leaves on top; «Для родителей» behind the gate.
     ///
     /// ScreenManager opens it instead of the library (<see cref="ScreenManager.Home"/>,
@@ -43,7 +43,7 @@ namespace FairyTales.Lessons
         public LessonTileView all;
         public LessonTileView tales;
         public LessonTileView tree;
-        public LessonTileView games;
+        public LessonTileView coloring;
         /// <summary>«Ждёт отметки: N» on the tree tile while deeds wait for the parent's tick.</summary>
         public GameObject deedsChip;
         public TMP_Text deedsChipText;
@@ -78,7 +78,7 @@ namespace FairyTales.Lessons
             all.button.onClick.AddListener(() => _sm.Show<LessonListScreen>());
             tales.button.onClick.AddListener(() => _sm.Show<LibraryScreen>());
             tree.button.onClick.AddListener(() => _sm.Show<LessonTreeScreen>());
-            games.button.onClick.AddListener(() => Toast.Show(LessonStrings.T("home_soon")));
+            coloring.button.onClick.AddListener(() => _sm.Show<ColoringScreen>());
             parents.onClick.AddListener(() => ChildGatePopup.Show(() => _sm.Show<PersonalizationScreen>()));
             avatarButton.onClick.AddListener(() => AvatarScreen.Open(AvatarPerson.Child));
             avatarOfferGo.onClick.AddListener(() => { HideOffer(); AvatarScreen.Open(AvatarPerson.Child); });
@@ -106,11 +106,11 @@ namespace FairyTales.Lessons
             all.SetLabel(LessonStrings.T("home_all"));
             tales.SetLabel(LessonStrings.T("home_tales"));
             tree.SetLabel(LessonStrings.T("home_tree"));
-            games.SetLabel(LessonStrings.T("home_games"));
-            games.SetBadge(LessonTileView.Badge.Lock);
+            coloring.SetLabel(LessonStrings.T("home_coloring"));
             all.SetBadge(LessonTileView.Badge.None);
             tales.SetBadge(LessonTileView.Badge.None);
             tree.SetBadge(LessonTileView.Badge.None);
+            coloring.SetBadge(LessonTileView.Badge.None);
             RefreshStats();
             if (Catalog == null || Catalog.lang != LessonLang.ContentLang(Loc.Lang))
                 Catalog = LessonHomeCache.LoadCatalog(Loc.Lang);

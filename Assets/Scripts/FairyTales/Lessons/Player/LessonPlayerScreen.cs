@@ -553,6 +553,8 @@ namespace FairyTales.Lessons
         /// <summary>Plays a narration and waits for its end; no narration — no wait.</summary>
         public IEnumerator SpeakAndWait(string key)
         {
+            // A new clip would un-pause the voice under the exit question: start once it's closed.
+            while (Paused) yield return null;
             var path = Package?.NarrationPath(key);
             if (path == null) yield break;
             bool done = false;

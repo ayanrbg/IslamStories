@@ -174,6 +174,8 @@ namespace FairyTales.Lessons
         /// <summary>The question, then each caption while its card pulses.</summary>
         private void ReadAloud()
         {
+            // After the right answer the speaker would cut «Машаллах, правильно!».
+            if (_answered) return;
             if (_reading != null) P.StopCoroutine(_reading);
             _reading = P.StepRoutine(Read());
         }
@@ -185,9 +187,10 @@ namespace FairyTales.Lessons
             {
                 var c = cards[slot];
                 if (!c.button.interactable) continue;
+                while (P.Paused) yield return null;
                 c.rect.DOPunchScale(Vector3.one * 0.05f, 0.5f, 4).SetId(P.TweenId);
                 yield return P.SpeakAndWait(NarrationKey.Option(_step, _order[slot]));
-                yield return new WaitForSeconds(0.25f);
+                for (float t = 0; t < 0.25f; ) { if (!P.Paused) t += Time.unscaledDeltaTime; yield return null; }
             }
             _reading = null;
         }
@@ -223,6 +226,11 @@ namespace FairyTales.Lessons
             ShowToast("quiz_try", toastTry);
             P.Voice.PlayBundled(LessonVoice.TryAgain);
             if (_errors >= 2) Hint();
+            // A task with no right answer (a content mistake) must not trap the child:
+            // once every card is out, the lesson goes on.
+            bool anyLeft = false;
+            for (int s = 0; s < _order.Count; s++) anyLeft |= cards[s].button.interactable;
+            if (!anyLeft) { _answered = true; P.StepRoutine(NextAfter(1.5f)); }
         }
 
         private void Hint()
@@ -249,9 +257,12 @@ namespace FairyTales.Lessons
             toast.DOScale(1f, 0.3f).SetEase(Ease.OutBack).SetId(P.TweenId).SetTarget(toast);
         }
 
+        // Not WaitForSeconds: while the exit question is open the clock stops, or the next
+        // step would start (and speak) under it.
         private IEnumerator NextAfter(float seconds)
         {
-            yield return new WaitForSeconds(seconds);
+            float t = 0f;
+            while (t < seconds) { if (!P.Paused) t += Time.unscaledDeltaTime; yield return null; }
             P.Next();
         }
 

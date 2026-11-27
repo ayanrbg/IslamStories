@@ -46,7 +46,7 @@ namespace FairyTales.Lessons.EditorTools
             Shapes.Ensure();
             LoadFonts();
             foreach (var n in new[] { "home_button", "cover_night", "cover_bismillah", "tree_full", "reward_star", "topic_mosque",
-                         "tree_stage1", "tree_stage2", "tree_stage3", "tree_stage4", "leaf_green", "leaf_gold", "topic_sleep", "icon_camera" })
+                         "tree_stage1", "tree_stage2", "tree_stage3", "tree_stage4", "leaf_green", "leaf_gold", "topic_sleep", "icon_camera", "coloring_tile" })
                 ForceSingle($"{ArtDir}/{n}");
             Directory.CreateDirectory(Path.GetDirectoryName(HomePrefab)!);
             var scene = EditorSceneManager.NewPreviewScene();
@@ -168,7 +168,7 @@ namespace FairyTales.Lessons.EditorTools
             s.all = View(Tile(safe, "AllLessons", 1190, 420, 400, 340, TYellow, Art("topic_mosque"), false, A.C, 52, "Все уроки", 30, allBadges: true));
             s.tales = View(Tile(safe, "Tales", 1630, 420, 400, 340, Pal.Night2, Art("cover_night"), true, A.C, 52, "Сказки", 30, allBadges: true));
             s.tree = View(Tile(safe, "Tree", 1190, 820, 400, 340, TMint, Art("tree_full"), false, A.C, 52, "Дерево", 30, allBadges: true));
-            s.games = View(Tile(safe, "Games", 1630, 820, 400, 340, TSky, Art("reward_star"), false, A.C, 52, "Игры", 30, locked: true, allBadges: true));
+            s.coloring = View(Tile(safe, "Coloring", 1630, 820, 400, 340, TSky, Art("coloring_tile"), false, A.C, 52, "Раскраски", 30, picScale: 0.8f, allBadges: true));
 
             // «Ждёт отметки: 1» hanging on the tree tile's top edge, for the parent.
             const float cw = 330, ch = 64;
