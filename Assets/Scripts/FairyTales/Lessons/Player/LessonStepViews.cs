@@ -198,7 +198,9 @@ namespace FairyTales.Lessons
             if (_reading != null) { P.StopCoroutine(_reading); _reading = null; }
             var c = cards[slot];
 
-            if (_step.options[_order[slot]].correct)
+            bool right = _step.options[_order[slot]].correct;
+            Diagnostics.Analytics.Log("quiz_answer", ("lesson", P.Lesson.id), ("correct", right), ("try", _errors + 1));
+            if (right)
             {
                 _answered = true;
                 foreach (var other in cards) other.hintGlow.gameObject.SetActive(false);
@@ -322,6 +324,7 @@ namespace FairyTales.Lessons
             {
                 P.Voice.Pause(false);
                 P.DeedAwarded |= LessonProgressStore.MarkDeed(P.Lesson.id, _step.leafLabel);
+                Diagnostics.Analytics.Log("lesson_deed_marked", ("lesson", P.Lesson.id), ("where", "lesson"));
                 SetMarked(true);
                 checkMark.transform.localScale = Vector3.zero;
                 checkMark.transform.DOScale(1f, 0.35f).SetEase(Ease.OutBack).SetId(P.TweenId);
@@ -340,7 +343,11 @@ namespace FairyTales.Lessons
         private void OnDone()
         {
             // "Done" without the mark: the deed waits in «Ждут отметки» for the parent.
-            if (!_marked) LessonProgressStore.AddPendingDeed(P.Lesson.id, _step.title, _step.leafLabel);
+            if (!_marked)
+            {
+                LessonProgressStore.AddPendingDeed(P.Lesson.id, _step.title, _step.leafLabel);
+                Diagnostics.Analytics.Log("lesson_deed_pending", ("lesson", P.Lesson.id));
+            }
             P.Next();
         }
     }
@@ -381,6 +388,8 @@ namespace FairyTales.Lessons
         {
             // Reaching this screen is what completes the lesson (spec §3, step 5).
             var reward = LessonProgressStore.CompleteLesson(P.Lesson.id, P.Lesson.title);
+            Diagnostics.Analytics.Log("lesson_complete", ("lesson", P.Lesson.id), ("first", reward.FirstTime),
+                ("deed", P.DeedAwarded), ("seconds", P.SecondsInLesson), ("streak", LessonProgressStore.StreakDays));
             int deed = P.DeedAwarded ? 1 : 0;
             int stars = (reward.Star ? 1 : 0) + deed;
             int leaves = (reward.Leaf ? 1 : 0) + deed;

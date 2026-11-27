@@ -112,6 +112,10 @@ namespace FairyTales.Lessons
         private bool _bound;
         private bool _rewardShown;
         private bool _closing;
+        /// <summary>The server said 403: the retry button turns into «Открыть всё» (the paywall).</summary>
+        private bool _lockedFailure;
+        /// <summary>Time.realtimeSinceStartup when the first step showed — lesson_complete reports the duration.</summary>
+        private float _startedAt;
         private Coroutine _flow;
 
         // ─────────────────────────── opening ───────────────────────────
@@ -136,7 +140,7 @@ namespace FairyTales.Lessons
             Voice = new LessonVoice(this);
             close.onClick.AddListener(AskExit);
             prepareClose.onClick.AddListener(Close);
-            prepareRetry.onClick.AddListener(StartFlow);
+            prepareRetry.onClick.AddListener(OnRetry);
             exitStay.onClick.AddListener(() => ShowExit(false));
             exitLeave.onClick.AddListener(Close);
             if (softOffer != null)
@@ -176,6 +180,8 @@ namespace FairyTales.Lessons
             prepareTitle.text = _launch?.Title ?? "";
             SetPicture(prepareCover, prepareCoverFit, _launch?.Cover);
             prepareStatus.text = LessonStrings.T("prepare");
+            _lockedFailure = false;
+            SetRetryLabel("retry");
             SetShown(prepareRetry, false);
             prepareBar.SetActive(true);
             SetProgress(0f);
@@ -192,10 +198,15 @@ namespace FairyTales.Lessons
             {
                 var api = FindAnyObjectByType<ApiClient>();
                 LessonPrepareResult result = null;
+                float t0 = Time.realtimeSinceStartup;
                 yield return LessonCache.Prepare(new LessonService(api), _launch.Id, _launch.KnownVersion,
                     Loc.Lang, SetProgress, r => result = r);
                 package = result?.Package;
                 failure = result?.Failure ?? LessonFailure.Network;
+                Diagnostics.Analytics.Log("lesson_download", ("lesson", _launch.Id),
+                    ("ok", package != null), ("offline", package?.Offline ?? false),
+                    ("failure", package != null ? "none" : failure.ToString().ToLowerInvariant()),
+                    ("seconds", Mathf.RoundToInt(Time.realtimeSinceStartup - t0)));
             }
 
             if (package?.Lesson == null || package.Lesson.steps.Count == 0)
@@ -231,6 +242,7 @@ namespace FairyTales.Lessons
             BuildSegments(Lesson.steps.Count);
             ShowOnly(prepare: false);
             _flow = null;
+            _startedAt = Time.realtimeSinceStartup;
             ShowStep(start);
         }
 
@@ -243,8 +255,11 @@ namespace FairyTales.Lessons
                 LessonFailure.Locked => "fail_locked",
                 _ => "fail_missing",
             });
-            // Only a network failure can heal by itself; a locked lesson goes through the paywall (plan section 8).
-            SetShown(prepareRetry, failure == LessonFailure.Network);
+            // Only a network failure can heal by itself; a locked lesson goes through the paywall (plan section 8):
+            // the client thought it open, the server did not (a lapsed subscription, entitlement switched on).
+            _lockedFailure = failure == LessonFailure.Locked;
+            if (_lockedFailure) SetRetryLabel("offer_go");
+            SetShown(prepareRetry, failure == LessonFailure.Network || _lockedFailure);
             Debug.Log($"[Lesson] {_launch?.Id} failed: {failure}");
         }
 
@@ -311,6 +326,7 @@ namespace FairyTales.Lessons
                 group.DOFade(1f, 0.25f).SetId(TweenId);
             }
             if (isReward) _rewardShown = true;
+            Diagnostics.Analytics.Log("lesson_step", ("lesson", Lesson.id), ("step", _index), ("type", step.type ?? ""));
             view.Begin(step);
         }
 
@@ -401,6 +417,10 @@ namespace FairyTales.Lessons
         {
             if (_closing) return;
             _closing = true;
+            // Left before the reward: where children drop out (step -1 = still downloading).
+            if (!_rewardShown && _launch != null)
+                Diagnostics.Analytics.Log("lesson_exit", ("lesson", _launch.Id), ("step", Package != null ? _index : -1),
+                    ("type", Package != null && _index < Lesson.steps.Count ? Lesson.steps[_index].type ?? "" : "prepare"));
             if (_flow != null) { StopCoroutine(_flow); _flow = null; }
             EndStep();
             var sm = FindAnyObjectByType<ScreenManager>();
@@ -469,14 +489,37 @@ namespace FairyTales.Lessons
         private void OnSoftOfferGo()
         {
             Diagnostics.Analytics.Log("lesson_soft_offer_tap");
+            OpenPaywall("lesson_soft_offer");
+        }
+
+        private void OnRetry()
+        {
+            if (_lockedFailure) OpenPaywall("lesson_locked");
+            else StartFlow();
+        }
+
+        private void SetRetryLabel(string key)
+        {
+            var label = prepareRetry.GetComponentInChildren<LessonLabel>(true);
+            if (label == null) return;
+            label.key = key;
+            label.Apply();
+        }
+
+        /// <summary>Leaves the lesson for the paywall; closing the paywall returns where the lesson was opened from.</summary>
+        private void OpenPaywall(string source)
+        {
             var sm = FindAnyObjectByType<ScreenManager>();
             var back = _returnTo;
             Close();
             // The paywall gates purchase and restore behind the parental question itself.
-            if (sm != null) UI.Payment.PaymentScreen.Open(sm, back ?? typeof(LibraryScreen), source: "lesson_soft_offer");
+            if (sm != null) UI.Payment.PaymentScreen.Open(sm, back ?? typeof(LibraryScreen), source: source);
         }
 
         // ─────────────────────────── helpers for the steps ───────────────────────────
+
+        /// <summary>Seconds since the lesson's first step showed.</summary>
+        public int SecondsInLesson => Mathf.RoundToInt(Time.realtimeSinceStartup - _startedAt);
 
         /// <summary>Runs a coroutine that is stopped when the step ends.</summary>
         public Coroutine StepRoutine(IEnumerator routine)

@@ -2,6 +2,14 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
   <!-- Android 13+ runtime notification permission (CLIENT_TICKET_PUSH §1) -->
   <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+  <!-- Nooria lessons: the repeat step (camera frame / AR mask, the child's voice) and the avatar photo.
+       Unity adds these on its own when WebCamTexture / Microphone are used; declared here so the
+       features stay optional and devices without a camera can still install the app. -->
+  <uses-permission android:name="android.permission.CAMERA" />
+  <uses-permission android:name="android.permission.RECORD_AUDIO" />
+  <uses-feature android:name="android.hardware.camera" android:required="false" />
+  <uses-feature android:name="android.hardware.camera.front" android:required="false" />
+  <uses-feature android:name="android.hardware.microphone" android:required="false" />
   <application>
     <!-- FCM default notification channel used when a push has no explicit channel.
              Must match what the server sends (ticket §5.5) AND the channel PushService

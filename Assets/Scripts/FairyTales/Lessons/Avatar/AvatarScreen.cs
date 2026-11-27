@@ -106,7 +106,12 @@ namespace FairyTales.Lessons
             for (int i = 0; i < heads.Length; i++)
             {
                 int index = i;
-                heads[i].onClick.AddListener(() => { AvatarStore.SetFace(_person, index); Paint(); });
+                heads[i].onClick.AddListener(() =>
+                {
+                    AvatarStore.SetFace(_person, index);
+                    Diagnostics.Analytics.Log("avatar_created", ("person", _person.ToString().ToLowerInvariant()), ("kind", "face"));
+                    Paint();
+                });
             }
             shoot.onClick.AddListener(Shoot);
             retake.onClick.AddListener(OpenCamera);
@@ -290,6 +295,7 @@ namespace FairyTales.Lessons
 
             if (cut == null) { Fail("avatar_no_face"); yield break; }
             AvatarStore.SetPhoto(_person, cut);
+            Diagnostics.Analytics.Log("avatar_created", ("person", _person.ToString().ToLowerInvariant()), ("kind", "photo"));
             Destroy(cut.Texture);
             photoPanel.SetActive(false);
             Paint();

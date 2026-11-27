@@ -335,6 +335,9 @@ namespace FairyTales.Lessons
             yield return _mic.Listen(() => P.Paused || _appPaused, r => { result = r; finished = true; });
             Pulse(false);
             if (!finished) yield break;
+            Diagnostics.Analytics.Log("repeat_attempt", ("lesson", P.Lesson.id),
+                ("result", result.ToString().ToLowerInvariant()), ("quiet_tries", _quietTries),
+                ("camera", LessonPermissions.UseCamera));
 
             switch (result)
             {

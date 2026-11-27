@@ -142,6 +142,11 @@ namespace FairyTales.Lessons.EditorTools
             s.avatarButton = s.avatar.gameObject.AddComponent<Button>();
             s.stars = PillText(Pill(safe, Art("reward_star"), "12", 292, 100, 168, A.TL));
             s.leaves = PillText(Pill(safe, Art("leaf_green"), "3", 460, 100, 146, A.TL));
+            // Days in a row, in a holder so the pill's shadow hides with it: no chip (and no
+            // «0 days» reproach) until the first lesson, or after a day without one.
+            var streak = Node(safe, "Streak", 617, 100, 170, 100, A.TL);
+            s.streakChip = streak.Go;
+            s.streak = PillText(Pill(streak, Art("icon_flame"), "2", 85, 50, 146));
 
             const float pw = 384, ph = 84;
             Shadow(safe, 1700, 100, pw, ph, 0.12f, 8, A.TR);

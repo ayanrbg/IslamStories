@@ -33,6 +33,9 @@ namespace FairyTales.Lessons
         public Button avatarButton;
         public TMP_Text stars;
         public TMP_Text leaves;
+        /// <summary>Days in a row with a lesson; hidden while there is no streak.</summary>
+        public GameObject streakChip;
+        public TMP_Text streak;
         public Button parents;
 
         [Header("Tiles")]
@@ -128,6 +131,9 @@ namespace FairyTales.Lessons
             var p = LessonProgressStore.Data;
             stars.text = p.stars.ToString();
             leaves.text = p.LeafCount.ToString();
+            int days = LessonProgressStore.StreakDays;
+            if (streakChip != null) streakChip.SetActive(days > 0);
+            if (streak != null) streak.text = days.ToString();
             int waiting = p.pendingDeeds.Count;
             deedsChip.SetActive(waiting > 0);
             if (waiting > 0) deedsChipText.text = LessonStrings.T("home_deeds", waiting);

@@ -75,6 +75,12 @@ namespace FairyTales.Lessons
             Chosen = choice;
             if (choice == Choice.Allow) yield return Ask(camera: true);
             yield return Ask(camera: false);
+            // The parent's choice and what the system then granted.
+            if (choice == Choice.Allow)
+                Diagnostics.Analytics.Log("camera_permission", ("granted", CameraGranted),
+                    ("has_camera", WebCamTexture.devices.Length > 0));
+            Diagnostics.Analytics.Log("mic_permission", ("choice", choice.ToString().ToLowerInvariant()),
+                ("granted", MicGranted), ("has_mic", LessonMic.HasDevice));
             done?.Invoke();
         }
 
