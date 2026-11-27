@@ -69,12 +69,14 @@ namespace FairyTales.Lessons.EditorTools
                 BuildPrepare(root, screen);
                 BuildResume(root, screen);
                 BuildExit(root, screen);
+                BuildSoftOffer(root, screen);
 
                 foreach (var v in new LessonStepView[] { screen.story, screen.repeat, screen.quiz, screen.deed, screen.reward })
                     v.root.SetActive(false);
                 screen.prepare.SetActive(false);
                 screen.exitPopup.SetActive(false);
                 screen.resumePopup.SetActive(false);
+                screen.softOffer.SetActive(false);
 
                 PrefabUtility.SaveAsPrefabAsset(root.Go, PrefabPath);
             }
@@ -304,6 +306,25 @@ namespace FairyTales.Lessons.EditorTools
             s.resumeNote = AutoSize(Txt(card, "", FontM, 34, Pal.Sub, 410, 230, 740, 60), 24);
             s.resumeGo = Raised(card, "Resume", "resume", Pal.Rose, 240, 350, 360, 100, A.C, null, 40);
             s.resumeRestart = Raised(card, "Restart", "restart", Pal.LavSoft, 610, 350, 300, 100, A.C, Pal.Ink, 40);
+        }
+
+        /// <summary>Design 11 «Понравились уроки?» over the reward, in the sticker look.</summary>
+        private static void BuildSoftOffer(Box root, LessonPlayerScreen s)
+        {
+            var r = Fill(root, "SoftOffer");
+            r.Go.AddComponent<CanvasGroup>();
+            Dim(r, "Dim");
+            s.softOffer = r.Go;
+            const float w = 960, h = 656;
+            var card = Sticker(r, "Card", 960, 590, w, h, 60, Color.white, 14, A.C, 0.16f, null, 0.3f);
+            s.softOfferCard = card.Rt.parent as RectTransform;
+            Cover(card, "Kids", Art("cover_salam"), w / 2, 150, 420, 220, 34);
+            SketchFrame(card, w / 2, 150, 420, 220, 34);
+            Label(Txt(card, "", FontXB, 28, Pal.Rose, w / 2, 300, 700, 44), "offer_for_parents");
+            Label(AutoSize(Txt(card, "", FontXB, 58, Pal.Ink, w / 2, 358, w - 120, 76), 38), "offer_title");
+            Label(AutoSize(Txt(card, "", FontM, 34, Pal.Sub, w / 2, 440, w - 140, 92), 24), "offer_text");
+            s.softOfferGo = Raised(card, "Go", "offer_go", Pal.Rose, 320, 572, 420, 104, A.C, null, 42);
+            s.softOfferLater = Raised(card, "Later", "offer_later", Pal.LavSoft, 710, 572, 280, 104, A.C, Pal.Ink, 40);
         }
 
         // ─────────────────────────── 1. История ───────────────────────────
@@ -732,6 +753,7 @@ namespace FairyTales.Lessons.EditorTools
                 ("P3a_RepeatIntro", PrevRepeatIntro), ("P3b_RepeatListen", PrevRepeatListen), ("P3c_Permissions", PrevPermissions),
                 ("P4_Quiz", PrevQuiz), ("P5_Deed", PrevDeed), ("P6_Reward", PrevReward),
                 ("P7_Exit", s => { PrevStory(s); s.exitPopup.SetActive(true); }),
+                ("P9_SoftOffer", s => { PrevReward(s); s.softOffer.SetActive(true); }),
                 ("P8_Resume", s => { PrevPrepare(s); s.prepareCard.SetActive(false); s.resumePopup.SetActive(true); s.resumeNote.text = LessonStrings.T("resume_note", 3, 5); }),
             };
             var scene = EditorSceneManager.NewPreviewScene();

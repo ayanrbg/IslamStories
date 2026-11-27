@@ -72,6 +72,13 @@ namespace FairyTales.Lessons
         public Button exitStay;
         public Button exitLeave;
         public GameObject resumePopup;
+
+        [Header("Soft offer")]
+        /// <summary>«Понравились уроки?» over the reward of the second lesson (spec §7), once.</summary>
+        public GameObject softOffer;
+        public RectTransform softOfferCard;
+        public Button softOfferGo;
+        public Button softOfferLater;
         public TMP_Text resumeNote;
         public Button resumeGo;
         public Button resumeRestart;
@@ -132,6 +139,11 @@ namespace FairyTales.Lessons
             prepareRetry.onClick.AddListener(StartFlow);
             exitStay.onClick.AddListener(() => ShowExit(false));
             exitLeave.onClick.AddListener(Close);
+            if (softOffer != null)
+            {
+                softOfferGo.onClick.AddListener(OnSoftOfferGo);
+                softOfferLater.onClick.AddListener(HideSoftOffer);
+            }
             foreach (var v in Views) v.Bind(this);
             segmentTemplate.gameObject.SetActive(false);
         }
@@ -363,7 +375,8 @@ namespace FairyTales.Lessons
             // The parental gate answers Back itself.
             var gate = FindAnyObjectByType<ChildGatePopup>();
             if (gate != null && gate.gameObject.activeInHierarchy) return;
-            if (exitPopup.activeSelf) ShowExit(false);
+            if (softOffer != null && softOffer.activeSelf) HideSoftOffer();
+            else if (exitPopup.activeSelf) ShowExit(false);
             else if (prepare.activeSelf || resumePopup.activeSelf || _view == reward) Close();
             else AskExit();
         }
@@ -405,6 +418,62 @@ namespace FairyTales.Lessons
             Voice?.Release();
             _images.Release();
             if (exitPopup != null) exitPopup.SetActive(false);
+            if (softOffer != null) softOffer.SetActive(false);
+        }
+
+        // ─────────────────────────── soft offer ───────────────────────────
+
+        private const string SoftOfferKey = "lessons_soft_offer_shown";
+
+        /// <summary>
+        /// The soft subscription offer comes once, on the reward that completes the
+        /// second lesson for the first time, and never to a subscriber.
+        /// </summary>
+        public static bool ShouldOfferSubscription(bool subscribed, bool firstTime, int completedCount, bool shownBefore)
+            => !subscribed && firstTime && completedCount >= 2 && !shownBefore;
+
+        /// <summary>Called by the reward: shows the offer after the star has landed, when it is due.</summary>
+        public void MaybeOfferSubscription(bool firstTime)
+        {
+            if (softOffer == null) return;
+            bool subscribed = IAP.IAPManager.Instance != null ? IAP.IAPManager.Instance.IsSubscribed : _launch != null && _launch.Subscribed;
+            if (!ShouldOfferSubscription(subscribed, firstTime, LessonProgressStore.Data.CompletedCount,
+                    PlayerPrefs.GetInt(SoftOfferKey, 0) == 1)) return;
+            StepRoutine(SoftOfferRoutine());
+        }
+
+        private IEnumerator SoftOfferRoutine()
+        {
+            float t = 0f;
+            while (t < 2.2f) { if (!Paused) t += Time.unscaledDeltaTime; yield return null; }
+            PlayerPrefs.SetInt(SoftOfferKey, 1);
+            PlayerPrefs.Save();
+            Diagnostics.Analytics.Log("lesson_soft_offer_view");
+            softOffer.SetActive(true);
+            var group = softOffer.GetComponent<CanvasGroup>();
+            if (group != null)
+            {
+                group.alpha = 0f;
+                group.DOFade(1f, 0.25f).SetId(TweenId);
+            }
+            softOfferCard.localScale = Vector3.one * 0.7f;
+            softOfferCard.DOScale(1f, 0.45f).SetEase(Ease.OutBack).SetId(TweenId);
+        }
+
+        private void HideSoftOffer()
+        {
+            Diagnostics.Analytics.Log("lesson_soft_offer_later");
+            softOffer.SetActive(false);
+        }
+
+        private void OnSoftOfferGo()
+        {
+            Diagnostics.Analytics.Log("lesson_soft_offer_tap");
+            var sm = FindAnyObjectByType<ScreenManager>();
+            var back = _returnTo;
+            Close();
+            // The paywall gates purchase and restore behind the parental question itself.
+            if (sm != null) UI.Payment.PaymentScreen.Open(sm, back ?? typeof(LibraryScreen), source: "lesson_soft_offer");
         }
 
         // ─────────────────────────── helpers for the steps ───────────────────────────

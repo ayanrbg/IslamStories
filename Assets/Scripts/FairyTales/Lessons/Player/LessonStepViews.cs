@@ -417,6 +417,7 @@ namespace FairyTales.Lessons
             }
             P.Voice.PlayBundled("reward");
             P.OnRewardShown();
+            P.MaybeOfferSubscription(reward.FirstTime);
         }
     }
 }
