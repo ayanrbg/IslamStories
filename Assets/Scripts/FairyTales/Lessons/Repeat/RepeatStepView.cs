@@ -129,9 +129,7 @@ namespace FairyTales.Lessons
         {
             (new Vector2(0f, -0.1f), 0.85f, new Vector2(0.5f, 0.08f), 1f),   // crown sitting on the head
             (new Vector2(0.62f, -0.55f), 0.42f, new Vector2(0.5f, 0.5f), 1f), // lantern beside the cheek
-            // Star headband: its arch on top. The drawn ends meet over the eyes, so only the top
-            // half shows — the arch on the head, the ends going behind the ears.
-            (new Vector2(0f, 0.04f), 1.5f, new Vector2(0.5f, 0.745f), 0.55f),
+            (new Vector2(0f, -0.1f), 1.06f, new Vector2(0.5f, 0.06f), 1f),   // star crown: same seat as the crown (its stars stick out above)
         };
 
         public override void Bind(LessonPlayerScreen player)
