@@ -10,15 +10,17 @@ using UnityEngine.Video;
 namespace FairyTales.Lessons
 {
     /// <summary>
-    /// Step 2, «Повтори как друг» (spec §4), without AR (plan section 5):
+    /// Step 2, «Повтори как друг» (spec §4, plan sections 5 and 6):
     ///
     ///  0. the parent's camera-and-microphone screen, the first time only;
     ///  1. a short scene — the child's avatar and the friend (a drawn body with the real
     ///     child's head from the video) stand side by side, the friend waves, the phrase
     ///     pops up in a bubble; «▶ Смотреть», or by itself after 4 s;
     ///  2. the friend's video plays once (tap to repeat);
-    ///  3. the child's turn: their face from the front camera with a flat mask («Рамка»),
-    ///     or the avatar in the mask whose mouth moves with the voice («Персонаж»); the
+    ///  3. the child's turn: their face from the front camera with a mask that follows the
+    ///     head («AR», <see cref="LessonAR"/>), or with a flat mask at a fixed spot when AR
+    ///     can't run («Рамка»), or the avatar in the mask whose mouth moves with the voice
+    ///     («Персонаж», no camera); the
     ///     microphone opens by itself and listens up to 5 s; a voice is played straight
     ///     back («Послушай себя!»), then praise and «Дальше». Silence: «Скажи вместе с
     ///     другом!» and the video again; after two quiet tries «Дальше» comes anyway.
@@ -94,6 +96,7 @@ namespace FairyTales.Lessons
         public Button next;
 
         private enum Phase { Idle, Video, Listening, Playback, Done }
+        private enum MeMode { Character, Frame, AR }
 
         private RepeatStep _step;
         private VideoPlayer _player;
@@ -102,6 +105,11 @@ namespace FairyTales.Lessons
         private bool _hasVideo;
         private LessonMic _mic;
         private LessonCamera _camera;
+        private LessonAR _ar;
+        private MeMode _mode;
+        private float _roll;          // the head's tilt in «AR», the mask's resting angle
+        private bool _meReady;        // the camera (or its absence) is settled
+        private static bool s_arLogged;
         private bool _useMic;
         private int _quietTries;
         private int _mask;
@@ -116,11 +124,14 @@ namespace FairyTales.Lessons
 
         // Where each mask sits on the head's box: a point in head sizes from the box's top centre
         // (x right, y up), the mask's width in head widths, and which point of the mask goes there.
-        private static readonly (Vector2 at, float width, Vector2 pivot)[] MaskPlace =
+        // The last number is how much of the mask shows, from its top (1 — all of it).
+        private static readonly (Vector2 at, float width, Vector2 pivot, float shown)[] MaskPlace =
         {
-            (new Vector2(0f, -0.1f), 0.85f, new Vector2(0.5f, 0.08f)),   // crown sitting on the head
-            (new Vector2(0.62f, -0.55f), 0.42f, new Vector2(0.5f, 0.5f)), // lantern beside the cheek
-            (new Vector2(0f, -0.02f), 1.12f, new Vector2(0.5f, 0.73f)),   // star headband: its arch on top
+            (new Vector2(0f, -0.1f), 0.85f, new Vector2(0.5f, 0.08f), 1f),   // crown sitting on the head
+            (new Vector2(0.62f, -0.55f), 0.42f, new Vector2(0.5f, 0.5f), 1f), // lantern beside the cheek
+            // Star headband: its arch on top. The drawn ends meet over the eyes, so only the top
+            // half shows — the arch on the head, the ends going behind the ears.
+            (new Vector2(0f, 0.04f), 1.5f, new Vector2(0.5f, 0.745f), 0.55f),
         };
 
         public override void Bind(LessonPlayerScreen player)
@@ -128,6 +139,7 @@ namespace FairyTales.Lessons
             base.Bind(player);
             _mic = new LessonMic();
             _camera = new LessonCamera(cameraView, meFrame);
+            _ar = new LessonAR(cameraView, meFrame);
             permAllow.onClick.AddListener(() => P.StartCoroutine(Answer(LessonPermissions.Choice.Allow)));
             permNoCamera.onClick.AddListener(() => P.StartCoroutine(Answer(LessonPermissions.Choice.NoCamera)));
             watch.onClick.AddListener(() => _watchPressed = true);
@@ -200,8 +212,9 @@ namespace FairyTales.Lessons
             else yield return LessonPermissions.Refresh();
 
             yield return Intro();
-            yield return SetUpTurn();
+            SetUpTurn();
             yield return PlayVideoAndWait();
+            while (!_meReady) yield return null; // the camera has 3 s (+3 for «Рамка»), the video ~5–8 s
             StartListening();
         }
 
@@ -237,7 +250,7 @@ namespace FairyTales.Lessons
             intro.SetActive(false);
         }
 
-        private IEnumerator SetUpTurn()
+        private void SetUpTurn()
         {
             turn.SetActive(true);
             videoFrame.SetActive(_hasVideo);
@@ -256,9 +269,37 @@ namespace FairyTales.Lessons
             mic.interactable = false;
             micPulse.gameObject.SetActive(false);
 
-            // «Рамка» when the camera works, otherwise «Персонаж» (AR comes in plan section 6).
-            bool live = false;
-            if (LessonPermissions.UseCamera) yield return _camera.Start(ok => live = ok);
+            _roll = 0;
+            _meReady = false;
+            if (!LessonPermissions.UseCamera) { ShowMe(MeMode.Character); return; }
+            // The camera starts while the friend's video plays; the frame stays empty till then.
+            cameraView.gameObject.SetActive(true);
+            characterBg.SetActive(false);
+            meAvatar.gameObject.SetActive(false);
+            meHint.gameObject.SetActive(false);
+            meJaw.enabled = false;
+            sticker.enabled = false;
+            meDot.color = dotLive;
+            meLabel.text = string.IsNullOrEmpty(TaleText.ChildName)
+                ? LessonStrings.T("repeat_me_noname") : LessonStrings.T("repeat_me", TaleText.ChildName);
+            P.StepRoutine(StartCamera());
+        }
+
+        /// <summary>«AR» if the device can and the session runs the front camera within 3 s, otherwise «Рамка» when the camera works, otherwise «Персонаж».</summary>
+        private IEnumerator StartCamera()
+        {
+            bool ar = false, frame = false;
+            yield return _ar.Start(ok => ar = ok);
+            if (!ar) yield return _camera.Start(ok => frame = ok);
+            ShowMe(ar ? MeMode.AR : frame ? MeMode.Frame : MeMode.Character);
+        }
+
+        private void ShowMe(MeMode mode)
+        {
+            _mode = mode;
+            _meReady = true;
+            LogArSupport();
+            bool live = _mode != MeMode.Character;
             cameraView.gameObject.SetActive(live);
             characterBg.SetActive(!live);
             meAvatar.gameObject.SetActive(!live);
@@ -337,7 +378,7 @@ namespace FairyTales.Lessons
             if (!finished) yield break;
             Diagnostics.Analytics.Log("repeat_attempt", ("lesson", P.Lesson.id),
                 ("result", result.ToString().ToLowerInvariant()), ("quiet_tries", _quietTries),
-                ("camera", LessonPermissions.UseCamera));
+                ("camera", LessonPermissions.UseCamera), ("mode", _mode.ToString().ToLowerInvariant()));
 
             switch (result)
             {
@@ -440,12 +481,12 @@ namespace FairyTales.Lessons
                 if (_phase == Phase.Listening && meJaw.enabled) meJaw.Open = Mathf.Lerp(meJaw.Open, level, 0.5f);
                 float bounce = _happy ? 0.08f * Mathf.Abs(Mathf.Sin(Time.time * 9f)) : level * 0.15f;
                 sticker.rectTransform.localScale = Vector3.one * (1f + bounce);
-                sticker.rectTransform.localEulerAngles = new Vector3(0, 0, _happy ? 6f * Mathf.Sin(Time.time * 7f) : 0f);
+                sticker.rectTransform.localEulerAngles = new Vector3(0, 0, _roll + (_happy ? 6f * Mathf.Sin(Time.time * 7f) : 0f));
                 micPulse.localScale = Vector3.one * (1f + level * 0.35f);
                 yield return null;
             }
             sticker.rectTransform.localScale = Vector3.one;
-            sticker.rectTransform.localEulerAngles = Vector3.zero;
+            sticker.rectTransform.localEulerAngles = new Vector3(0, 0, _roll);
             if (meJaw.enabled) meJaw.Open = 0;
         }
 
@@ -480,7 +521,7 @@ namespace FairyTales.Lessons
         {
             if (_attempt != null) { P.StopCoroutine(_attempt); _attempt = null; }
             if (_follow != null) { P.StopCoroutine(_follow); _follow = null; }
-            if (sticker != null) { sticker.rectTransform.localScale = Vector3.one; sticker.rectTransform.localEulerAngles = Vector3.zero; }
+            if (sticker != null) { sticker.rectTransform.localScale = Vector3.one; sticker.rectTransform.localEulerAngles = new Vector3(0, 0, _roll); }
             if (meJaw != null) meJaw.Open = 0;
             _mic?.Stop();
             Pulse(false);
@@ -505,15 +546,24 @@ namespace FairyTales.Lessons
             }
         }
 
-        /// <summary>The sticker on the face: the avatar's in «Персонаж», a fixed spot in «Рамка».</summary>
+        /// <summary>The sticker on the face: the tracked head in «AR», the avatar's in «Персонаж», a fixed spot in «Рамка».</summary>
         private void PlaceSticker()
         {
             if (sticker == null || sticker.sprite == null || meFrame == null) return;
+            if (!_meReady) { sticker.enabled = false; return; } // the camera is still starting
             var place = MaskPlace[Mathf.Clamp(_mask, 0, MaskPlace.Length - 1)];
             Vector2 top;      // top centre of the head, frame space
             Vector2 head;     // head box size
             var frame = meFrame.rect.size;
-            if (meAvatar.gameObject.activeSelf && meAvatar.HeadRect.width > 1f)
+            float roll = 0;
+            if (_mode == MeMode.AR)
+            {
+                // Out of sight: no mask hanging in the air; it comes back with the face.
+                bool seen = _ar.TryGetHead(out top, out head, out roll);
+                sticker.enabled = seen;
+                if (!seen) return;
+            }
+            else if (meAvatar.gameObject.activeSelf && meAvatar.HeadRect.width > 1f)
             {
                 // Avatar space → frame space.
                 var r = meAvatar.HeadRect;
@@ -534,7 +584,24 @@ namespace FairyTales.Lessons
             float w = place.width * head.x;
             float aspect = sticker.sprite.rect.height / sticker.sprite.rect.width;
             rt.sizeDelta = new Vector2(w, w * aspect);
-            rt.anchoredPosition = top + new Vector2(place.at.x * head.x, place.at.y * head.y);
+            sticker.type = place.shown < 1f ? Image.Type.Filled : Image.Type.Simple;
+            sticker.fillMethod = Image.FillMethod.Vertical;
+            sticker.fillOrigin = (int)Image.OriginVertical.Top;
+            sticker.fillAmount = place.shown;
+            rt.anchoredPosition = top + (Vector2)(Quaternion.Euler(0, 0, roll) * new Vector2(place.at.x * head.x, place.at.y * head.y));
+            _roll = roll;
+            // While listening FollowLevel turns the mask itself, adding its wobble to this angle.
+            if (_phase != Phase.Listening && _phase != Phase.Playback) rt.localEulerAngles = new Vector3(0, 0, roll);
+        }
+
+        /// <summary>Once a run: which mode the device got and why AR didn't work, if it didn't.</summary>
+        private void LogArSupport()
+        {
+            if (s_arLogged || !LessonPermissions.UseCamera) return;
+            s_arLogged = true;
+            Diagnostics.Analytics.Log("ar_support", ("result", _ar.Result),
+                ("mode", _mode.ToString().ToLowerInvariant()), ("seconds", Mathf.Round(_ar.StartSeconds * 10f) / 10f),
+                ("platform", Application.platform.ToString()));
         }
 
         // ─────────────────────────── friend ───────────────────────────
@@ -638,6 +705,7 @@ namespace FairyTales.Lessons
                 else if (_phase == Phase.Video && !_videoEnded) _player.Play();
             }
             _camera?.Pause(pause);
+            _ar?.Pause(pause);
             // The exit question: an attempt in progress starts over afterwards.
             if (pause && _phase == Phase.Listening) { StopAttempt(); _resumeListening = true; }
             else if (!pause && _resumeListening) { _resumeListening = false; NewAttempt(); }
@@ -656,6 +724,10 @@ namespace FairyTales.Lessons
             StopAttempt();
             _mic?.Dispose();
             _camera?.Stop();
+            _ar?.Stop();
+            _mode = MeMode.Character;
+            _meReady = false;
+            _roll = 0;
             DOTween.Kill(micPulse);
             if (_player != null) { _player.Stop(); _player.url = null; }
             video.texture = null;
@@ -667,7 +739,13 @@ namespace FairyTales.Lessons
         }
 
         /// <summary>Called by the player every frame while the step is shown.</summary>
-        public void Tick() => _camera?.Update();
+        public void Tick()
+        {
+            _camera?.Update();
+            if (_mode != MeMode.AR || _ar == null) return;
+            _ar.Update();
+            PlaceSticker();
+        }
 
         private IEnumerator Wait(float seconds)
         {
