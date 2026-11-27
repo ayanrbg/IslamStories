@@ -564,7 +564,9 @@ namespace FairyTales.Lessons
         private void EnsurePlayer()
         {
             if (_player != null) return;
-            _player = videoFrame.AddComponent<VideoPlayer>();
+            // On the step's root, not on videoFrame: the frame is hidden during the scene,
+            // and a VideoPlayer on an inactive object refuses to Prepare ahead of time.
+            _player = root.AddComponent<VideoPlayer>();
             _player.playOnAwake = false;
             _player.isLooping = false;
             _player.renderMode = VideoRenderMode.RenderTexture;
