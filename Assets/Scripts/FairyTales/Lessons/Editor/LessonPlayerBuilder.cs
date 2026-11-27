@@ -137,6 +137,10 @@ namespace FairyTales.Lessons.EditorTools
             var holder = Node(p, name + "Holder", cx, cy, w + 80, h + 80, a);
             var face = UI.Button(holder, LessonStrings.T(key), c, (w + 80) / 2, (h + 80) / 2, w, h, A.C, text, size, icon);
             face.Go.name = name;
+            // Hand-drawn outlines round the base and the face, like the home's stickers.
+            var baseLine = SketchFrame(holder, (w + 80) / 2, (h + 80) / 2 + 9, w, h, h / 2);
+            baseLine.Rt.SetSiblingIndex(face.Rt.GetSiblingIndex());
+            SketchFrame(holder, (w + 80) / 2, (h + 80) / 2, w, h, h / 2);
             Label(face.Go.GetComponentInChildren<TMP_Text>(), key);
             return Clickable(face);
         }
@@ -156,6 +160,7 @@ namespace FairyTales.Lessons.EditorTools
             var b = holder
                 ? IconButton(parent, name, icon, bg, fg, (d + 40) / 2, (d + 40) / 2, d, A.C, scale)
                 : IconButton(parent, name, icon, bg, fg, cx, cy, d, a, scale);
+            OutlineRound(b);
             return Clickable(b);
         }
 
@@ -186,6 +191,29 @@ namespace FairyTales.Lessons.EditorTools
             rt.sizeDelta = new Vector2(rt.sizeDelta.x, h);
         }
 
+        /// <summary>A gradient with crayon paper over it (the home's backgrounds).</summary>
+        private static Box Painted(Box parent, string name, Color top, Color bottom, float paper = 0.14f, bool block = false)
+        {
+            var bg = Fill(parent, "Background");
+            AddImage(bg, Shapes.Gradient(name, top, bottom), Color.white).raycastTarget = block;
+            Paper(bg, Pal.Darker(bottom, 0.7f), paper);
+            return bg;
+        }
+
+        /// <summary>The hand-drawn outline round a rounded rect, as its last child (hides with it).</summary>
+        private static Box Outline(Box b, float r) => SketchFrame(b, b.W / 2, b.H / 2, b.W, b.H, r);
+
+        /// <summary>The holder of a sticker built by <see cref="UI.Sticker"/>, as a box.</summary>
+        private static Box HolderOf(Box face) => new() { Rt = (RectTransform)face.Rt.parent, W = face.W, H = face.H };
+
+        /// <summary>Under a hand-built card of <paramref name="fill"/> (w × h of the node): shadow, darker base, its outline.</summary>
+        private static void StickerBase(Box node, Color fill, float r, float depth = 12)
+        {
+            Shadow(node, node.W / 2, node.H / 2 + depth, node.W, node.H, 0.16f, 12);
+            Rect(node, "Base", Pal.Darker(fill, 0.8f), node.W / 2, node.H / 2 + depth, node.W, node.H, r);
+            SketchFrame(node, node.W / 2, node.H / 2 + depth, node.W, node.H, r);
+        }
+
         private static Box Dim(Box parent, string name)
         {
             var b = Fill(parent, name);
@@ -203,27 +231,33 @@ namespace FairyTales.Lessons.EditorTools
             s.chrome = chrome.Go;
             s.close = Icon(chrome, "Close", Shapes.Cross, Color.white, Pal.Sub, 90, 78, 92, A.TL, 0.4f);
 
-            var seg = Node(chrome, "StepProgress", 960, 78, 5 * 150 + 4 * 16, 22, A.T);
+            // The steps as a white capsule of segments.
+            const float segW = 5 * 120 + 4 * 12;
+            var track = Sticker(chrome, "StepTrack", 960, 78, segW + 32, 46, 23, Color.white, 6, A.T, 0f, null, 0.12f);
+            var seg = Node(track, "StepProgress", (segW + 32) / 2, 23, segW, 22);
             var layout = seg.Go.AddComponent<HorizontalLayoutGroup>();
-            layout.spacing = 16;
+            layout.spacing = 12;
             layout.childControlWidth = layout.childControlHeight = true;
             layout.childForceExpandWidth = layout.childForceExpandHeight = true;
             s.segments = seg.Rt;
-            s.segmentTemplate = Rect(seg, "SegmentTemplate", Color.white, 75, 11, 150, 22, 11).Go.GetComponent<Image>();
+            s.segmentsBar = track.Rt.parent.gameObject;
+            s.segmentTemplate = Rect(seg, "SegmentTemplate", Color.white, 60, 11, 120, 22, 11).Go.GetComponent<Image>();
+            s.segmentDone = Pal.Rose;
+            s.segmentTodo = Pal.Hex("ECE6FA");
         }
 
         private static void BuildPrepare(Box root, LessonPlayerScreen s)
         {
             var r = Fill(root, "Prepare");
             s.prepare = r.Go;
-            var bg = Fill(r, "Background");
-            AddImage(bg, Shapes.Gradient("lav_peach", Pal.Lav, Pal.Peach), Color.white).raycastTarget = true;
+            Painted(r, "lav_peach_c", Pal.Hex("E4D9FF"), Pal.Hex("FFE1CC"), 0.14f, true);
             var safe = Safe(r);
             AvatarScreenBuilder.Avatar(safe, "Child", AvatarPerson.Child, 330, 640, 420, 700, A.BL);
             AvatarScreenBuilder.Avatar(safe, "Mom", AvatarPerson.Mom, 1600, 600, 440, 820, A.BR);
             s.prepareClose = Icon(safe, "Close", Shapes.Cross, Color.white, Pal.Sub, 90, 78, 92, A.TL, 0.4f);
 
-            var card = Card(safe, "Card", 960, 520, 820, 760, 60);
+            var card = Sticker(safe, "Card", 960, 520, 820, 760, 60, Color.white, 14);
+            s.prepareCard = card.Rt.parent.gameObject;
             Picture(card, "Cover", 410, 250, 700, 400, 44, A.C, Pal.LavSoft, out s.prepareCover, out s.prepareCoverFit);
             s.prepareTitle = AutoSize(Txt(card, "Бисмиллях", FontXB, 72, Pal.Ink, 410, 520, 700, 90), 44);
             s.prepareStatus = AutoSize(Txt(card, LessonStrings.T("prepare"), FontB, 34, Pal.Sub, 410, 595, 720, 60), 24);
@@ -234,6 +268,7 @@ namespace FairyTales.Lessons.EditorTools
             fill.Rt.pivot = new Vector2(0, 0.5f);
             fill.Rt.anchoredPosition = Vector2.zero;
             s.prepareBarFill = fill.Rt;
+            Outline(bar, 15);
             s.preparePercent = Txt(bar, "0%", FontXB, 30, Pal.Rose, 300, 62, 200, 40);
             s.prepareRetry = Raised(card, "Retry", "retry", Pal.Rose, 410, 685, 380, 100, A.C, null, 40);
             PlayerHolderOff(s.prepareRetry);
@@ -245,8 +280,9 @@ namespace FairyTales.Lessons.EditorTools
         {
             var r = Fill(root, name);
             Dim(r, "Dim");
-            card = Card(r, "Card", 960, 540, 820, 520, 60, null, 0.3f);
-            Img(card, "Star", Art("reward_star"), 410, 120, 170, 170);
+            card = Sticker(r, "Card", 960, 580, 820, 470, 60, Color.white, 14, A.C, 0.16f, null, 0.3f);
+            // The star sits on the card's top edge, as on the home's avatar offer.
+            Img(HolderOf(card), "Star", Art("reward_star"), 410, 0, 190, 190);
             return r;
         }
 
@@ -254,20 +290,20 @@ namespace FairyTales.Lessons.EditorTools
         {
             var r = Popup(root, "ExitPopup", out var card);
             s.exitPopup = r.Go;
-            Label(Txt(card, "", FontXB, 60, Pal.Ink, 410, 260, 740, 80), "exit_title");
-            Label(AutoSize(Txt(card, "", FontM, 34, Pal.Sub, 410, 330, 740, 60), 24), "exit_note");
-            s.exitStay = Raised(card, "Stay", "stay", Pal.Rose, 220, 440, 330, 100, A.C, null, 40);
-            s.exitLeave = Raised(card, "Leave", "leave", Pal.LavSoft, 600, 440, 300, 100, A.C, Pal.Ink, 40);
+            Label(Txt(card, "", FontXB, 60, Pal.Ink, 410, 160, 740, 80), "exit_title");
+            Label(AutoSize(Txt(card, "", FontM, 34, Pal.Sub, 410, 230, 740, 60), 24), "exit_note");
+            s.exitStay = Raised(card, "Stay", "stay", Pal.Rose, 225, 350, 330, 100, A.C, null, 40);
+            s.exitLeave = Raised(card, "Leave", "leave", Pal.LavSoft, 600, 350, 300, 100, A.C, Pal.Ink, 40);
         }
 
         private static void BuildResume(Box root, LessonPlayerScreen s)
         {
             var r = Popup(root, "ResumePopup", out var card);
             s.resumePopup = r.Go;
-            Label(Txt(card, "", FontXB, 60, Pal.Ink, 410, 260, 740, 80), "resume_title");
-            s.resumeNote = AutoSize(Txt(card, "", FontM, 34, Pal.Sub, 410, 330, 740, 60), 24);
-            s.resumeGo = Raised(card, "Resume", "resume", Pal.Rose, 240, 440, 360, 100, A.C, null, 40);
-            s.resumeRestart = Raised(card, "Restart", "restart", Pal.LavSoft, 610, 440, 300, 100, A.C, Pal.Ink, 40);
+            Label(Txt(card, "", FontXB, 60, Pal.Ink, 410, 160, 740, 80), "resume_title");
+            s.resumeNote = AutoSize(Txt(card, "", FontM, 34, Pal.Sub, 410, 230, 740, 60), 24);
+            s.resumeGo = Raised(card, "Resume", "resume", Pal.Rose, 240, 350, 360, 100, A.C, null, 40);
+            s.resumeRestart = Raised(card, "Restart", "restart", Pal.LavSoft, 610, 350, 300, 100, A.C, Pal.Ink, 40);
         }
 
         // ─────────────────────────── 1. История ───────────────────────────
@@ -282,17 +318,17 @@ namespace FairyTales.Lessons.EditorTools
             var safe = Safe(r);
 
             var pill = Node(safe, "PagePill", 1800, 78, 190, 116, A.TR);
-            var pillBox = Pill(pill, null, "1 / 2", 95, 58, 150, A.C, new Color(1, 1, 1, 0.92f), Pal.Sub, 70);
+            var pillBox = Pill(pill, null, "1 / 2", 95, 58, 150, A.C, new Color(1, 1, 1, 0.94f), Pal.Sub, 70);
+            Outline(pillBox, 35);
             v.pagePill = pill.Go;
             v.pageLabel = pillBox.Go.GetComponentInChildren<TMP_Text>();
 
             // The card spans the room between the two buttons, so on a notched phone (safe
             // area narrower) it shrinks instead of sliding under them.
-            var card = Card(safe, "TextCard", 900, 905, 1300, 230, 50, null, 0.25f, A.B);
-            StretchX(card, 230, 270);
-            StretchX(new Box { Rt = (RectTransform)card.Rt.parent.GetChild(card.Rt.GetSiblingIndex() - 1) }, 230 - 35, 270 - 35);
+            var card = Sticker(safe, "TextCard", 900, 900, 1300, 220, 50, Color.white, 10, A.B, 0.12f, null, 0.25f);
+            StretchX(HolderOf(card), 230, 270);
             v.textTap = Clickable(card);
-            var text = AutoSize(Txt(card, "", FontB, 46, Pal.Ink, 650, 115, 1180, 200), 30);
+            var text = AutoSize(Txt(card, "", FontB, 46, Pal.Ink, 650, 110, 1180, 190), 30);
             StretchX(new Box { Rt = text.rectTransform }, 40, 40);
             v.text = text;
             v.listen = Icon(safe, "Listen", Shapes.Speaker, Color.white, Pal.LavDeep, 120, 905, 140, A.BL, 0.5f);
@@ -305,8 +341,7 @@ namespace FairyTales.Lessons.EditorTools
         {
             var r = View(steps, "Repeat");
             v.root = r.Go;
-            var bg = Fill(r, "Background");
-            AddImage(bg, Shapes.Gradient("yellow", Pal.Hex("FFE9A0"), Pal.Hex("FFD45A")), Color.white);
+            Painted(r, "yellow", Pal.Hex("FFE9A0"), Pal.Hex("FFD45A"), 0.16f);
 
             BuildRepeatTurn(r, v);
             BuildRepeatIntro(r, v);
@@ -324,8 +359,11 @@ namespace FairyTales.Lessons.EditorTools
             var safe = Safe(turn);
 
             // ── the friend ──
-            var friend = Node(safe, "FriendCard", 500, 465, 800, 540, A.L);
-            Shadow(friend, 400, 270, 800, 540, 0.16f, 14);
+            // Both cards a touch smaller and higher, clear of the phrase and the mic on short wide phones.
+            const float cardScale = 0.92f, cardY = 450;
+            var friend = Node(safe, "FriendCard", 500, cardY, 800, 540, A.L);
+            friend.Rt.localScale = new Vector3(cardScale, cardScale, 1f);
+            StickerBase(friend, Pal.Mint, 48);
             var art = Node(friend, "FriendArt", 400, 270, 800, 540);
             Card(art, "Card", 400, 270, 800, 540, 48, Pal.Mint, 0f);
             Img(art, "Glow", Shapes.Radial("friendglow", new Color(1, 1, 1, 0.75f), new Color(1, 1, 1, 0)), 400, 300, 640, 640);
@@ -342,9 +380,11 @@ namespace FairyTales.Lessons.EditorTools
             v.videoFit.aspectRatio = 1f;
             v.videoFrame = frame.Go;
             v.videoTap = Clickable(frame);
+            SketchFrame(friend, 400, 270, 800, 540, 48);
 
             var label = Rect(friend, "FriendLabel", new Color(1, 1, 1, 0.94f), 174, 50, 300, 64, 32, A.TL);
             Circle(label, "Dot", Pal.Green, 36, 32, 20);
+            Outline(label, 32);
             v.friendName = AutoSize(Txt(label, "Юсуф", FontXB, 30, Pal.Ink, 172, 31, 220, 60, TA.Left), 20);
             v.replay = Icon(friend, "Replay", Shapes.Triangle, Pal.Rose, Color.white, 730, 470, 96, A.C, 0.42f, holder: true);
 
@@ -357,8 +397,9 @@ namespace FairyTales.Lessons.EditorTools
             v.friendBubble = bubble.Rt;
 
             // ── the child: camera («Рамка») or the avatar in the mask («Персонаж») ──
-            var me = Node(safe, "MeCard", 1420, 465, 800, 540, A.R);
-            Shadow(me, 400, 270, 800, 540, 0.16f, 14);
+            var me = Node(safe, "MeCard", 1420, cardY, 800, 540, A.R);
+            me.Rt.localScale = new Vector3(cardScale, cardScale, 1f);
+            StickerBase(me, Pal.RoseSoft, 48);
             var meFrame = Rect(me, "Frame", Pal.RoseSoft, 400, 270, 800, 540, 48);
             meFrame.Go.AddComponent<Mask>().showMaskGraphic = true;
             v.meFrame = meFrame.Rt;
@@ -376,9 +417,11 @@ namespace FairyTales.Lessons.EditorTools
             v.sticker.raycastTarget = false;
             v.meHint = AutoSize(Txt(meFrame, "", FontB, 26, Pal.Sub, 640, 480, 280, 90), 18);
             Label(v.meHint, "repeat_mouth");
+            SketchFrame(me, 400, 270, 800, 540, 48);
 
             var meLabel = Rect(me, "MeLabel", new Color(1, 1, 1, 0.94f), 24 + 200, 50, 400, 64, 32, A.TL);
             v.meDot = Circle(meLabel, "Dot", Pal.Rose, 36, 32, 20).Go.GetComponent<Image>();
+            Outline(meLabel, 32);
             v.meLabel = AutoSize(Txt(meLabel, "", FontXB, 30, Pal.Ink, 222, 31, 320, 60, TA.Left), 20);
 
             v.masks = new[] { Art("mask_crown"), Art("mask_fanous"), Art("mask_stars") };
@@ -391,6 +434,7 @@ namespace FairyTales.Lessons.EditorTools
                 rings.Add(ring.Go);
                 var b = Circle(me, "Mask" + (i + 1), Color.white, 720, y, 100);
                 Img(b, "Icon", v.masks[i], 50, 50, 74, 74);
+                OutlineRound(b);
                 buttons.Add(Clickable(b));
                 ring.Go.SetActive(i == 0);
             }
@@ -404,22 +448,25 @@ namespace FairyTales.Lessons.EditorTools
 
             var micHolder = Node(bottom, "MicHolder", 960, 160, 360, 300);
             v.micPulse = Circle(micHolder, "Pulse", new Color(Pal.Rose.r, Pal.Rose.g, Pal.Rose.b, 0.35f), 180, 150, 270).Rt;
-            Shadow(micHolder, 180, 150, 150, 150, 0.2f, 12);
+            Shadow(micHolder, 180, 160, 150, 150, 0.2f, 12);
+            Circle(micHolder, "MicBase", Pal.RoseDark, 180, 162, 190);
+            SketchFrame(micHolder, 180, 162, 190, 190, 95);
             var micButton = Circle(micHolder, "MicButton", Pal.Rose, 180, 150, 190);
             Img(micButton, "Icon", Art("icon_mic"), 95, 95, 118, 118);
+            OutlineRound(micButton);
             v.mic = Clickable(micButton);
             // Not yet listening (the video plays): the button stays rose, just doesn't react.
             var micColors = v.mic.colors;
             micColors.disabledColor = Color.white;
             v.mic.colors = micColors;
-            v.hint = AutoSize(Txt(bottom, "", FontXB, 40, Pal.Ink, 1290, 160, 460, 130, TA.Left), 26);
+            v.hint = AutoSize(Txt(bottom, "", FontXB, 40, Pal.Ink, 1320, 160, 460, 130, TA.Left), 26);
             Label(v.hint, "repeat_hint");
             v.said = Raised(bottom, "Said", "repeat_said", Pal.Green, 1460, 160, 420, 110, A.C, null, 42);
 
             // ── «Послушай себя!» ──
             var listen = Node(bottom, "ListenBar", 820, 180, 1040, 180);
             v.listenBar = listen.Go;
-            var card = Card(listen, "Card", 520, 90, 1040, 180, 90);
+            var card = Sticker(listen, "Card", 520, 90, 1040, 180, 90, Color.white, 10);
             v.listenPlay = Icon(card, "Play", Shapes.Triangle, Pal.Rose, Color.white, 100, 90, 130, A.C, 0.42f);
             Label(AutoSize(Txt(card, "", FontXB, 44, Pal.Ink, 480, 52, 520, 64, TA.Left), 30), "repeat_listen");
             var wave = Node(card, "Waveform", 510, 122, 620, 80);
@@ -458,7 +505,7 @@ namespace FairyTales.Lessons.EditorTools
             Label(AutoSize(Txt(box, "", FontXB, 42, Pal.Ink, 260, 63, 470, 110), 28), "repeat_bubble");
             v.introBubble = bubble.Rt;
 
-            var card = Card(safe, "PhraseCard", 990, 255, 560, 236, 48, null, 0.16f, A.T);
+            var card = Sticker(safe, "PhraseCard", 990, 255, 560, 236, 48, Color.white, 10, A.T);
             v.introAr = Txt(card, "بِسْمِ ٱللَّٰهِ", FontAr, 80, Pal.LavDeep, 280, 78, 520, 112);
             v.introTranslit = AutoSize(Txt(card, "Бисмиллях", FontXB, 52, Pal.Ink, 280, 160, 520, 66), 34);
             v.introMeaning = AutoSize(Txt(card, "«Во имя Аллаха»", FontM, 30, Pal.Sub, 280, 208, 520, 40), 22);
@@ -480,23 +527,24 @@ namespace FairyTales.Lessons.EditorTools
         {
             var p = Fill(r, "Permissions");
             v.permissions = p.Go;
-            var bg = Fill(p, "Background");
-            AddImage(bg, Shapes.Gradient("lavsoft", Color.white, Pal.LavSoft), Color.white).raycastTarget = true;
+            Painted(p, "lavsoft", Color.white, Pal.LavSoft, 0.12f, true);
             var safe = Safe(p);
-            Label(Txt(safe, "", FontXB, 30, Pal.Rose, 960, 120, 800, 50, TA.Center, A.T), "perm_for_parents");
-            Label(AutoSize(Txt(safe, "", FontXB, 64, Pal.Ink, 960, 195, 1400, 90, TA.Center, A.T), 40), "perm_title");
+            // Everything hangs from the top, the buttons from the bottom: wide phones are shorter.
+            Label(Txt(safe, "", FontXB, 30, Pal.Rose, 960, 146, 800, 50, TA.Center, A.T), "perm_for_parents");
+            Label(AutoSize(Txt(safe, "", FontXB, 60, Pal.Ink, 960, 208, 1400, 80, TA.Center, A.T), 40), "perm_title");
             var rows = new[] { ("icon_camera", "perm_camera", "perm_camera_note"), ("icon_mic", "perm_mic", "perm_mic_note") };
             for (int i = 0; i < 2; i++)
             {
-                var c = Card(safe, "Row" + (i + 1), 960, 385 + i * 168, 1240, 150, 44);
-                Rect(c, "IconBg", i == 0 ? Pal.Sky : Pal.RoseSoft, 95, 75, 110, 110, 32);
-                Img(c, "Icon", Art(rows[i].Item1), 95, 75, 88, 88);
-                Label(Txt(c, "", FontXB, 40, Pal.Ink, 700, 44, 960, 56, TA.Left), rows[i].Item2);
-                Label(AutoSize(Txt(c, "", FontM, 29, Pal.Sub, 700, 100, 960, 64, TA.TopLeft), 22), rows[i].Item3);
+                var c = Sticker(safe, "Row" + (i + 1), 960, 345 + i * 152, 1240, 132, 44, Color.white, 8, A.T);
+                Rect(c, "IconBg", i == 0 ? Pal.Sky : Pal.RoseSoft, 95, 66, 104, 104, 30);
+                Img(c, "Icon", Art(rows[i].Item1), 95, 66, 84, 84);
+                Label(Txt(c, "", FontXB, 40, Pal.Ink, 700, 40, 960, 56, TA.Left), rows[i].Item2);
+                Label(AutoSize(Txt(c, "", FontM, 29, Pal.Sub, 700, 92, 960, 56, TA.TopLeft), 22), rows[i].Item3);
             }
-            var note = Rect(safe, "PrivacyNote", Pal.Hex("E6F6EC"), 960, 700, 1240, 88, 34);
-            Img(note, "Lock", Shapes.Lock, 70, 44, 50, 50, A.C, Pal.GreenDark);
-            Label(AutoSize(Txt(note, "", FontB, 32, Pal.GreenDark, 660, 44, 1060, 76, TA.Left), 22), "perm_privacy");
+            var note = Rect(safe, "PrivacyNote", Pal.Hex("E6F6EC"), 960, 610, 1240, 84, 34, A.T);
+            Img(note, "Lock", Shapes.Lock, 70, 42, 50, 50, A.C, Pal.GreenDark);
+            Outline(note, 34);
+            Label(AutoSize(Txt(note, "", FontB, 32, Pal.GreenDark, 660, 42, 1060, 72, TA.Left), 22), "perm_privacy");
             v.permAllow = Raised(safe, "Allow", "perm_allow", Pal.Rose, 790, 950, 460, 110, A.B, null, 44);
             v.permNoCamera = Raised(safe, "NoCamera", "perm_no_camera", Color.white, 1240, 950, 400, 110, A.B, Pal.Ink, 40);
         }
@@ -507,8 +555,7 @@ namespace FairyTales.Lessons.EditorTools
         {
             var r = View(steps, "Quiz");
             v.root = r.Go;
-            var bg = Fill(r, "Background");
-            AddImage(bg, Shapes.Gradient("sky", Pal.Hex("DCEFFD"), Pal.Sky), Color.white);
+            Painted(r, "sky", Pal.Hex("DCEFFD"), Pal.Sky, 0.16f);
             var safe = Safe(r);
 
             v.question = AutoSize(Txt(safe, "", FontXB, 62, Pal.Ink, 960, 210, 1300, 110, TA.Center, A.T), 40);
@@ -520,14 +567,15 @@ namespace FairyTales.Lessons.EditorTools
                 float x = 960 + (i - 1) * 520;
                 var holder = Node(safe, "Option" + (i + 1), x, 610, 520, 600);
                 var c = new QuizCard { rect = holder.Rt, group = holder.Go.AddComponent<CanvasGroup>() };
-                c.hintGlow = Rect(holder, "HintGlow", Pal.Yellow, 260, 300, 490, 560, 58).Go.GetComponent<Image>();
-                c.correctGlow = Rect(holder, "CorrectGlow", Pal.Green, 260, 300, 490, 560, 58).Go;
-                var card = Card(holder, "Card", 260, 300, 450, 520, 46, null, 0.14f);
+                c.hintGlow = Rect(holder, "HintGlow", Pal.Yellow, 260, 306, 500, 584, 62).Go.GetComponent<Image>();
+                c.correctGlow = Rect(holder, "CorrectGlow", Pal.Green, 260, 306, 500, 584, 62).Go;
+                var card = Sticker(holder, "Card", 260, 300, 450, 520, 46, Color.white, 12);
                 c.button = Clickable(card);
                 Picture(card, "Picture", 225, 205, 390, 340, 34, A.C, Pal.LavSoft, out c.picture, out c.pictureFit);
                 c.caption = AutoSize(Txt(card, "", FontXB, 36, Pal.Ink, 225, 445, 400, 100), 26);
                 var check = Circle(holder, "Check", Pal.Green, 450, 60, 96);
                 Img(check, "Mark", Shapes.Check, 48, 50, 60, 60, A.C, Color.white);
+                OutlineRound(check);
                 c.check = check.Rt;
                 c.hintGlow.gameObject.SetActive(false);
                 c.correctGlow.SetActive(false);
@@ -540,6 +588,7 @@ namespace FairyTales.Lessons.EditorTools
             v.toast = toast.Rt;
             v.toastBg = toast.Go.GetComponent<Image>();
             v.toastText = AutoSize(Txt(toast, "", FontXB, 44, Color.white, 340, 50, 640, 90), 30);
+            Outline(toast, 52);
             v.toastCorrect = Pal.Green;
             v.toastTry = Pal.LavDeep;
             toast.Go.SetActive(false);
@@ -551,30 +600,31 @@ namespace FairyTales.Lessons.EditorTools
         {
             var r = View(steps, "Deed");
             v.root = r.Go;
-            var bg = Fill(r, "Background");
-            AddImage(bg, Shapes.Gradient("peach_rose", Pal.Peach, Pal.RoseSoft), Color.white);
+            Painted(r, "peach_rose", Pal.Peach, Pal.RoseSoft, 0.16f);
             var safe = Safe(r);
             Img(safe, "Glow", Shapes.Radial("deedglow", new Color(1, 1, 1, 0.85f), new Color(1, 1, 1, 0)), 520, 600, 900, 900, A.L);
             v.momAvatar = AvatarScreenBuilder.Avatar(safe, "Mom", AvatarPerson.Mom, 330, 640, 400, 760, A.L);
             v.childAvatar = AvatarScreenBuilder.Avatar(safe, "Child", AvatarPerson.Child, 580, 720, 330, 540, A.L);
 
-            var card = Card(safe, "DeedCard", 1360, 560, 860, 760, 56, null, 0.18f, A.R);
-            Label(Txt(card, "", FontXB, 32, Pal.Rose, 430, 80, 640, 50), "deed_header");
-            v.listen = Icon(card, "Listen", Shapes.Speaker, Pal.LavSoft, Pal.LavDeep, 770, 80, 90, A.C, 0.5f);
-            v.pictureFrame = Picture(card, "Picture", 430, 235, 440, 230, 32, A.C, Pal.LavSoft, out v.picture, out v.pictureFit).Go;
-            v.title = AutoSize(Txt(card, "", FontXB, 50, Pal.Ink, 430, 425, 760, 150), 32);
+            // 700 high, a little below the middle: clear of the step capsule on short wide phones.
+            var card = Sticker(safe, "DeedCard", 1360, 575, 860, 700, 56, Color.white, 14, A.R);
+            Label(Txt(card, "", FontXB, 32, Pal.Rose, 430, 64, 640, 50), "deed_header");
+            v.listen = Icon(card, "Listen", Shapes.Speaker, Pal.LavSoft, Pal.LavDeep, 770, 66, 90, A.C, 0.5f);
+            v.pictureFrame = Picture(card, "Picture", 430, 196, 400, 200, 32, A.C, Pal.LavSoft, out v.picture, out v.pictureFit).Go;
+            v.title = AutoSize(Txt(card, "", FontXB, 48, Pal.Ink, 430, 368, 760, 130), 30);
 
-            var row = Rect(card, "CheckRow", Pal.LavSoft, 430, 565, 760, 110, 36);
+            var row = Rect(card, "CheckRow", Pal.LavSoft, 430, 500, 760, 106, 36);
             v.checkRow = Clickable(row);
             v.checkRowBg = row.Go.GetComponent<Image>();
-            Rect(row, "Box", Color.white, 70, 55, 64, 64, 16);
+            Outline(row, 36);
+            Outline(Rect(row, "Box", Color.white, 70, 55, 64, 64, 18), 18);
             var mark = Circle(row, "CheckMark", Pal.Green, 70, 55, 64);
             Img(mark, "Mark", Shapes.Check, 32, 34, 40, 40, A.C, Color.white);
             v.checkMark = mark.Go;
             mark.Go.SetActive(false);
             v.checkLabel = AutoSize(Txt(row, LessonStrings.T("deed_check"), FontXB, 38, Pal.Ink, 330, 55, 380, 60, TA.Left), 28);
             v.whoLabel = Label(AutoSize(Txt(row, "", FontM, 26, Pal.Sub, 640, 55, 220, 60, TA.Right), 20), "deed_who");
-            v.done = Raised(card, "Done", "done", Pal.Rose, 430, 685, 420, 100, A.C, null, 44);
+            v.done = Raised(card, "Done", "done", Pal.Rose, 430, 618, 420, 100, A.C, null, 44);
             v.rowIdle = Pal.LavSoft;
             v.rowMarked = Pal.Mint;
         }
@@ -587,17 +637,18 @@ namespace FairyTales.Lessons.EditorTools
             v.root = r.Go;
             var bg = Fill(r, "Background");
             AddImage(bg, Shapes.Radial("reward", Pal.Hex("FFF2C2"), Pal.Orange), Color.white).raycastTarget = true;
+            Paper(bg, Pal.Darker(Pal.Orange, 0.7f), 0.14f);
             Confetti(r, 3, 70, 80, 120, 1840, 980);
             v.confetti = (RectTransform)r.Rt.Find("Confetti");
-            v.rays = Img(r, "Rays", Shapes.Radial("rays", new Color(1, 1, 1, 0.9f), new Color(1, 1, 1, 0)), 960, 340, 800, 800).Rt;
-            v.star = Img(r, "Star", Art("reward_star"), 960, 330, 430, 430).Rt;
+            v.rays = Img(r, "Rays", Shapes.Radial("rays", new Color(1, 1, 1, 0.9f), new Color(1, 1, 1, 0)), 960, 310, 760, 760).Rt;
+            v.star = Img(r, "Star", Art("reward_star"), 960, 300, 400, 400).Rt;
             var safe = Safe(r);
             // The child cheering next to the star (spec: the avatar shows up in the reward).
             AvatarScreenBuilder.Avatar(safe, "Child", AvatarPerson.Child, 250, 720, 330, 560, A.BL);
             var brown = Pal.Hex("5B3410");
-            v.title = AutoSize(Txt(safe, "", FontXB, 92, brown, 960, 640, 1400, 120), 56);
+            v.title = AutoSize(Txt(safe, "", FontXB, 88, brown, 960, 590, 1400, 110), 56);
 
-            var chips = Node(safe, "Chips", 960, 770, 900, 120);
+            var chips = Node(safe, "Chips", 960, 705, 900, 120);
             var chipsLayout = chips.Go.AddComponent<HorizontalLayoutGroup>();
             chipsLayout.childAlignment = TextAnchor.MiddleCenter;
             chipsLayout.spacing = 10;
@@ -605,9 +656,9 @@ namespace FairyTales.Lessons.EditorTools
             chipsLayout.childForceExpandWidth = chipsLayout.childForceExpandHeight = false;
             v.chipStar = Chip(chips, "ChipStar", Art("reward_star"), out v.chipStarText);
             v.chipLeaf = Chip(chips, "ChipLeaf", Art("leaf_green"), out v.chipLeafText);
-            v.again = AutoSize(Txt(safe, "", FontB, 40, brown, 960, 770, 1300, 100), 28);
+            v.again = AutoSize(Txt(safe, "", FontB, 40, brown, 960, 705, 1300, 100), 28);
 
-            var buttons = Node(safe, "Buttons", 960, 960, 1300, 200, A.B);
+            var buttons = Node(safe, "Buttons", 960, 975, 1300, 200, A.B);
             var buttonsLayout = buttons.Go.AddComponent<HorizontalLayoutGroup>();
             buttonsLayout.childAlignment = TextAnchor.MiddleCenter;
             buttonsLayout.spacing = 0;
@@ -621,6 +672,7 @@ namespace FairyTales.Lessons.EditorTools
         {
             var holder = Node(parent, name, 0, 60, 420, 120);
             var pill = Pill(holder, icon, "+1", 210, 60, 360, A.C, null, null, 88);
+            Outline(pill, 44);
             text = pill.Go.GetComponentInChildren<TMP_Text>();
             return holder.Go;
         }
@@ -680,7 +732,7 @@ namespace FairyTales.Lessons.EditorTools
                 ("P3a_RepeatIntro", PrevRepeatIntro), ("P3b_RepeatListen", PrevRepeatListen), ("P3c_Permissions", PrevPermissions),
                 ("P4_Quiz", PrevQuiz), ("P5_Deed", PrevDeed), ("P6_Reward", PrevReward),
                 ("P7_Exit", s => { PrevStory(s); s.exitPopup.SetActive(true); }),
-                ("P8_Resume", s => { PrevPrepare(s); s.prepareTitle.transform.parent.gameObject.SetActive(false); s.resumePopup.SetActive(true); s.resumeNote.text = LessonStrings.T("resume_note", 3, 5); }),
+                ("P8_Resume", s => { PrevPrepare(s); s.prepareCard.SetActive(false); s.resumePopup.SetActive(true); s.resumeNote.text = LessonStrings.T("resume_note", 3, 5); }),
             };
             var scene = EditorSceneManager.NewPreviewScene();
             var rtex = new RenderTexture(1920, 1080, 24, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB) { antiAliasing = 4 };

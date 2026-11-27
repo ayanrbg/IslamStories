@@ -46,6 +46,9 @@ namespace FairyTales.Lessons
         public GameObject chrome;
         public Button close;
         public RectTransform segments;
+        /// <summary>The capsule round the segments; hidden with them (the parent's permission screen).</summary>
+        public GameObject segmentsBar;
+        public GameObject SegmentsBar => segmentsBar != null ? segmentsBar : segments.gameObject;
         public Image segmentTemplate;
         public Color segmentDone = new(0.878f, 0.341f, 0.482f);
         public Color segmentTodo = new(1f, 1f, 1f, 0.75f);
@@ -55,6 +58,8 @@ namespace FairyTales.Lessons
         public Button prepareClose;
         public Image prepareCover;
         public AspectRatioFitter prepareCoverFit;
+        /// <summary>The download card (title, cover, bar), hidden under the resume question.</summary>
+        public GameObject prepareCard;
         public TMP_Text prepareTitle;
         public TMP_Text prepareStatus;
         public GameObject prepareBar;
@@ -153,7 +158,7 @@ namespace FairyTales.Lessons
         {
             Cleanup();
             ShowOnly(prepare: true);
-            prepareTitle.transform.parent.gameObject.SetActive(true);
+            PrepareCard.SetActive(true);
             exitPopup.SetActive(false);
             resumePopup.SetActive(false);
             prepareTitle.text = _launch?.Title ?? "";
@@ -203,7 +208,7 @@ namespace FairyTales.Lessons
                 resumeGo.onClick.AddListener(() => resume = true);
                 resumeRestart.onClick.AddListener(() => resume = false);
                 // The question replaces the download card; the avatars stay around it.
-                prepareTitle.transform.parent.gameObject.SetActive(false);
+                PrepareCard.SetActive(false);
                 resumePopup.SetActive(true);
                 while (resume == null) yield return null;
                 resumePopup.SetActive(false);
@@ -492,6 +497,8 @@ namespace FairyTales.Lessons
         /// A raised button is three siblings — shadow, darker base, face — inside a holder
         /// named "…Holder" (LessonPlayerBuilder). Showing or hiding it means the holder.
         /// </summary>
+        private GameObject PrepareCard => prepareCard != null ? prepareCard : prepareTitle.transform.parent.gameObject;
+
         public static GameObject Holder(Button button)
         {
             var parent = button.transform.parent;

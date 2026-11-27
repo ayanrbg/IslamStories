@@ -195,7 +195,7 @@ namespace FairyTales.Lessons.EditorTools
             var cardHolder = Node(offer, "Card", 960, 600, w + 200, h + 360);
             s.avatarOfferCard = cardHolder.Rt;
             float x = (w + 200) / 2, y = (h + 360) / 2 + 60;
-            var card = Sticker(cardHolder, "Face", x, y, w, h, 56, Color.white, 14);
+            var card = Sticker(cardHolder, "Card", x, y, w, h, 56, Color.white, 14);
 
             // The bust sits on the card's top edge.
             float top = y - h / 2;
@@ -213,19 +213,6 @@ namespace FairyTales.Lessons.EditorTools
             Label(PillText(later), "home_avatar_later");
             s.avatarOfferLater = later.Go.GetComponent<Button>();
             offer.Go.SetActive(false);
-        }
-
-        /// <summary>A sticker card: darker base under it, hand-drawn outlines, a crayon-papered face.</summary>
-        private static Box Sticker(Box p, string name, float cx, float cy, float w, float h, float r, Color fill, float depth, A a = A.C)
-        {
-            Shadow(p, cx, cy + depth, w, h, 0.16f, 12, a);
-            Rect(p, name + "Base", Pal.Darker(fill, 0.8f), cx, cy + depth, w, h, r, a);
-            SketchFrame(p, cx, cy + depth, w, h, r, a);
-            var face = Rect(p, name, fill, cx, cy, w, h, r, a);
-            face.Go.AddComponent<Mask>().showMaskGraphic = true;
-            Paper(face, Pal.Darker(fill, 0.8f), 0.16f);
-            SketchFrame(p, cx, cy, w, h, r, a);
-            return face;
         }
 
         // ─────────────────────────── tree ───────────────────────────

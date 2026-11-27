@@ -192,10 +192,10 @@ namespace FairyTales.Lessons
             if (LessonPermissions.NeedsAsking)
             {
                 permissions.SetActive(true);
-                P.segments.gameObject.SetActive(false); // the parent screen isn't a part of the lesson
+                P.SegmentsBar.SetActive(false); // the parent screen isn't a part of the lesson
                 while (LessonPermissions.NeedsAsking) yield return null;
                 permissions.SetActive(false);
-                P.segments.gameObject.SetActive(true);
+                P.SegmentsBar.SetActive(true);
             }
             else yield return LessonPermissions.Refresh();
 
@@ -658,7 +658,7 @@ namespace FairyTales.Lessons
             _phase = Phase.Idle;
             _resumeListening = false;
             permissions.SetActive(false);
-            if (P.segments != null) P.segments.gameObject.SetActive(true);
+            if (P.segments != null) P.SegmentsBar.SetActive(true);
         }
 
         /// <summary>Called by the player every frame while the step is shown.</summary>

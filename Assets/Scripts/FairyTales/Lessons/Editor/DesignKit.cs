@@ -152,7 +152,7 @@ namespace FairyTales.Lessons.EditorTools
                 float d = RoundRect(x, y, 128, 128, 121, 121, 64);
                 float hw = 4.4f + 1.6f * VNoise(x / 11f, y / 11f, 24);
                 return Mathf.Clamp01(hw - Mathf.Abs(d) + 0.5f) * (0.88f + 0.12f * Hash((int)x, (int)y));
-            }, 100);
+            }, 72); // the corner arc ends 71 px in: a bigger border squares off small circles
             WriteA("paper", 256, 256, (x, y) =>
                 0.5f * VNoise(x / 32f, y / 32f, 8) + 0.3f * VNoise(x / 8f, y / 8f, 32) + 0.2f * Hash((int)x, (int)y));
             WriteA("wave", 1024, 128, (x, y) =>
@@ -601,6 +601,74 @@ namespace FairyTales.Lessons.EditorTools
             img.type = Image.Type.Sliced;
             img.pixelsPerUnitMultiplier = Shapes.SketchRadius / r;
             return b;
+        }
+
+        /// <summary>A full-size child pushed in from each side (negative pushes out); it stretches with its parent.</summary>
+        public static Box Inset(Box p, string name, float left, float top, float right, float bottom)
+        {
+            var go = new GameObject(name, typeof(RectTransform));
+            go.transform.SetParent(p.T, false);
+            var rt = (RectTransform)go.transform;
+            rt.anchorMin = Vector2.zero;
+            rt.anchorMax = Vector2.one;
+            rt.pivot = new Vector2(0.5f, 0.5f);
+            rt.offsetMin = new Vector2(left, bottom);
+            rt.offsetMax = new Vector2(-right, -top);
+            return new Box { Rt = rt, W = p.W - left - right, H = p.H - top - bottom };
+        }
+
+        private static Image Rounded(Box b, Color c, float r, float h)
+        {
+            var img = AddImage(b, Shapes.Rounded, c);
+            img.type = Image.Type.Sliced;
+            img.pixelsPerUnitMultiplier = Shapes.RoundedRadius / Mathf.Min(r, h / 2f);
+            return img;
+        }
+
+        private static Box InsetOutline(Box p, float r, float left, float top, float right, float bottom)
+        {
+            float pad = 7f * r / Shapes.SketchRadius;
+            var b = Inset(p, "Outline", left - pad, top - pad, right - pad, bottom - pad);
+            var img = AddImage(b, Shapes.Sketch, Pal.Outline);
+            img.type = Image.Type.Sliced;
+            img.pixelsPerUnitMultiplier = Shapes.SketchRadius / r;
+            return b;
+        }
+
+        /// <summary>
+        /// A sticker card in one holder named <paramref name="name"/>: soft shadow, a darker
+        /// base under it (thickness), hand-drawn outlines, a crayon-papered face. Every part
+        /// stretches with the holder, so the holder can be stretched or resized freely.
+        /// Returns the face (its parent is the holder); the face clips its children.
+        /// </summary>
+        public static Box Sticker(Box p, string name, float cx, float cy, float w, float h, float r, Color fill,
+            float depth = 10, A a = A.C, float paper = 0.16f, Color? baseColor = null, float shadow = 0.16f)
+        {
+            var holder = Node(p, name, cx, cy, w, h, a);
+            if (shadow > 0)
+            {
+                float dy = depth + 12;
+                var sh = Inset(holder, "Shadow", -35, -35 + dy, -35, -35 - dy);
+                AddImage(sh, Shapes.Shadow, new Color(0.18f, 0.12f, 0.35f, shadow)).type = Image.Type.Sliced;
+            }
+            if (depth > 0)
+            {
+                Rounded(Inset(holder, "Base", 0, depth, 0, -depth), baseColor ?? Pal.Darker(fill, 0.8f), r, h);
+                InsetOutline(holder, r, 0, depth, 0, -depth);
+            }
+            var face = Inset(holder, "Face", 0, 0, 0, 0);
+            Rounded(face, fill, r, h);
+            face.Go.AddComponent<Mask>().showMaskGraphic = true;
+            if (paper > 0) Paper(face, Pal.Darker(fill, 0.8f), paper);
+            InsetOutline(holder, r, 0, 0, 0, 0);
+            return face;
+        }
+
+        /// <summary>The hand-drawn ring around a round thing, as its last child (hides with it).</summary>
+        public static Box OutlineRound(Box round)
+        {
+            float d = Mathf.Min(round.W, round.H);
+            return SketchFrame(round, round.W / 2, round.H / 2, d, d, d / 2);
         }
 
         public static Box Sparkle(Box p, float cx, float cy, float size, A a = A.C, Color? c = null) =>
