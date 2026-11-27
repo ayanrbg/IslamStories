@@ -644,7 +644,7 @@ namespace FairyTales.Lessons.EditorTools
             v.checkMark = mark.Go;
             mark.Go.SetActive(false);
             v.checkLabel = AutoSize(Txt(row, LessonStrings.T("deed_check"), FontXB, 38, Pal.Ink, 330, 55, 380, 60, TA.Left), 28);
-            v.whoLabel = Label(AutoSize(Txt(row, "", FontM, 26, Pal.Sub, 640, 55, 220, 60, TA.Right), 20), "deed_who");
+            v.whoLabel = Label(AutoSize(Txt(row, "", FontM, 26, Pal.Sub, 625, 55, 210, 60, TA.Right), 18), "deed_who");
             v.done = Raised(card, "Done", "done", Pal.Rose, 430, 618, 420, 100, A.C, null, 44);
             v.rowIdle = Pal.LavSoft;
             v.rowMarked = Pal.Mint;

@@ -470,8 +470,20 @@ namespace FairyTales.Lessons.EditorTools
             var mail = so.FindProperty("btnEmail").objectReferenceValue as Button;
             if (settings == null) return "no settings button";
 
+            // After the first install settings already sit in the row: look for it in the bar
+            // above, or every reinstall nests one more row with one more home button.
             var bar = settings.transform.parent;
+            while (bar.name == "LeftButtons" && bar.parent != null) bar = bar.parent;
             var row = bar.Find("LeftButtons") as RectTransform;
+            if (row != null)
+            {
+                // Undo the nesting the earlier version left: settings and mail back into the
+                // outer row, the inner rows (each with its own home button) removed.
+                settings.transform.SetParent(row, false);
+                if (mail != null) mail.transform.SetParent(row, false);
+                for (int i = row.childCount - 1; i >= 0; i--)
+                    if (row.GetChild(i).name == "LeftButtons") Object.DestroyImmediate(row.GetChild(i).gameObject);
+            }
             if (row == null)
             {
                 row = new GameObject("LeftButtons", typeof(RectTransform)).GetComponent<RectTransform>();

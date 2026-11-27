@@ -231,6 +231,8 @@ namespace FairyTales.Lessons.EditorTools
             s.bodyHijab = Chip(body, "Hijab", "avatar_body_hijab", 375, 40, 236, out s.bodyHijabBg);
 
             var panel = Card(safe, "Panel", 1370, 560, 880, 820, 56, null, 0.14f, A.R);
+            // On short screens (19.5:9) the panel's top reaches the tabs: keep the tabs above it.
+            tabs.Go.transform.SetAsLastSibling();
             s.title = AutoSize(Txt(panel, "", FontXB, 56, Pal.Ink, 440, 80, 800, 80), 36);
 
             var row = Node(panel, "PhotoButtons", 440, 195, 860, 160);
