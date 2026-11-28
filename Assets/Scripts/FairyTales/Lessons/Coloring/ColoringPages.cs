@@ -16,6 +16,13 @@ namespace FairyTales.Lessons
         public int areas;
         /// <summary>Each area's colour in the original drawing, "#rrggbb" (index 0 = area 1).</summary>
         public string[] colors;
+        /// <summary>
+        /// The path the lesson task «Обведи» follows: round the outside of the biggest drawing,
+        /// along its outline, from the top. Flat x, y pairs in page pixels, y down.
+        /// </summary>
+        public int[] trace;
+
+        public bool CanTrace => trace != null && trace.Length >= 16;
 
         public string Title => LessonStrings.Lang switch
         {
@@ -60,6 +67,8 @@ namespace FairyTales.Lessons
                 return _pages;
             }
         }
+
+        public static ColoringPage Find(string id) => string.IsNullOrEmpty(id) ? null : Array.Find(All, p => p.id == id);
 
         public static Texture2D Lines(ColoringPage page) => Resources.Load<Texture2D>($"Coloring/{page.id}_lines");
 

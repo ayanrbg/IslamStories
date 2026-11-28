@@ -30,6 +30,8 @@ namespace FairyTales.Lessons
         /// <summary>Each area in its original colour instead of <see cref="color"/>.</summary>
         public bool magic;
         public float crayonRadius = 26f;
+        /// <summary>Off when another screen owns the input (the lesson task «Обведи» shows the page only).</summary>
+        public bool interactive = true;
 
         /// <summary>After every fill, stroke and undo.</summary>
         public event Action Changed;
@@ -198,7 +200,7 @@ namespace FairyTales.Lessons
 
         public void OnPointerDown(PointerEventData e)
         {
-            if (Page == null || _pointer != int.MinValue) return;
+            if (Page == null || !interactive || _pointer != int.MinValue) return;
             if (!ToPixel(e, out var p)) return;
             int area = AreaAt(p);
             if (area <= 0) return;
@@ -268,7 +270,23 @@ namespace FairyTales.Lessons
         private void StartFill(int area, Vector2 from)
         {
             Remember(area);
-            int a = _start[area], b = _start[area + 1];
+            Spread(_start[area], _start[area + 1], from, -1f, color, magic);
+        }
+
+        /// <summary>
+        /// The whole drawing (not the outside) takes its original colours, spreading from
+        /// <paramref name="from"/> (texture pixels, y up) over <paramref name="seconds"/>.
+        /// </summary>
+        public void Reveal(Vector2 from, float seconds)
+        {
+            if (Page == null || _start.Length < 4) return;
+            FinishFill();
+            Spread(_start[2], _start[_start.Length - 1], from, seconds, color, true);
+        }
+
+        /// <summary>Paints _order[a..b) in a circle growing from <paramref name="from"/>; time &lt; 0 = by size.</summary>
+        private void Spread(int a, int b, Vector2 from, float time, Color32 c, bool useMagic)
+        {
             _fillCount = b - a;
             if (_fillLeft == null || _fillLeft.Length < _fillCount) _fillLeft = new int[Mathf.Max(_fillCount, 1024)];
             Array.Copy(_order, a, _fillLeft, 0, _fillCount);
@@ -281,13 +299,13 @@ namespace FairyTales.Lessons
                 float d2 = dx * dx + dy * dy;
                 if (d2 > reach) reach = d2;
             }
-            _fillArea = area;
+            _fillArea = Mathf.Max(0, a);
             _fillFrom = from;
             _fillReach = Mathf.Sqrt(reach) + 2f;
             _fillT = 0;
-            _fillTime = Mathf.Clamp(_fillReach / 1400f, 0.18f, 0.5f);
-            _fillColor = color;
-            _fillMagic = magic;
+            _fillTime = time > 0 ? time : Mathf.Clamp(_fillReach / 1400f, 0.18f, 0.5f);
+            _fillColor = c;
+            _fillMagic = useMagic;
         }
 
         private void Update()

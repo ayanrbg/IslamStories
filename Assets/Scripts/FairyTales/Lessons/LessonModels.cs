@@ -127,6 +127,7 @@ namespace FairyTales.Lessons
         public const string Repeat = "repeat";
         public const string Quiz = "quiz";
         public const string Deed = "deed";
+        public const string Trace = "trace";
         public const string Reward = "reward";
     }
 
@@ -216,6 +217,20 @@ namespace FairyTales.Lessons
         public string image;
     }
 
+    /// <summary>
+    /// «Обведи»: the child runs a finger round a drawing; once round, the drawing fills with
+    /// colour. The drawing is a coloring page bundled with the app (Resources/Coloring), so a
+    /// lesson only names it — no media to download.
+    /// </summary>
+    [Serializable, Preserve]
+    public class TraceStep : LessonStep
+    {
+        /// <summary>The task, narrated: «Обведи фонарик пальчиком».</summary>
+        public string text;
+        /// <summary>Coloring page id: lantern, heart, moon, crown, gift, mosque…</summary>
+        public string page;
+    }
+
     [Serializable, Preserve]
     public class RewardStep : LessonStep { }
 
@@ -243,6 +258,7 @@ namespace FairyTales.Lessons
                     LessonStepType.Repeat => obj.ToObject<RepeatStep>(serializer),
                     LessonStepType.Quiz => obj.ToObject<QuizStep>(serializer),
                     LessonStepType.Deed => obj.ToObject<DeedStep>(serializer),
+                    LessonStepType.Trace => obj.ToObject<TraceStep>(serializer),
                     LessonStepType.Reward => obj.ToObject<RewardStep>(serializer),
                     _ => null,
                 };
@@ -299,5 +315,6 @@ namespace FairyTales.Lessons
         public static string Question(QuizStep step) => $"s{step.index}.q";
         public static string Option(QuizStep step, int option) => $"s{step.index}.o{option}";
         public static string Deed(DeedStep step) => $"s{step.index}.deed";
+        public static string Trace(TraceStep step) => $"s{step.index}.trace";
     }
 }

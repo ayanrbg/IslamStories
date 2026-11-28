@@ -1,6 +1,7 @@
 // Coloring pages from the crayon art: the drawings' dark outlines become clean line art, the
 // spaces between them become the areas a tap fills. Writes, per page, into Assets/Resources/Coloring/:
 //   <id>_lines.png       black lines on transparency (what the child sees on top)
+//   (pages.json also has «trace»: the path for the lesson task «Обведи»)
 //   <id>_regions.bytes   a lossless PNG: area number per pixel in R + G*256 (0 = none); line pixels
 //                        belong to the nearest area so a fill runs under the line without a gap
 // and pages.json with the titles, sizes and each area's original colour (the magic crayon).
@@ -113,6 +114,65 @@ function boxBlur(src, r) { // Float32 in/out, separable, two passes ≈ gaussian
     a = c; b = new Float32Array(W * H);
   }
   return a;
+}
+
+// The path a finger traces in the lesson task «Обведи»: the outer edge of the page's biggest
+// drawing, run along the middle of its outline, smoothed, a point every STEP px, starting at
+// the top and going round once. Flat [x0, y0, x1, y1, …] in page pixels, y down.
+const STEP = 14;
+function tracePath(reg) {
+  let obj = new Uint8Array(W * H);
+  for (let i = 0; i < W * H; i++) obj[i] = reg[i] !== 1 ? 1 : 0;
+  const c = components(obj, 1);
+  let best = 1; for (let k = 2; k <= c.n; k++) if (c.sizes[k] > c.sizes[best]) best = k;
+  obj = obj.map((v, i) => (c.lab[i] === best ? 1 : 0));
+  // Round off notches a finger can't follow, then step in onto the middle of the line.
+  obj = erode(dilate(obj, 10), 10);
+  obj = erode(obj, 5);
+  // Holes the closing made don't matter: only the outer boundary is walked.
+  let start = -1;
+  for (let i = 0; i < W * H && start < 0; i++) if (obj[i]) start = i;
+  if (start < 0) return [];
+  // Moore-neighbour walk, clockwise on screen.
+  const dx = [1, 1, 0, -1, -1, -1, 0, 1], dy = [0, 1, 1, 1, 0, -1, -1, -1];
+  const at = (x, y) => x >= 0 && y >= 0 && x < W && y < H && obj[y * W + x];
+  let x = start % W, y = (start / W) | 0, dir = 7;
+  const chain = [];
+  for (let guard = 0; guard < W * H; guard++) {
+    chain.push([x, y]);
+    let found = false;
+    for (let t = 0; t < 8; t++) {
+      const d = (dir + 6 + t) % 8; // start looking back-left of where we came from
+      if (at(x + dx[d], y + dy[d])) { x += dx[d]; y += dy[d]; dir = d; found = true; break; }
+    }
+    if (!found) break;
+    if (x === start % W && y === ((start / W) | 0) && chain.length > 2) break;
+  }
+  // Smooth (circular moving average), then resample by arc length.
+  const n = chain.length, win = 9, sm = [];
+  for (let i = 0; i < n; i++) {
+    let sx = 0, sy = 0;
+    for (let k = -win; k <= win; k++) { const q = chain[(i + k + n) % n]; sx += q[0]; sy += q[1]; }
+    sm.push([sx / (2 * win + 1), sy / (2 * win + 1)]);
+  }
+  sm.push(sm[0]);
+  const out = [sm[0]];
+  let carry = 0;
+  for (let i = 1; i < sm.length; i++) {
+    let [ax, ay] = sm[i - 1]; const [bx, by] = sm[i];
+    let seg = Math.hypot(bx - ax, by - ay);
+    while (carry + seg >= STEP) {
+      const t = (STEP - carry) / seg;
+      ax += (bx - ax) * t; ay += (by - ay) * t;
+      out.push([ax, ay]);
+      seg = Math.hypot(bx - ax, by - ay); carry = 0;
+    }
+    carry += seg;
+  }
+  // Start at the top, the way children begin.
+  let top = 0; for (let i = 1; i < out.length; i++) if (out[i][1] < out[top][1]) top = i;
+  const ordered = out.slice(top).concat(out.slice(0, top));
+  return ordered.flatMap(([px, py]) => [Math.round(px), Math.round(py)]);
 }
 
 const hex = (r, g, b) => '#' + [r, g, b].map((v) => Math.round(v).toString(16).padStart(2, '0')).join('');
@@ -251,7 +311,13 @@ async function page(p) {
     }
     await sharp(pv, { raw: { width: W, height: H, channels: 3 } }).png().toFile(path.join(PREVIEW, `${p.id}_areas.png`));
   }
-  return { id: p.id, title: { ru: p.ru, kz: p.kz, en: p.en }, width: W, height: H, areas: n, colors: colors.slice(1) };
+  const trace = tracePath(reg);
+  if (PREVIEW) {
+    const svg = `<svg width="${W}" height="${H}"><polyline points="${trace.join(',')}" fill="none" stroke="#e0577b" stroke-width="5"/>` +
+      `<circle cx="${trace[0]}" cy="${trace[1]}" r="16" fill="#3fb673"/></svg>`;
+    await sharp(path.join(PREVIEW, `${p.id}_areas.png`)).composite([{ input: Buffer.from(svg) }]).toFile(path.join(PREVIEW, `${p.id}_trace.png`));
+  }
+  return { id: p.id, title: { ru: p.ru, kz: p.kz, en: p.en }, width: W, height: H, areas: n, colors: colors.slice(1), trace };
 }
 
 (async () => {

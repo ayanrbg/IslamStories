@@ -48,7 +48,7 @@ namespace FairyTales.Lessons.EditorTools
         /// <summary>Line art as plain textures with mipmaps (shown big on the page and small in the gallery).</summary>
         public static void ImportPages()
         {
-            foreach (var n in new[] { "icon_bucket", "icon_crayon", "icon_undo", "icon_magic", "coloring_tile" })
+            foreach (var n in new[] { "icon_bucket", "icon_crayon", "icon_undo", "icon_magic", "icon_hand", "coloring_tile" })
             {
                 var path = $"{ArtDir}/{n}.png";
                 if (AssetImporter.GetAtPath(path) is TextureImporter ti

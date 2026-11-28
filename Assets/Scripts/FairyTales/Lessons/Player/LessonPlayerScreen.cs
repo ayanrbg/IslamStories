@@ -88,6 +88,7 @@ namespace FairyTales.Lessons
         public RepeatStepView repeat = new();
         public QuizStepView quiz = new();
         public DeedStepView deed = new();
+        public TraceStepView trace = new();
         public RewardStepView reward = new();
 
         // ─────────────────────────── state ───────────────────────────
@@ -152,7 +153,7 @@ namespace FairyTales.Lessons
             segmentTemplate.gameObject.SetActive(false);
         }
 
-        private IEnumerable<LessonStepView> Views => new LessonStepView[] { story, repeat, quiz, deed, reward };
+        private IEnumerable<LessonStepView> Views => new LessonStepView[] { story, repeat, quiz, deed, trace, reward };
 
         protected override void OnPrepare()
         {
@@ -336,6 +337,7 @@ namespace FairyTales.Lessons
             RepeatStep => repeat,
             QuizStep => quiz,
             DeedStep => deed,
+            TraceStep => trace,
             RewardStep => reward,
             _ => null,
         };

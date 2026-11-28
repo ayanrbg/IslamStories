@@ -43,6 +43,20 @@ const ICONS = {
   icon_undo: svg(`
     <path d="M86 92 L196 92 Q232 92 232 134 Q232 176 196 176 L104 176" fill="none" stroke="${INK}" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/>
     <path d="M100 48 L42 92 L100 136 Z" fill="${INK}" stroke="${INK}" stroke-width="14" stroke-linejoin="round"/>`),
+  // A pointing hand for the «Обведи» hint; the fingertip is near (100, 30) — the builder pivots there.
+  icon_hand: svg(`
+    <g transform="rotate(-14 128 128)">
+      <rect x="96" y="20" width="40" height="130" rx="20" fill="#FFD3B0" filter="url(#g)"/>
+      <rect x="96" y="20" width="40" height="130" rx="20" fill="none" ${S}/>
+      <rect x="92" y="108" width="112" height="104" rx="36" fill="#FFD3B0" filter="url(#g)"/>
+      <rect x="92" y="108" width="112" height="104" rx="36" fill="none" ${S}/>
+      <rect x="96" y="20" width="40" height="100" rx="20" fill="#FFD3B0"/>
+      <path d="M136 112 L136 108" stroke="${INK}" stroke-width="11" stroke-linecap="round"/>
+      <path d="M150 140 Q176 132 200 142 M150 168 Q176 160 200 170" fill="none" stroke="${INK}" stroke-width="8" stroke-linecap="round"/>
+      <path d="M92 168 Q118 150 150 176" fill="none" stroke="${INK}" stroke-width="8" stroke-linecap="round"/>
+      <rect x="104" y="206" width="88" height="34" rx="10" fill="#CDBEF6" filter="url(#g)"/>
+      <rect x="104" y="206" width="88" height="34" rx="10" fill="none" ${S}/>
+    </g>`),
   // A wand with a star and two sparkles.
   icon_magic: svg(`
     <path d="M60 214 L150 124" stroke="${INK}" stroke-width="30" stroke-linecap="round"/>

@@ -64,6 +64,7 @@ namespace FairyTales.Lessons.EditorTools
                 BuildRepeat(steps, screen.repeat);
                 BuildQuiz(steps, screen.quiz);
                 BuildDeed(steps, screen.deed);
+                BuildTrace(steps, screen.trace);
                 BuildReward(steps, screen.reward);
                 BuildChrome(root, screen);
                 BuildPrepare(root, screen);
@@ -648,6 +649,67 @@ namespace FairyTales.Lessons.EditorTools
             v.done = Raised(card, "Done", "done", Pal.Rose, 430, 618, 420, 100, A.C, null, 44);
             v.rowIdle = Pal.LavSoft;
             v.rowMarked = Pal.Mint;
+        }
+
+        // ─────────────────────────── Обведи ───────────────────────────
+
+        private static void BuildTrace(Box steps, TraceStepView v)
+        {
+            var r = View(steps, "Trace");
+            v.root = r.Go;
+            Painted(r, "mint_sky", Pal.Hex("E3F6EA"), Pal.Hex("D6ECFF"), 0.16f);
+            var safe = Safe(r);
+            v.title = AutoSize(Txt(safe, "", FontXB, 58, Pal.Ink, 960, 150, 1300, 100, TA.Center, A.T), 38);
+            v.listen = Icon(safe, "Listen", Shapes.Speaker, Color.white, Pal.LavDeep, 1760, 150, 100, A.TR, 0.5f);
+
+            // The finger is caught a good way past the picture, so a stroke along the edge keeps going.
+            const float pw = 880, ph = 660, cx = 960, cy = 640;
+            var pad = Node(safe, "Pad", cx, cy, pw + 320, ph + 180);
+            AddImage(pad, null, new Color(1, 1, 1, 0)).raycastTarget = true;
+            v.pad = pad.Go.AddComponent<TracePad>();
+
+            var face = Sticker(safe, "Card", cx, cy, pw + 24, ph + 24, 40, Color.white, 10, A.C, 0f);
+            var pic = Node(face, "Picture", (pw + 24) / 2, (ph + 24) / 2, pw, ph);
+            var paint = pic.Go.AddComponent<RawImage>();
+            paint.raycastTarget = false;
+            var canvas = pic.Go.AddComponent<ColoringCanvas>();
+            canvas.paint = paint;
+            canvas.interactive = false;
+            RawImage Layer(string name)
+            {
+                var b = Fill(pic, name);
+                var img = b.Go.AddComponent<RawImage>();
+                img.raycastTarget = false;
+                return img;
+            }
+            canvas.lines = Layer("Lines");
+            v.picture = canvas;
+            v.guide = Layer("Guide");
+            v.ink = Layer("Ink");
+
+            var dot = Circle(pic, "Dot", Pal.Green, pw / 2, ph / 2, 58);
+            Circle(dot, "Core", Color.white, 29, 29, 22);
+            OutlineRound(dot);
+            v.dot = dot.Rt;
+            var hand = Img(pic, "Hand", Art("icon_hand"), pw / 2, ph / 2, 150, 150);
+            hand.Rt.pivot = new Vector2(0.39f, 0.88f);
+            v.hand = hand.Rt;
+            hand.Go.SetActive(false);
+
+            var spark = Node(safe, "Sparkles", cx, cy, pw, ph);
+            v.sparkles = spark.Rt;
+            v.sparkleTemplate = Img(spark, "Sparkle", Shapes.Sparkle, pw / 2, ph / 2, 70, 70).Go.GetComponent<Image>();
+
+            // Over the task line once it is done, clear of the picture.
+            var banner = Node(safe, "Done", 960, 150, 760, 140, A.T);
+            var bannerFace = Sticker(banner, "Card", 380, 70, 720, 110, 55, Pal.Green, 8, A.C, 0.1f);
+            Label(AutoSize(Txt(bannerFace, "", FontXB, 48, Color.white, 360, 54, 660, 96), 30), "trace_done");
+            v.doneBanner = banner.Rt;
+            banner.Go.SetActive(false);
+
+            v.next = NextArrow(safe, 1780, 900, 170, A.BR);
+            v.guideColor = new Color(Pal.LavDeep.r, Pal.LavDeep.g, Pal.LavDeep.b, 0.75f);
+            v.inkColor = Pal.Rose;
         }
 
         // ─────────────────────────── 5. Награда ───────────────────────────

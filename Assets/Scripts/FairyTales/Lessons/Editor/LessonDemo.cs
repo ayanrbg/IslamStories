@@ -32,7 +32,7 @@ namespace FairyTales.Lessons.EditorTools
         };
 
         private static readonly Dictionary<string, (string[] pages, string friend, string translit, string meaning,
-            string question, string[] options, string deed, string leaf, string title)> Texts = new()
+            string question, string[] options, string deed, string leaf, string title, string trace)> Texts = new()
         {
             ["ru"] = (new[]
                 {
@@ -42,7 +42,8 @@ namespace FairyTales.Lessons.EditorTools
                 "Юсуф", "Бисмиллях", "Во имя Аллаха",
                 "Что говорит {childName} перед едой?",
                 new[] { "Смотрит мультик", "Говорит «Бисмиллях»", "Чистит зубы" },
-                "Скажите «Бисмиллях» вместе перед обедом", "Бисмиллях перед едой", "Бисмиллях"),
+                "Скажите «Бисмиллях» вместе перед обедом", "Бисмиллях перед едой", "Бисмиллях",
+                "Обведи фонарик пальчиком — и он засияет!"),
             ["kz"] = (new[]
                 {
                     "{childName} түскі асқа отырды. Анасы күлімсіреп: «Тамақ алдында не айтамыз?» — деді.",
@@ -51,7 +52,8 @@ namespace FairyTales.Lessons.EditorTools
                 "Жүсіп", "Бисмиллә", "Алланың атымен",
                 "{childName} тамақ алдында не айтады?",
                 new[] { "Мультфильм көреді", "«Бисмиллә» дейді", "Тісін тазалайды" },
-                "Түскі ас алдында бірге «Бисмиллә» деңіздер", "Тамақ алдында Бисмиллә", "Бисмиллә"),
+                "Түскі ас алдында бірге «Бисмиллә» деңіздер", "Тамақ алдында Бисмиллә", "Бисмиллә",
+                "Шамның шетін саусағыңмен сыз — ол жарқырайды!"),
             ["en"] = (new[]
                 {
                     "{childName} sat down for lunch. Mum smiled: \"What do we say before we eat?\"",
@@ -60,7 +62,8 @@ namespace FairyTales.Lessons.EditorTools
                 "Yusuf", "Bismillah", "In the name of Allah",
                 "What does {childName} say before eating?",
                 new[] { "Watches cartoons", "Says \"Bismillah\"", "Brushes teeth" },
-                "Say \"Bismillah\" together before lunch", "Bismillah before meals", "Bismillah"),
+                "Say \"Bismillah\" together before lunch", "Bismillah before meals", "Bismillah",
+                "Trace the lantern with your finger, and it will light up!"),
         };
 
         [MenuItem("Nooria/Lessons/Install demo lesson")]
@@ -114,6 +117,7 @@ namespace FairyTales.Lessons.EditorTools
                             new { text = t.options[1], image = "quiz_plate", correct = true },
                             new { text = t.options[2], image = "quiz_brush", correct = false },
                         } },
+                        new { type = "trace", text = t.trace, page = "lantern" },
                         new { type = "deed", title = t.deed, leafLabel = t.leaf, image = "deed" },
                         new { type = "reward" },
                     },

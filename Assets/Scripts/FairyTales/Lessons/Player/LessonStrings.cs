@@ -115,6 +115,7 @@ namespace FairyTales.Lessons
             ["home_coloring"] = ("Раскраски", "Боямалар", "Coloring"),
             ["coloring_title"] = ("Раскраски", "Боямалар", "Coloring pages"),
             ["coloring_done"] = ("Машаллах, как красиво!", "Машаллах, қандай әдемі!", "MashaAllah, so beautiful!"),
+            ["trace_done"] = ("Машаллах, получилось!", "Машаллах, жасадың!", "MashaAllah, you did it!"),
             ["coloring_broken"] = ("Эта раскраска не открылась", "Бұл бояма ашылмады", "This page didn't open"),
             ["home_tree_soon"] = ("Дерево добрых дел скоро вырастет здесь", "Игі істер ағашы жақында осында өседі",
                 "The tree of good deeds will grow here soon"),
