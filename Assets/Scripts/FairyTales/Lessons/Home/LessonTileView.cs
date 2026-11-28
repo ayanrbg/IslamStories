@@ -24,6 +24,8 @@ namespace FairyTales.Lessons
         private const float PillPadding = 50f;
         /// <summary>Widest the label pill may grow (0 = the tile width minus room for the corner badge).</summary>
         public float maxLabelWidth;
+        /// <summary>How far a long title may shrink before it gets an ellipsis.</summary>
+        public float minLabelScale = 0.7f;
         private float _fontSize;
 
         public void SetPicture(Sprite sprite)
@@ -53,7 +55,7 @@ namespace FairyTales.Lessons
             {
                 label.enableAutoSizing = true;
                 label.fontSizeMax = _fontSize;
-                label.fontSizeMin = _fontSize * 0.7f;
+                label.fontSizeMin = _fontSize * minLabelScale;
             }
             var left = labelPill.anchoredPosition.x - labelPill.sizeDelta.x / 2;
             labelPill.sizeDelta = new Vector2(w, labelPill.sizeDelta.y);

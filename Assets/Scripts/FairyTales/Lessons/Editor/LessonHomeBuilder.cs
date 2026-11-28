@@ -135,6 +135,8 @@ namespace FairyTales.Lessons.EditorTools
         // there, not at the notch); rows start at the safe edge plus a margin.
         private const float Bleed = 160, RowPad = 110, TileM = 80, Gap = 40;
         private const float PicksH = 320, FamilyH = 280, TopicH = 300, TitleH = 84;
+        /// <summary>Room under the first row: its ▶ hangs below the cards and must clear the family title.</summary>
+        private const float PicksBelow = 110;
 
         private static void BuildHome(Box r, LessonHomeScreen s)
         {
@@ -173,8 +175,27 @@ namespace FairyTales.Lessons.EditorTools
             s.sections = content;
             var c = new Box { Rt = content, W = 1920 + 2 * Bleed, H = 1400 };
 
+            // ── the sea, BEHIND every row: a band of water from under the first row down, like the
+            //    beach in Speech Blubs. Out of the layout; the first row's cards and ▶ overlap its edge. ──
+            const float seaTop = TitleH + PicksH + PicksBelow - 30;
+            var backdrop = Node(c, "Backdrop", c.W / 2, 2000, c.W, 4000, A.T);
+            backdrop.Go.AddComponent<LayoutElement>().ignoreLayout = true;
+            Img(backdrop, "Foam", Shapes.Wave, c.W / 2 - 60, seaTop - 16, c.W + 400, 128, A.T, new Color(1, 1, 1, 0.85f), false);
+            Img(backdrop, "Sea", Shapes.Wave, c.W / 2, seaTop, c.W + 400, 128, A.T, Pal.Hex("A9DCF6"), false);
+            var water = Rect(backdrop, "Water", Pal.Hex("A9DCF6"), c.W / 2, seaTop + 64 + 1700, c.W + 400, 3400, 0, A.T);
+            Paper(water, Pal.Hex("6FB3DE"), 0.14f);
+            var bubbles = Node(backdrop, "Bubbles", c.W / 2, seaTop + 650, c.W, 1100, A.T);
+            var rb = new System.Random(5);
+            for (int i = 0; i < 26; i++)
+            {
+                float d = 10 + (float)rb.NextDouble() * 22;
+                var bub = Circle(bubbles, "Bubble", new Color(1, 1, 1, 0.25f + (float)rb.NextDouble() * 0.3f),
+                    (float)rb.NextDouble() * c.W, (float)rb.NextDouble() * 1100, d);
+                Circle(bub, "Shine", new Color(1, 1, 1, 0.8f), d * 0.32f, d * 0.32f, d * 0.3f);
+            }
+
             // ── «Адиль, это для тебя!»: the child in the lesson of the day, then the activities ──
-            var picks = Section(c, "Picks", PicksH, out s.picksTitle, out var picksRow);
+            var picks = Section(c, "Picks", PicksH, out s.picksTitle, out var picksRow, PicksBelow);
             s.picksTitle.text = "Адиль, это для тебя!";
             s.day = Hero(picksRow, 600, PicksH);
             s.trace = View(Tile(picksRow, "Trace", 0, 0, 340, PicksH, Pal.Hex("B9A3F5"), Art("card_trace"), true, A.C, 52, "Обведи", 30, allBadges: true));
@@ -192,26 +213,9 @@ namespace FairyTales.Lessons.EditorTools
             s.deedsChipText = AutoFit(Txt(chipFace, "Ждёт отметки: 1", FontXB, 26, Color.white, 66 + (cw - 80) / 2, ch / 2 - 1, cw - 86, ch), 18);
             s.deedsChip = chip.Go;
 
-            // ── «Моя семья»: the family as their avatars, on a band of sea like the beach in Speech Blubs ──
+            // ── «Моя семья»: the family as their avatars, on the sea ──
             var family = Section(c, "Family", FamilyH, out var familyTitle, out var familyRow);
             Label(familyTitle, "home_family");
-            var foam = Img(family.box, "Foam", Shapes.Wave, c.W / 2 - 60, -22, c.W + 400, 128, A.T, new Color(1, 1, 1, 0.85f), false);
-            var sea = Img(family.box, "Sea", Shapes.Wave, c.W / 2, -6, c.W + 400, 128, A.T, Pal.Hex("A9DCF6"), false);
-            var water = Rect(family.box, "Water", Pal.Hex("A9DCF6"), c.W / 2, 58 + 1600, c.W + 400, 3200, 0, A.T);
-            Paper(water, Pal.Hex("6FB3DE"), 0.14f);
-            var bubbles = Node(family.box, "Bubbles", c.W / 2, 600, c.W, 1100, A.T);
-            var rb = new System.Random(5);
-            for (int i = 0; i < 26; i++)
-            {
-                float d = 10 + (float)rb.NextDouble() * 22;
-                var bub = Circle(bubbles, "Bubble", new Color(1, 1, 1, 0.25f + (float)rb.NextDouble() * 0.3f),
-                    (float)rb.NextDouble() * c.W, (float)rb.NextDouble() * 1100, d);
-                Circle(bub, "Shine", new Color(1, 1, 1, 0.8f), d * 0.32f, d * 0.32f, d * 0.3f);
-            }
-            foam.Go.transform.SetSiblingIndex(0);
-            sea.Go.transform.SetSiblingIndex(1);
-            water.Go.transform.SetSiblingIndex(2);
-            bubbles.Go.transform.SetSiblingIndex(3);
             var edit = Rect(family.box, "Edit", new Color(1, 1, 1, 0.85f), Bleed + RowPad + 520, TitleH / 2 + 2, 230, 58, 29, A.TL);
             edit.Go.GetComponent<Image>().raycastTarget = true;
             s.familyEdit = edit.Go.AddComponent<Button>();
@@ -306,9 +310,10 @@ namespace FairyTales.Lessons.EditorTools
         /// goes to the page). Cards go into <paramref name="row"/>; their holders carry a
         /// <see cref="TileM"/> margin for the corner badges, which the spacing takes back.
         /// </summary>
-        private static (Box box, ScrollRect scroll) Section(Box content, string name, float cardH, out TMP_Text title, out Box row)
+        private static (Box box, ScrollRect scroll) Section(Box content, string name, float cardH, out TMP_Text title, out Box row,
+            float below = 75)
         {
-            float rowH = cardH + 50, h = TitleH + rowH;
+            float rowH = cardH + below, h = TitleH + rowH;
             var sec = Node(content, name, content.W / 2, h / 2, content.W, h, A.T);
             var shadow = Txt(sec, "", FontXB, 50, Pal.Ink, Bleed + RowPad + 600 + 4, TitleH / 2 + 2 + 5, 1200, 74, TA.Left, A.TL);
             shadow.enableWordWrapping = false;
@@ -334,8 +339,9 @@ namespace FairyTales.Lessons.EditorTools
             cards.sizeDelta = new Vector2(content.W, 0);
             var hl = cards.gameObject.AddComponent<HorizontalLayoutGroup>();
             hl.spacing = Gap - 2 * TileM;
-            hl.padding = new RectOffset((int)(Bleed + RowPad - TileM), (int)(Bleed + RowPad - TileM), 0, 0);
-            hl.childAlignment = TextAnchor.MiddleLeft;
+            // Cards hang from the top of the row (25 px under the title); extra room stays below.
+            hl.padding = new RectOffset((int)(Bleed + RowPad - TileM), (int)(Bleed + RowPad - TileM), (int)(25 - TileM), 0);
+            hl.childAlignment = TextAnchor.UpperLeft;
             hl.childControlWidth = hl.childControlHeight = false;
             hl.childForceExpandWidth = hl.childForceExpandHeight = false;
             cards.gameObject.AddComponent<ContentSizeFitter>().horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
@@ -379,7 +385,7 @@ namespace FairyTales.Lessons.EditorTools
             var hi = Img(face, "Hi", Art("hi_lines"), w * 0.3f, h * 0.2f, 70, 70);
             foreach (var b in new[] { rim.Rt, frame.Rt, child.transform, hi.Rt }) b.SetSiblingIndex(under++);
             // The title sits under the cover, clear of the child and of ▶.
-            t.LabelPill.anchoredPosition += new Vector2(w * 0.36f, 0);
+            t.LabelPill.anchoredPosition += new Vector2(w * 0.31f, 0);
             Sparkle(face, w * 0.4f, h * 0.12f, 30, A.C, Color.white);
             Sparkle(face, w * 0.96f, h * 0.1f, 24, A.C, Pal.Hex("FFE08A"));
             Sparkle(face, w * 0.36f, h * 0.82f, 20, A.C, Color.white);
@@ -388,7 +394,8 @@ namespace FairyTales.Lessons.EditorTools
             badge.Rt.localRotation = Quaternion.Euler(0, 0, 7);
             Label(AutoFit(Txt(badge, "", FontXB, 32, Color.white, 125, 80, 190, 60), 20), "home_lesson_day");
             var view = View(t);
-            view.maxLabelWidth = w * 0.44f;
+            view.maxLabelWidth = w * 0.42f; // ends before ▶
+            view.minLabelScale = 0.55f;
             return view;
         }
 
