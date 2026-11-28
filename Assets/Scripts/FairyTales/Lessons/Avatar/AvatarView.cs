@@ -157,7 +157,11 @@ namespace FairyTales.Lessons
             float bodyH = body.sprite.rect.height / body.sprite.rect.width;
             float hw = headW, hh = headW * headAspect;
             float hx0 = body.neck.x - chin.x * hw + offset.x * hw;
-            float hy0 = body.neck.y * bodyH - chin.y * hh + offset.y * hh;
+            // A photo head is cut at the chin, with no neck. The drawn body starts with a stub of
+            // pale neck under the old drawn chin, so a chin set on its top floats above the collar
+            // (more so on a card the colour of that skin). Set it down onto the collar instead.
+            float drop = !figure && record.kind == AvatarStore.KindPhoto && !record.covered ? PhotoNeckDrop : 0f;
+            float hy0 = body.neck.y * bodyH - chin.y * hh + offset.y * hh + drop;
             float minX = Mathf.Min(0, hasHead ? hx0 : 0), maxX = Mathf.Max(1, hasHead ? hx0 + hw : 1);
             float minY = Mathf.Min(0, hasHead ? hy0 : 0), maxY = Mathf.Max(bodyH, hasHead ? hy0 + hh : bodyH);
             float figW = maxX - minX, figH = maxY - minY;
@@ -186,6 +190,12 @@ namespace FairyTales.Lessons
             else _front.enabled = false;
             LaidOut?.Invoke();
         }
+
+        /// <summary>
+        /// How far the collar sits below the top of a child's body, in body widths (measured on
+        /// the boy's and the girl's bodies: 0.055–0.056). A photo chin goes there, over the stub of drawn neck.
+        /// </summary>
+        private const float PhotoNeckDrop = 0.055f;
 
         /// <summary>A drawn head's face is about this share of its width (hair and scarf around it).</summary>
         private const float DrawnFaceShare = 0.62f;

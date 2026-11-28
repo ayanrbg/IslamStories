@@ -153,6 +153,9 @@ namespace FairyTales.Lessons
             unlock.transform.parent.gameObject.SetActive(!Subscribed);
             page.StopMovement();
             page.verticalNormalizedPosition = 1f;
+            // Small already while the screen slides in; they pop up once it is shown.
+            DOTween.Kill(Life);
+            foreach (var card in PopCards()) card.localScale = Vector3.one * PopFrom;
             RefreshStats();
             if (Catalog == null || Catalog.lang != LessonLang.ContentLang(Loc.Lang))
                 Catalog = LessonHomeCache.LoadCatalog(Loc.Lang);
@@ -396,17 +399,11 @@ namespace FairyTales.Lessons
         {
             DOTween.Kill(Life);
             float delay = 0.05f;
-            foreach (var row in new[] { day.transform.parent, childCard.transform.parent })
+            foreach (var card in PopCards())
             {
-                if (row == null) continue;
-                for (int i = 0; i < row.childCount; i++)
-                {
-                    var card = row.GetChild(i);
-                    if (!card.gameObject.activeSelf) continue;
-                    card.localScale = Vector3.one * 0.86f;
-                    card.DOScale(1f, 0.45f).SetEase(Ease.OutBack).SetDelay(delay).SetId(Life);
-                    delay += 0.06f;
-                }
+                card.localScale = Vector3.one * PopFrom;
+                card.DOScale(1f, 0.45f).SetEase(Ease.OutBack).SetDelay(delay).SetId(Life);
+                delay += 0.06f;
             }
 
             var child = day.transform.Find("Face/Child");
@@ -440,6 +437,17 @@ namespace FairyTales.Lessons
         }
 
         private string Life => "lesson_home_life_" + GetInstanceID();
+        private const float PopFrom = 0.86f;
+
+        private IEnumerable<Transform> PopCards()
+        {
+            foreach (var row in new[] { day.transform.parent, childCard.transform.parent })
+            {
+                if (row == null) continue;
+                for (int i = 0; i < row.childCount; i++)
+                    if (row.GetChild(i).gameObject.activeSelf) yield return row.GetChild(i);
+            }
+        }
 
         // ─────────────────────────── opening ───────────────────────────
 

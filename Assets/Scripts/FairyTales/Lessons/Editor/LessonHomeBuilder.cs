@@ -378,6 +378,8 @@ namespace FairyTales.Lessons.EditorTools
             var child = AvatarScreenBuilder.Avatar(face, "Child", AvatarPerson.Child, w * 0.19f, h * 0.6f, w * 0.38f, h * 1.1f);
             var hi = Img(face, "Hi", Art("hi_lines"), w * 0.3f, h * 0.2f, 70, 70);
             foreach (var b in new[] { rim.Rt, frame.Rt, child.transform, hi.Rt }) b.SetSiblingIndex(under++);
+            // The title sits under the cover, clear of the child and of ▶.
+            t.LabelPill.anchoredPosition += new Vector2(w * 0.36f, 0);
             Sparkle(face, w * 0.4f, h * 0.12f, 30, A.C, Color.white);
             Sparkle(face, w * 0.96f, h * 0.1f, 24, A.C, Pal.Hex("FFE08A"));
             Sparkle(face, w * 0.36f, h * 0.82f, 20, A.C, Color.white);
@@ -385,7 +387,9 @@ namespace FairyTales.Lessons.EditorTools
             var badge = Img(t.Holder, "DayBadge", Art("badge_burst"), TileM + 120, TileM + 10, 250, 250 * 0.7f, A.C, null, false);
             badge.Rt.localRotation = Quaternion.Euler(0, 0, 7);
             Label(AutoFit(Txt(badge, "", FontXB, 32, Color.white, 125, 80, 190, 60), 20), "home_lesson_day");
-            return View(t);
+            var view = View(t);
+            view.maxLabelWidth = w * 0.44f;
+            return view;
         }
 
         /// <summary>A family member as their avatar on a card (or a drawn stand-in for someone not in the app yet).</summary>

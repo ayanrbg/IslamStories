@@ -22,6 +22,8 @@ namespace FairyTales.Lessons
         public GameObject done;
 
         private const float PillPadding = 50f;
+        /// <summary>Widest the label pill may grow (0 = the tile width minus room for the corner badge).</summary>
+        public float maxLabelWidth;
         private float _fontSize;
 
         public void SetPicture(Sprite sprite)
@@ -40,7 +42,7 @@ namespace FairyTales.Lessons
 
             // The pill hugs the text, never wider than the tile leaves room for.
             var parent = (RectTransform)labelPill.parent;
-            float max = parent.rect.width - 150f; // room for the corner badge
+            float max = maxLabelWidth > 0 ? maxLabelWidth : parent.rect.width - 150f; // room for the corner badge
             // A long title shrinks to fit instead of ending in an ellipsis.
             if (_fontSize <= 0) _fontSize = label.fontSize;
             label.enableAutoSizing = false;
