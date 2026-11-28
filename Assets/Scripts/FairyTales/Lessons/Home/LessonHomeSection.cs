@@ -8,6 +8,8 @@ namespace FairyTales.Lessons
     public class LessonHomeSection : MonoBehaviour
     {
         public TMP_Text title;
+        /// <summary>The topic's picture before the title.</summary>
+        public Image icon;
         public ScrollRect scroll;
         public RectTransform row;
         /// <summary>Inactive in the topic template; one clone per lesson.</summary>

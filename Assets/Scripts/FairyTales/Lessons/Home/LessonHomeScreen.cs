@@ -67,6 +67,8 @@ namespace FairyTales.Lessons
         public RectTransform sections;
         /// <summary>Inactive; one clone per topic.</summary>
         public LessonHomeSection topicTemplate;
+        /// <summary>Topic pictures, picked by a word in the topic id (topic_food for "food"…); the last one for the rest.</summary>
+        public Sprite[] topicIcons = Array.Empty<Sprite>();
 
         [Header("Avatar offer")]
         /// <summary>«Сделаем тебя героем!» — once, on the first visit, while the child has no face of their own.</summary>
@@ -120,6 +122,7 @@ namespace FairyTales.Lessons
         {
             LessonProgressStore.Changed -= OnProgressChanged;
             DOTween.Kill(this);
+            DOTween.Kill(Life);
         }
 
         private void OnProgressChanged()
@@ -159,11 +162,16 @@ namespace FairyTales.Lessons
         protected override void OnShown()
         {
             Analytics.Log("lessons_home_view");
+            Animate();
             if (!_loading) StartCoroutine(Load());
             MaybeOfferAvatar();
         }
 
-        protected override void OnHidden() => avatarOffer.SetActive(false);
+        protected override void OnHidden()
+        {
+            avatarOffer.SetActive(false);
+            DOTween.Kill(Life);
+        }
 
         private void RefreshStats()
         {
@@ -328,6 +336,7 @@ namespace FairyTales.Lessons
                 if (!on) continue;
                 sec.name = "Topic " + groups[i].title;
                 sec.title.text = groups[i].title;
+                if (sec.icon != null) sec.icon.sprite = TopicIcon(groups[i].items[0].topic);
                 var items = groups[i].items;
                 var tiles = sec.row.GetComponentsInChildren<LessonTileView>(true).Where(x => x != sec.tileTemplate).ToList();
                 while (tiles.Count < items.Count) tiles.Add(Instantiate(sec.tileTemplate, sec.row));
@@ -354,6 +363,83 @@ namespace FairyTales.Lessons
                 }
             }
         }
+
+        private static readonly (string word, string sprite)[] TopicWords =
+        {
+            ("food", "topic_food"), ("eat", "topic_food"), ("meal", "topic_food"), ("manner", "topic_kindness"),
+            ("polite", "topic_kindness"), ("kind", "topic_kindness"), ("greet", "topic_kindness"), ("salam", "topic_kindness"),
+            ("dua", "topic_dua"), ("prayer", "topic_dua"), ("namaz", "topic_dua"), ("mosque", "topic_mosque"),
+            ("family", "topic_family"), ("mom", "topic_family"), ("sleep", "topic_sleep"), ("night", "topic_sleep"),
+            ("animal", "topic_animals"),
+        };
+
+        private Sprite TopicIcon(string topicId)
+        {
+            if (topicIcons == null || topicIcons.Length == 0) return null;
+            var id = (topicId ?? "").ToLowerInvariant();
+            foreach (var (word, sprite) in TopicWords)
+                if (id.Contains(word))
+                {
+                    var hit = topicIcons.FirstOrDefault(x => x != null && x.name == sprite);
+                    if (hit != null) return hit;
+                }
+            return topicIcons[^1];
+        }
+
+        // ─────────────────────────── life ───────────────────────────
+
+        /// <summary>
+        /// The small motion that makes the home feel alive: the cards pop in one after another,
+        /// the child on the lesson card bobs, its sticker wiggles, ▶ breathes, sparkles twinkle.
+        /// </summary>
+        private void Animate()
+        {
+            DOTween.Kill(Life);
+            float delay = 0.05f;
+            foreach (var row in new[] { day.transform.parent, childCard.transform.parent })
+            {
+                if (row == null) continue;
+                for (int i = 0; i < row.childCount; i++)
+                {
+                    var card = row.GetChild(i);
+                    if (!card.gameObject.activeSelf) continue;
+                    card.localScale = Vector3.one * 0.86f;
+                    card.DOScale(1f, 0.45f).SetEase(Ease.OutBack).SetDelay(delay).SetId(Life);
+                    delay += 0.06f;
+                }
+            }
+
+            var child = day.transform.Find("Face/Child");
+            if (child != null)
+            {
+                var rt = (RectTransform)child;
+                var y = rt.anchoredPosition.y;
+                rt.DOAnchorPosY(y + 9f, 1.1f).From(new Vector2(rt.anchoredPosition.x, y)).SetLoops(-1, LoopType.Yoyo)
+                    .SetEase(Ease.InOutSine).SetId(Life);
+            }
+            var badge = day.transform.Find("DayBadge");
+            if (badge != null)
+                badge.DOLocalRotate(new Vector3(0, 0, 2f), 0.9f).From(new Vector3(0, 0, 11f)).SetLoops(-1, LoopType.Yoyo)
+                    .SetEase(Ease.InOutSine).SetId(Life);
+            if (day.play != null)
+            {
+                var play = day.play.transform;
+                play.localScale = Vector3.one;
+                play.DOScale(1.08f, 0.7f).SetLoops(-1, LoopType.Yoyo).SetEase(Ease.InOutSine).SetId(Life);
+            }
+
+            var rnd = new System.Random(3);
+            foreach (var img in GetComponentsInChildren<Image>())
+            {
+                if (img.name != "Sparkle") continue;
+                var t = img.transform;
+                t.localScale = Vector3.one;
+                t.DOScale(0.55f, 0.8f + (float)rnd.NextDouble() * 0.8f).SetDelay((float)rnd.NextDouble() * 1.2f)
+                    .SetLoops(-1, LoopType.Yoyo).SetEase(Ease.InOutSine).SetId(Life);
+            }
+        }
+
+        private string Life => "lesson_home_life_" + GetInstanceID();
 
         // ─────────────────────────── opening ───────────────────────────
 

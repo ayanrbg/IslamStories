@@ -46,7 +46,9 @@ namespace FairyTales.Lessons.EditorTools
             Shapes.Ensure();
             LoadFonts();
             foreach (var n in new[] { "home_button", "cover_night", "cover_bismillah", "tree_full", "reward_star", "topic_mosque",
-                         "tree_stage1", "tree_stage2", "tree_stage3", "tree_stage4", "leaf_green", "leaf_gold", "topic_sleep", "icon_camera", "coloring_tile", "trace_tile", "char_dad", "char_girl", "topic_family", "icon_flame" })
+                         "tree_stage1", "tree_stage2", "tree_stage3", "tree_stage4", "leaf_green", "leaf_gold", "topic_sleep", "icon_camera", "coloring_tile", "trace_tile", "char_dad", "char_girl", "topic_family", "icon_flame",
+                         "card_trace", "card_coloring", "card_tree", "hero_bg", "badge_burst", "hi_lines", "pattern_sparkles",
+                         "topic_food", "topic_kindness", "topic_dua", "topic_mosque", "topic_animals" })
                 ForceSingle($"{ArtDir}/{n}");
             Directory.CreateDirectory(Path.GetDirectoryName(HomePrefab)!);
             var scene = EditorSceneManager.NewPreviewScene();
@@ -136,7 +138,7 @@ namespace FairyTales.Lessons.EditorTools
 
         private static void BuildHome(Box r, LessonHomeScreen s)
         {
-            Painted(r, "sun_peach_c", Pal.Hex("FFE6A6"), Pal.Hex("FFCB8E"), 0.14f);
+            Painted(r, "sun_peach_c", Pal.Hex("FFE6A6"), Pal.Hex("FFCB8E"), 0.2f);
             var safe = Safe(r);
 
             // ── the page: rows of cards, scrolling down under the top bar ──
@@ -175,10 +177,10 @@ namespace FairyTales.Lessons.EditorTools
             var picks = Section(c, "Picks", PicksH, out s.picksTitle, out var picksRow);
             s.picksTitle.text = "Адиль, это для тебя!";
             s.day = Hero(picksRow, 600, PicksH);
-            s.trace = View(Tile(picksRow, "Trace", 0, 0, 340, PicksH, Pal.Hex("D9CCFF"), Art("trace_tile"), false, A.C, 52, "Обведи", 30, picScale: 0.82f, allBadges: true));
-            s.coloring = View(Tile(picksRow, "Coloring", 0, 0, 340, PicksH, TSky, Art("coloring_tile"), false, A.C, 52, "Раскраски", 30, picScale: 0.82f, allBadges: true));
+            s.trace = View(Tile(picksRow, "Trace", 0, 0, 340, PicksH, Pal.Hex("B9A3F5"), Art("card_trace"), true, A.C, 52, "Обведи", 30, allBadges: true));
+            s.coloring = View(Tile(picksRow, "Coloring", 0, 0, 340, PicksH, Pal.Hex("8CCDF2"), Art("card_coloring"), true, A.C, 52, "Раскраски", 30, allBadges: true));
             s.tales = View(Tile(picksRow, "Tales", 0, 0, 340, PicksH, Pal.Night2, Art("cover_night"), true, A.C, 52, "Сказки", 30, allBadges: true));
-            var treeTile = Tile(picksRow, "Tree", 0, 0, 340, PicksH, TMint, Art("tree_full"), false, A.C, 52, "Дерево", 30, allBadges: true);
+            var treeTile = Tile(picksRow, "Tree", 0, 0, 340, PicksH, Pal.Hex("9FDDB2"), Art("card_tree"), true, A.C, 52, "Дерево", 30, allBadges: true);
             s.tree = View(treeTile);
             // «Ждёт отметки: 1» hanging on the tree card's top edge, for the parent.
             const float cw = 300, ch = 60;
@@ -193,11 +195,23 @@ namespace FairyTales.Lessons.EditorTools
             // ── «Моя семья»: the family as their avatars, on a band of sea like the beach in Speech Blubs ──
             var family = Section(c, "Family", FamilyH, out var familyTitle, out var familyRow);
             Label(familyTitle, "home_family");
+            var foam = Img(family.box, "Foam", Shapes.Wave, c.W / 2 - 60, -22, c.W + 400, 128, A.T, new Color(1, 1, 1, 0.85f), false);
             var sea = Img(family.box, "Sea", Shapes.Wave, c.W / 2, -6, c.W + 400, 128, A.T, Pal.Hex("A9DCF6"), false);
-            sea.Go.transform.SetAsFirstSibling();
             var water = Rect(family.box, "Water", Pal.Hex("A9DCF6"), c.W / 2, 58 + 1600, c.W + 400, 3200, 0, A.T);
-            water.Go.transform.SetSiblingIndex(1);
-            Paper(water, Pal.Hex("6FB3DE"), 0.12f);
+            Paper(water, Pal.Hex("6FB3DE"), 0.14f);
+            var bubbles = Node(family.box, "Bubbles", c.W / 2, 600, c.W, 1100, A.T);
+            var rb = new System.Random(5);
+            for (int i = 0; i < 26; i++)
+            {
+                float d = 10 + (float)rb.NextDouble() * 22;
+                var bub = Circle(bubbles, "Bubble", new Color(1, 1, 1, 0.25f + (float)rb.NextDouble() * 0.3f),
+                    (float)rb.NextDouble() * c.W, (float)rb.NextDouble() * 1100, d);
+                Circle(bub, "Shine", new Color(1, 1, 1, 0.8f), d * 0.32f, d * 0.32f, d * 0.3f);
+            }
+            foam.Go.transform.SetSiblingIndex(0);
+            sea.Go.transform.SetSiblingIndex(1);
+            water.Go.transform.SetSiblingIndex(2);
+            bubbles.Go.transform.SetSiblingIndex(3);
             var edit = Rect(family.box, "Edit", new Color(1, 1, 1, 0.85f), Bleed + RowPad + 520, TitleH / 2 + 2, 230, 58, 29, A.TL);
             edit.Go.GetComponent<Image>().raycastTarget = true;
             s.familyEdit = edit.Go.AddComponent<Button>();
@@ -212,12 +226,19 @@ namespace FairyTales.Lessons.EditorTools
             topicTitle.text = "Хорошие манеры";
             var sec = topic.box.Go.AddComponent<LessonHomeSection>();
             sec.title = topicTitle;
+            var icon = Circle(topic.box, "IconRing", Color.white, Bleed + RowPad + 34, TitleH / 2 + 2, 70, A.TL);
+            OutlineRound(icon);
+            sec.icon = Img(icon, "Icon", Art("topic_food"), 35, 35, 58, 58).Go.GetComponent<Image>();
+            topicTitle.rectTransform.anchoredPosition += new Vector2(86, 0);
+            topic.box.Rt.Find("TitleShadow").GetComponent<RectTransform>().anchoredPosition += new Vector2(86, 0);
             sec.scroll = topic.scroll;
             sec.row = topicRow.Rt;
             var lessonTile = Tile(topicRow, "LessonTemplate", 0, 0, 400, TopicH, Pal.Rose, Art("cover_bismillah"), true, A.C, 52, "Бисмиллях", 30, allBadges: true);
             lessonTile.Holder.Go.AddComponent<CanvasGroup>();
             sec.tileTemplate = View(lessonTile);
             s.topicTemplate = sec;
+            s.topicIcons = new[] { Art("topic_food"), Art("topic_kindness"), Art("topic_dua"), Art("topic_mosque"),
+                Art("topic_family"), Art("topic_sleep"), Art("topic_animals"), Art("reward_star") };
 
             // ── the top bar, over the page ──
             Circle(safe, "AvatarRing", Color.white, 108, 96, 132, A.TL);
@@ -255,6 +276,31 @@ namespace FairyTales.Lessons.EditorTools
             BuildAvatarOffer(r, s);
         }
 
+        /// <summary>The rounded font, white with a thin dark outline and a solid cartoon drop shadow (titles on sand and sea).</summary>
+        private static Material TitleMaterial()
+        {
+            const string path = "Assets/UI/Lessons/Shapes/TitleOutline.mat";
+            var mat = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (mat == null)
+            {
+                mat = new Material(FontXB.material);
+                AssetDatabase.CreateAsset(mat, path);
+            }
+            mat.CopyPropertiesFromMaterial(FontXB.material);
+            mat.EnableKeyword("OUTLINE_ON");
+            mat.SetFloat("_OutlineWidth", 0.1f);
+            mat.SetColor("_OutlineColor", Pal.Ink);
+            mat.SetFloat("_FaceDilate", 0.08f);
+            mat.DisableKeyword("UNDERLAY_ON");
+            mat.SetColor("_UnderlayColor", new Color(Pal.Ink.r, Pal.Ink.g, Pal.Ink.b, 0.9f));
+            mat.SetFloat("_UnderlayOffsetX", 0.4f);
+            mat.SetFloat("_UnderlayOffsetY", -0.9f);
+            mat.SetFloat("_UnderlayDilate", 0.25f);
+            mat.SetFloat("_UnderlaySoftness", 0.05f);
+            EditorUtility.SetDirty(mat);
+            return mat;
+        }
+
         /// <summary>
         /// A row: a title, then cards side by side that scroll sideways (a drag up or down
         /// goes to the page). Cards go into <paramref name="row"/>; their holders carry a
@@ -264,7 +310,14 @@ namespace FairyTales.Lessons.EditorTools
         {
             float rowH = cardH + 50, h = TitleH + rowH;
             var sec = Node(content, name, content.W / 2, h / 2, content.W, h, A.T);
-            title = AutoFit(Txt(sec, "", FontXB, 48, Pal.Ink, Bleed + RowPad + 600, TitleH / 2 + 2, 1200, 70, TA.Left, A.TL), 30);
+            var shadow = Txt(sec, "", FontXB, 50, Pal.Ink, Bleed + RowPad + 600 + 4, TitleH / 2 + 2 + 5, 1200, 74, TA.Left, A.TL);
+            shadow.enableWordWrapping = false;
+            shadow.gameObject.name = "TitleShadow";
+            title = AutoFit(Txt(sec, "", FontXB, 50, Color.white, Bleed + RowPad + 600, TitleH / 2 + 2, 1200, 74, TA.Left, A.TL), 30);
+            title.fontSharedMaterial = TitleMaterial();
+            shadow.fontSharedMaterial = title.fontSharedMaterial;
+            shadow.gameObject.AddComponent<TextDropShadow>().source = title;
+            Sparkle(sec, Bleed + RowPad - 10, 16, 30, A.TL, Color.white);
 
             var rowView = Node(sec, "Row", content.W / 2, TitleH + rowH / 2, content.W, rowH, A.T);
             AddImage(rowView, null, new Color(1, 1, 1, 0)).raycastTarget = true;
@@ -302,10 +355,19 @@ namespace FairyTales.Lessons.EditorTools
                 "Бисмиллях", 32, play: true, allBadges: true);
             Object.DestroyImmediate(t.Picture.gameObject);
             var face = t.Face;
+            foreach (var n in new[] { "Paper", "Glow" })
+            {
+                var old = face.Rt.Find(n);
+                if (old != null) Object.DestroyImmediate(old.gameObject);
+            }
+            // The rim: the face itself painted pink to orange, the scene inset in it.
+            var rimGrad = Fill(face, "Rim");
+            AddImage(rimGrad, Shapes.Gradient("hero_rim", Pal.Hex("FF7AA8"), Pal.Hex("FFB547")), Color.white);
+            rimGrad.Rt.SetAsFirstSibling();
+            const float rimW = 12f;
+            var scene = Cover(face, "Scene", Art("hero_bg"), w / 2, h / 2, w - 2 * rimW, h - 2 * rimW, 52 - rimW);
+            scene.Rt.SetSiblingIndex(1);
             int under = t.LabelPill.GetSiblingIndex();
-
-            Sparkle(face, w * 0.33f, h * 0.18f, 34, A.C, Color.white);
-            Sparkle(face, w * 0.95f, h * 0.12f, 26, A.C, Color.white);
             var rim = Rect(face, "CoverRim", Color.white, w * 0.66f, h * 0.45f, w * 0.56f + 18, h * 0.72f + 18, 34);
             rim.Rt.localRotation = Quaternion.Euler(0, 0, -3);
             var frame = Cover(face, "Cover", Art("cover_bismillah"), w * 0.66f, h * 0.45f, w * 0.56f, h * 0.72f, 28);
@@ -314,11 +376,15 @@ namespace FairyTales.Lessons.EditorTools
             t.Fit = t.Picture.GetComponent<AspectRatioFitter>();
             // The child stands at the left, feet cut by the card's edge like a sticker peeking in.
             var child = AvatarScreenBuilder.Avatar(face, "Child", AvatarPerson.Child, w * 0.19f, h * 0.6f, w * 0.38f, h * 1.1f);
-            foreach (var b in new[] { rim.Rt, frame.Rt, child.transform }) b.SetSiblingIndex(under++);
+            var hi = Img(face, "Hi", Art("hi_lines"), w * 0.3f, h * 0.2f, 70, 70);
+            foreach (var b in new[] { rim.Rt, frame.Rt, child.transform, hi.Rt }) b.SetSiblingIndex(under++);
+            Sparkle(face, w * 0.4f, h * 0.12f, 30, A.C, Color.white);
+            Sparkle(face, w * 0.96f, h * 0.1f, 24, A.C, Pal.Hex("FFE08A"));
+            Sparkle(face, w * 0.36f, h * 0.82f, 20, A.C, Color.white);
 
-            var badge = Rect(t.Holder, "DayBadge", Pal.Rose, TileM + 130, TileM + 4, 230, 60, 30);
-            SketchFrame(t.Holder, TileM + 130, TileM + 4, 230, 60, 30);
-            Label(AutoFit(Txt(badge, "", FontXB, 30, Color.white, 115, 29, 210, 60), 20), "home_lesson_day");
+            var badge = Img(t.Holder, "DayBadge", Art("badge_burst"), TileM + 120, TileM + 10, 250, 250 * 0.7f, A.C, null, false);
+            badge.Rt.localRotation = Quaternion.Euler(0, 0, 7);
+            Label(AutoFit(Txt(badge, "", FontXB, 32, Color.white, 125, 80, 190, 60), 20), "home_lesson_day");
             return View(t);
         }
 
@@ -326,6 +392,11 @@ namespace FairyTales.Lessons.EditorTools
         private static LessonTileView Person(Box row, string name, Color fill, AvatarPerson person, Sprite drawn, string label)
         {
             var t = Tile(row, name, 0, 0, 250, FamilyH, fill, drawn ?? Art("char_girl"), false, A.C, 46, label, 28, allBadges: true);
+            // A scatter of sparkles on the card, like the patterned backs in Speech Blubs.
+            var pattern = Img(t.Face, "Pattern", Art("pattern_sparkles"), 125, FamilyH / 2, 250, FamilyH, A.C, new Color(1, 1, 1, 0.55f), false);
+            pattern.Go.GetComponent<Image>().type = Image.Type.Tiled;
+            var glow = t.Face.Rt.Find("Glow");
+            pattern.Rt.SetSiblingIndex(glow != null ? glow.GetSiblingIndex() + 1 : 1);
             int under = t.LabelPill.GetSiblingIndex();
             if (drawn == null)
             {
