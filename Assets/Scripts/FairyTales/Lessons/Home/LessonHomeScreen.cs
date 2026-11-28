@@ -17,10 +17,14 @@ using UnityEngine.UI;
 namespace FairyTales.Lessons
 {
     /// <summary>
-    /// The app's home while lessons exist in the app language (Nooria 2.0, design 29
-    /// «Урок дня + разделы»): the lesson of the day big on the left, the sections as
-    /// sticker tiles on the right — all lessons, the tales library, the Tree, coloring.
-    /// The child's avatar, stars and leaves on top; «Для родителей» behind the gate.
+    /// The app's home while lessons exist in the app language, laid out like Speech Blubs'
+    /// home: a page that scrolls down through rows of sticker cards that scroll sideways.
+    ///   • «Адиль, это для тебя!» — the lesson of the day with the child themself on the card
+    ///     (their own head on the drawn body), then «Обведи», coloring, tales, the Tree;
+    ///   • «Моя семья» — the child and mum as their avatars, «Изменить»;
+    ///   • a row per topic with its lessons (tick, lock, ▶).
+    /// On top: the child's avatar, stars, leaves, the streak, «Открыть все уроки» for those
+    /// without a subscription, «Для родителей» behind the gate.
     ///
     /// ScreenManager opens it instead of the library (<see cref="ScreenManager.Home"/>,
     /// set here), and the library's home button comes back to it. The layout is built
@@ -37,16 +41,32 @@ namespace FairyTales.Lessons
         public GameObject streakChip;
         public TMP_Text streak;
         public Button parents;
+        /// <summary>«Открыть все уроки» → the paywall; hidden for subscribers.</summary>
+        public Button unlock;
 
-        [Header("Tiles")]
+        [Header("Picks")]
+        public ScrollRect page;
+        public TMP_Text picksTitle;
         public LessonTileView day;
-        public LessonTileView all;
+        public LessonTileView trace;
+        public LessonTileView coloring;
         public LessonTileView tales;
         public LessonTileView tree;
-        public LessonTileView coloring;
         /// <summary>«Ждёт отметки: N» on the tree tile while deeds wait for the parent's tick.</summary>
         public GameObject deedsChip;
         public TMP_Text deedsChipText;
+
+        [Header("Family")]
+        public Button familyEdit;
+        public LessonTileView childCard;
+        public LessonTileView momCard;
+        public LessonTileView dadCard;
+
+        [Header("Topics")]
+        /// <summary>Parent of the rows (the page's content); topic rows are added after the family.</summary>
+        public RectTransform sections;
+        /// <summary>Inactive; one clone per topic.</summary>
+        public LessonHomeSection topicTemplate;
 
         [Header("Avatar offer")]
         /// <summary>«Сделаем тебя героем!» — once, on the first visit, while the child has no face of their own.</summary>
@@ -62,6 +82,8 @@ namespace FairyTales.Lessons
         private ScreenManager _sm;
         private LessonSummary _day;
         private Sprite _dayArt;
+        private Sprite _coverPlaceholder;
+        private readonly List<LessonHomeSection> _topics = new();
         private bool _loading;
         private const string AvatarOfferKey = "lessons_avatar_offered";
 
@@ -74,11 +96,18 @@ namespace FairyTales.Lessons
             ScreenManager.Home = () => LessonLang.IsAvailable(Loc.Lang) ? typeof(LessonHomeScreen) : null;
             _dayArt = day.picture.sprite;
 
+            _coverPlaceholder = topicTemplate.tileTemplate.picture.sprite;
+            topicTemplate.gameObject.SetActive(false);
             day.button.onClick.AddListener(OnDay);
-            all.button.onClick.AddListener(() => _sm.Show<LessonListScreen>());
+            trace.button.onClick.AddListener(() => ColoringScreen.OpenTrace(_sm));
+            coloring.button.onClick.AddListener(() => _sm.Show<ColoringScreen>());
             tales.button.onClick.AddListener(() => _sm.Show<LibraryScreen>());
             tree.button.onClick.AddListener(() => _sm.Show<LessonTreeScreen>());
-            coloring.button.onClick.AddListener(() => _sm.Show<ColoringScreen>());
+            unlock.onClick.AddListener(() => PaymentScreen.Open(_sm, typeof(LessonHomeScreen), source: "home_unlock"));
+            familyEdit.onClick.AddListener(() => AvatarScreen.Open(AvatarPerson.Child));
+            childCard.button.onClick.AddListener(() => AvatarScreen.Open(AvatarPerson.Child));
+            momCard.button.onClick.AddListener(() => AvatarScreen.Open(AvatarPerson.Mom));
+            dadCard.button.onClick.AddListener(() => Toast.Show(LessonStrings.T("home_soon")));
             parents.onClick.AddListener(() => ChildGatePopup.Show(() => _sm.Show<PersonalizationScreen>()));
             avatarButton.onClick.AddListener(() => AvatarScreen.Open(AvatarPerson.Child));
             avatarOfferGo.onClick.AddListener(() => { HideOffer(); AvatarScreen.Open(AvatarPerson.Child); });
@@ -103,14 +132,24 @@ namespace FairyTales.Lessons
         protected override void OnPrepare()
         {
             foreach (var label in GetComponentsInChildren<LessonLabel>(true)) label.Apply();
-            all.SetLabel(LessonStrings.T("home_all"));
-            tales.SetLabel(LessonStrings.T("home_tales"));
-            tree.SetLabel(LessonStrings.T("home_tree"));
-            coloring.SetLabel(LessonStrings.T("home_coloring"));
-            all.SetBadge(LessonTileView.Badge.None);
-            tales.SetBadge(LessonTileView.Badge.None);
-            tree.SetBadge(LessonTileView.Badge.None);
-            coloring.SetBadge(LessonTileView.Badge.None);
+            var name = TaleText.ChildName;
+            picksTitle.text = string.IsNullOrWhiteSpace(name)
+                ? LessonStrings.T("home_picks_you")
+                : LessonStrings.T("home_picks", name.Trim());
+            foreach (var (tile, key) in new[] { (trace, "home_trace"), (coloring, "home_coloring"), (tales, "home_tales"), (tree, "home_tree") })
+            {
+                tile.SetLabel(LessonStrings.T(key));
+                tile.SetBadge(LessonTileView.Badge.None);
+            }
+            childCard.SetLabel(string.IsNullOrWhiteSpace(name) ? LessonStrings.T("home_me") : name.Trim());
+            momCard.SetLabel(LessonStrings.T("home_mom"));
+            dadCard.SetLabel(LessonStrings.T("home_dad"));
+            childCard.SetBadge(LessonTileView.Badge.None);
+            momCard.SetBadge(LessonTileView.Badge.None);
+            dadCard.SetBadge(LessonTileView.Badge.Lock);
+            unlock.transform.parent.gameObject.SetActive(!Subscribed);
+            page.StopMovement();
+            page.verticalNormalizedPosition = 1f;
             RefreshStats();
             if (Catalog == null || Catalog.lang != LessonLang.ContentLang(Loc.Lang))
                 Catalog = LessonHomeCache.LoadCatalog(Loc.Lang);
@@ -236,6 +275,7 @@ namespace FairyTales.Lessons
 
         private void Render()
         {
+            RenderTopics();
             _day = PickDay(Catalog);
             if (_day == null)
             {
@@ -253,6 +293,65 @@ namespace FairyTales.Lessons
             {
                 var want = _day;
                 StartCoroutine(LessonHomeCache.Cover(want.coverUrl, s => { if (s != null && _day == want) day.SetPicture(s); }));
+            }
+        }
+
+        /// <summary>A row per topic in course order; lessons without a topic share a «Уроки» row.</summary>
+        private void RenderTopics()
+        {
+            var lessons = Ordered(Catalog);
+            var topics = (Catalog?.topics ?? Array.Empty<LessonTopic>()).Where(t => t != null && t.id != null)
+                .GroupBy(t => t.id).Select(g => g.First()).ToDictionary(t => t.id);
+            var groups = new List<(string title, List<LessonSummary> items)>();
+            foreach (var l in lessons)
+            {
+                var title = l.topic != null && topics.TryGetValue(l.topic, out var t) && !string.IsNullOrEmpty(t.title)
+                    ? t.title : LessonStrings.T("home_lessons");
+                int at = groups.FindIndex(x => x.title == title);
+                if (at < 0) groups.Add((title, new List<LessonSummary> { l }));
+                else groups[at].items.Add(l);
+            }
+
+            var today = PickDay(Catalog);
+            var progress = LessonProgressStore.Data;
+            while (_topics.Count < groups.Count)
+            {
+                var sec = Instantiate(topicTemplate, sections);
+                sec.tileTemplate.gameObject.SetActive(false);
+                _topics.Add(sec);
+            }
+            for (int i = 0; i < _topics.Count; i++)
+            {
+                var sec = _topics[i];
+                bool on = i < groups.Count;
+                sec.gameObject.SetActive(on);
+                if (!on) continue;
+                sec.name = "Topic " + groups[i].title;
+                sec.title.text = groups[i].title;
+                var items = groups[i].items;
+                var tiles = sec.row.GetComponentsInChildren<LessonTileView>(true).Where(x => x != sec.tileTemplate).ToList();
+                while (tiles.Count < items.Count) tiles.Add(Instantiate(sec.tileTemplate, sec.row));
+                for (int k = 0; k < tiles.Count; k++)
+                {
+                    var tile = tiles[k];
+                    bool show = k < items.Count;
+                    tile.gameObject.SetActive(show);
+                    if (!show) continue;
+                    var lesson = items[k];
+                    tile.SetLabel(lesson.title);
+                    tile.SetBadge(lesson.IsComingSoon || lesson.IsLocked(Subscribed) ? LessonTileView.Badge.Lock
+                        : progress.IsCompleted(lesson.id) ? LessonTileView.Badge.Done
+                        : lesson == today ? LessonTileView.Badge.Play
+                        : LessonTileView.Badge.None);
+                    var group = tile.GetComponent<CanvasGroup>();
+                    if (group != null) group.alpha = lesson.IsComingSoon ? 0.6f : 1f;
+                    var now = LessonHomeCache.CoverNow(lesson.coverUrl);
+                    tile.SetPicture(now != null ? now : _coverPlaceholder);
+                    if (now == null && !string.IsNullOrEmpty(lesson.coverUrl) && isActiveAndEnabled)
+                        StartCoroutine(LessonHomeCache.Cover(lesson.coverUrl, sp => { if (sp != null && tile != null) tile.SetPicture(sp); }));
+                    tile.button.onClick.RemoveAllListeners();
+                    tile.button.onClick.AddListener(() => OpenLesson(_sm, lesson, Catalog));
+                }
             }
         }
 

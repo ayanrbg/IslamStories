@@ -196,6 +196,23 @@ namespace FairyTales.Lessons.EditorTools
             canvas.lines = Raw(paintBox, "Lines");
             s.canvas = canvas;
 
+            // «Обведи и раскрась»: the dotted path, the crayon line, the dot to follow, the hand.
+            s.tracer.guide = Raw(paintBox, "TraceGuide");
+            s.tracer.ink = Raw(paintBox, "TraceInk");
+            var dot = Circle(paintBox, "TraceDot", Pal.Green, pw / 2, ph / 2, 58);
+            Circle(dot, "Core", Color.white, 29, 29, 22);
+            OutlineRound(dot);
+            s.tracer.dot = dot.Rt;
+            var hand = Img(paintBox, "TraceHand", Art("icon_hand"), pw / 2, ph / 2, 150, 150);
+            hand.Rt.pivot = new Vector2(0.39f, 0.88f);
+            s.tracer.hand = hand.Rt;
+            s.tracer.guideColor = new Color(Pal.LavDeep.r, Pal.LavDeep.g, Pal.LavDeep.b, 0.75f);
+            s.tracer.inkColor = Pal.Rose;
+            // A little past the picture, clear of the back button and the panel.
+            var pad = Node(b, "TracePad", cx, cy, pw + 100, ph + 60);
+            AddImage(pad, null, new Color(1, 1, 1, 0)).raycastTarget = true;
+            s.tracer.pad = pad.Go.AddComponent<TracePad>();
+
             var spark = Node(b, "Sparkles", cx, cy, pw, ph);
             s.sparkles = spark.Rt;
             var tpl = Img(spark, "Sparkle", Shapes.Sparkle, pw / 2, ph / 2, 70, 70);
@@ -204,7 +221,7 @@ namespace FairyTales.Lessons.EditorTools
             var banner = Node(b, "Done", cx, cy + ph / 2 - 40, 820, 150);
             banner.Go.AddComponent<CanvasGroup>().blocksRaycasts = false;
             var bannerFace = Sticker(banner, "Card", 410, 75, 780, 116, 58, Pal.Rose, 8, A.C, 0.1f);
-            Label(AutoFit(Txt(bannerFace, "", FontXB, 50, Color.white, 390, 56, 720, 100), 30), "coloring_done");
+            s.doneText = Label(AutoFit(Txt(bannerFace, "", FontXB, 50, Color.white, 390, 56, 720, 100), 30), "coloring_done");
             Sparkle(banner, 30, 30, 56, A.C, Pal.Hex("FFC94A"));
             Sparkle(banner, 790, 120, 44, A.C, Pal.Hex("FFC94A"));
             s.doneBanner = banner.Rt;
@@ -212,6 +229,7 @@ namespace FairyTales.Lessons.EditorTools
             // On the right: the tools, then the crayons, on a white panel.
             const float px = 1652, top = 64;
             var panel = Sticker(b, "Panel", px, 548, 452, 880, 48, Color.white, 10, A.R, 0.08f);
+            s.panel = panel.Rt.parent.gameObject.AddComponent<CanvasGroup>();
             float tx(int col) => 76 + col * 150;
             var fill = Tool(panel, "Fill", Art("icon_bucket"), tx(0), top + 40);
             var crayon = Tool(panel, "Crayon", Art("icon_crayon"), tx(1), top + 40);

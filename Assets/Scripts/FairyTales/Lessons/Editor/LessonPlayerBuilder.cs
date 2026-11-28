@@ -666,7 +666,7 @@ namespace FairyTales.Lessons.EditorTools
             const float pw = 880, ph = 660, cx = 960, cy = 640;
             var pad = Node(safe, "Pad", cx, cy, pw + 320, ph + 180);
             AddImage(pad, null, new Color(1, 1, 1, 0)).raycastTarget = true;
-            v.pad = pad.Go.AddComponent<TracePad>();
+            v.tracer.pad = pad.Go.AddComponent<TracePad>();
 
             var face = Sticker(safe, "Card", cx, cy, pw + 24, ph + 24, 40, Color.white, 10, A.C, 0f);
             var pic = Node(face, "Picture", (pw + 24) / 2, (ph + 24) / 2, pw, ph);
@@ -684,16 +684,16 @@ namespace FairyTales.Lessons.EditorTools
             }
             canvas.lines = Layer("Lines");
             v.picture = canvas;
-            v.guide = Layer("Guide");
-            v.ink = Layer("Ink");
+            v.tracer.guide = Layer("Guide");
+            v.tracer.ink = Layer("Ink");
 
             var dot = Circle(pic, "Dot", Pal.Green, pw / 2, ph / 2, 58);
             Circle(dot, "Core", Color.white, 29, 29, 22);
             OutlineRound(dot);
-            v.dot = dot.Rt;
+            v.tracer.dot = dot.Rt;
             var hand = Img(pic, "Hand", Art("icon_hand"), pw / 2, ph / 2, 150, 150);
             hand.Rt.pivot = new Vector2(0.39f, 0.88f);
-            v.hand = hand.Rt;
+            v.tracer.hand = hand.Rt;
             hand.Go.SetActive(false);
 
             var spark = Node(safe, "Sparkles", cx, cy, pw, ph);
@@ -708,8 +708,8 @@ namespace FairyTales.Lessons.EditorTools
             banner.Go.SetActive(false);
 
             v.next = NextArrow(safe, 1780, 900, 170, A.BR);
-            v.guideColor = new Color(Pal.LavDeep.r, Pal.LavDeep.g, Pal.LavDeep.b, 0.75f);
-            v.inkColor = Pal.Rose;
+            v.tracer.guideColor = new Color(Pal.LavDeep.r, Pal.LavDeep.g, Pal.LavDeep.b, 0.75f);
+            v.tracer.inkColor = Pal.Rose;
         }
 
         // ─────────────────────────── 5. Награда ───────────────────────────

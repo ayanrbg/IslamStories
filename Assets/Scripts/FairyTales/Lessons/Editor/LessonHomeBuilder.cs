@@ -46,7 +46,7 @@ namespace FairyTales.Lessons.EditorTools
             Shapes.Ensure();
             LoadFonts();
             foreach (var n in new[] { "home_button", "cover_night", "cover_bismillah", "tree_full", "reward_star", "topic_mosque",
-                         "tree_stage1", "tree_stage2", "tree_stage3", "tree_stage4", "leaf_green", "leaf_gold", "topic_sleep", "icon_camera", "coloring_tile" })
+                         "tree_stage1", "tree_stage2", "tree_stage3", "tree_stage4", "leaf_green", "leaf_gold", "topic_sleep", "icon_camera", "coloring_tile", "trace_tile", "char_dad", "char_girl", "topic_family", "icon_flame" })
                 ForceSingle($"{ArtDir}/{n}");
             Directory.CreateDirectory(Path.GetDirectoryName(HomePrefab)!);
             var scene = EditorSceneManager.NewPreviewScene();
@@ -129,58 +129,218 @@ namespace FairyTales.Lessons.EditorTools
 
         // ─────────────────────────── home ───────────────────────────
 
+        // The page runs past the safe area to the screen's edges (cards slide out of sight
+        // there, not at the notch); rows start at the safe edge plus a margin.
+        private const float Bleed = 160, RowPad = 110, TileM = 80, Gap = 40;
+        private const float PicksH = 320, FamilyH = 280, TopicH = 300, TitleH = 84;
+
         private static void BuildHome(Box r, LessonHomeScreen s)
         {
-            Painted(r, "lav_peach_c", Pal.Hex("E4D9FF"), Pal.Hex("FFE1CC"), 0.14f);
+            Painted(r, "sun_peach_c", Pal.Hex("FFE6A6"), Pal.Hex("FFCB8E"), 0.14f);
             var safe = Safe(r);
 
-            // Top: the child (opens the avatar), stars, leaves; «Для родителей» on the right.
-            Circle(safe, "AvatarRing", Color.white, 108, 100, 132, A.TL);
-            s.avatar = AvatarScreenBuilder.Avatar(safe, "Avatar", AvatarPerson.Child, 108, 100, 118, 118, A.TL, true, Pal.Lav);
+            // ── the page: rows of cards, scrolling down under the top bar ──
+            var view = Node(safe, "Page", 960, 600, 1920, 900);
+            view.Rt.anchorMin = Vector2.zero;
+            view.Rt.anchorMax = Vector2.one;
+            view.Rt.offsetMin = new Vector2(-Bleed, -120); // and under the home indicator
+            view.Rt.offsetMax = new Vector2(Bleed, -158);
+            view.Go.AddComponent<RectMask2D>();
+            AddImage(view, null, new Color(1, 1, 1, 0)).raycastTarget = true;
+            var page = view.Go.AddComponent<ScrollRect>();
+            page.horizontal = false;
+            page.movementType = ScrollRect.MovementType.Elastic;
+            s.page = page;
+
+            var content = new GameObject("Content", typeof(RectTransform)).GetComponent<RectTransform>();
+            content.SetParent(view.Rt, false);
+            content.anchorMin = new Vector2(0, 1);
+            content.anchorMax = new Vector2(1, 1);
+            content.pivot = new Vector2(0.5f, 1);
+            content.anchoredPosition = Vector2.zero;
+            content.sizeDelta = new Vector2(0, 1400);
+            var v = content.gameObject.AddComponent<VerticalLayoutGroup>();
+            v.padding = new RectOffset(0, 0, 0, 200);
+            v.childControlWidth = true;
+            v.childControlHeight = false;
+            v.childForceExpandWidth = true;
+            v.childForceExpandHeight = false;
+            content.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            page.viewport = view.Rt;
+            page.content = content;
+            s.sections = content;
+            var c = new Box { Rt = content, W = 1920 + 2 * Bleed, H = 1400 };
+
+            // ── «Адиль, это для тебя!»: the child in the lesson of the day, then the activities ──
+            var picks = Section(c, "Picks", PicksH, out s.picksTitle, out var picksRow);
+            s.picksTitle.text = "Адиль, это для тебя!";
+            s.day = Hero(picksRow, 600, PicksH);
+            s.trace = View(Tile(picksRow, "Trace", 0, 0, 340, PicksH, Pal.Hex("D9CCFF"), Art("trace_tile"), false, A.C, 52, "Обведи", 30, picScale: 0.82f, allBadges: true));
+            s.coloring = View(Tile(picksRow, "Coloring", 0, 0, 340, PicksH, TSky, Art("coloring_tile"), false, A.C, 52, "Раскраски", 30, picScale: 0.82f, allBadges: true));
+            s.tales = View(Tile(picksRow, "Tales", 0, 0, 340, PicksH, Pal.Night2, Art("cover_night"), true, A.C, 52, "Сказки", 30, allBadges: true));
+            var treeTile = Tile(picksRow, "Tree", 0, 0, 340, PicksH, TMint, Art("tree_full"), false, A.C, 52, "Дерево", 30, allBadges: true);
+            s.tree = View(treeTile);
+            // «Ждёт отметки: 1» hanging on the tree card's top edge, for the parent.
+            const float cw = 300, ch = 60;
+            var chip = Node(treeTile.Holder, "DeedsChip", treeTile.Holder.W / 2, TileM, cw + 40, ch + 40);
+            Shadow(chip, (cw + 40) / 2, (ch + 40) / 2, cw, ch, 0.16f, 8);
+            var chipFace = Rect(chip, "Face", Pal.Orange, (cw + 40) / 2, (ch + 40) / 2, cw, ch, ch / 2);
+            Circle(chipFace, "LeafRing", Color.white, 32, ch / 2, 48);
+            Img(chipFace, "Leaf", Art("leaf_gold"), 32, ch / 2, 34, 34);
+            s.deedsChipText = AutoFit(Txt(chipFace, "Ждёт отметки: 1", FontXB, 26, Color.white, 66 + (cw - 80) / 2, ch / 2 - 1, cw - 86, ch), 18);
+            s.deedsChip = chip.Go;
+
+            // ── «Моя семья»: the family as their avatars, on a band of sea like the beach in Speech Blubs ──
+            var family = Section(c, "Family", FamilyH, out var familyTitle, out var familyRow);
+            Label(familyTitle, "home_family");
+            var sea = Img(family.box, "Sea", Shapes.Wave, c.W / 2, -6, c.W + 400, 128, A.T, Pal.Hex("A9DCF6"), false);
+            sea.Go.transform.SetAsFirstSibling();
+            var water = Rect(family.box, "Water", Pal.Hex("A9DCF6"), c.W / 2, 58 + 1600, c.W + 400, 3200, 0, A.T);
+            water.Go.transform.SetSiblingIndex(1);
+            Paper(water, Pal.Hex("6FB3DE"), 0.12f);
+            var edit = Rect(family.box, "Edit", new Color(1, 1, 1, 0.85f), Bleed + RowPad + 520, TitleH / 2 + 2, 230, 58, 29, A.TL);
+            edit.Go.GetComponent<Image>().raycastTarget = true;
+            s.familyEdit = edit.Go.AddComponent<Button>();
+            Img(edit, "Icon", Art("topic_family"), 36, 29, 40, 40);
+            Label(AutoFit(Txt(edit, "", FontB, 26, Pal.Sub, 130, 28, 150, 50), 18), "home_family_edit");
+            s.childCard = Person(familyRow, "Child", Pal.Peach, AvatarPerson.Child, null, "Адиль");
+            s.momCard = Person(familyRow, "Mom", Pal.RoseSoft, AvatarPerson.Mom, null, "Мама");
+            s.dadCard = Person(familyRow, "Dad", Pal.Hex("D8ECFF"), AvatarPerson.Child, Art("char_dad"), "Папа");
+
+            // ── a row per topic: the template, cloned at runtime ──
+            var topic = Section(c, "TopicTemplate", TopicH, out var topicTitle, out var topicRow);
+            topicTitle.text = "Хорошие манеры";
+            var sec = topic.box.Go.AddComponent<LessonHomeSection>();
+            sec.title = topicTitle;
+            sec.scroll = topic.scroll;
+            sec.row = topicRow.Rt;
+            var lessonTile = Tile(topicRow, "LessonTemplate", 0, 0, 400, TopicH, Pal.Rose, Art("cover_bismillah"), true, A.C, 52, "Бисмиллях", 30, allBadges: true);
+            lessonTile.Holder.Go.AddComponent<CanvasGroup>();
+            sec.tileTemplate = View(lessonTile);
+            s.topicTemplate = sec;
+
+            // ── the top bar, over the page ──
+            Circle(safe, "AvatarRing", Color.white, 108, 96, 132, A.TL);
+            s.avatar = AvatarScreenBuilder.Avatar(safe, "Avatar", AvatarPerson.Child, 108, 96, 118, 118, A.TL, true, Pal.Lav);
             var avatarImage = s.avatar.GetComponent<Image>();
             avatarImage.raycastTarget = true;
             s.avatarButton = s.avatar.gameObject.AddComponent<Button>();
-            s.stars = PillText(Pill(safe, Art("reward_star"), "12", 292, 100, 168, A.TL));
-            s.leaves = PillText(Pill(safe, Art("leaf_green"), "3", 460, 100, 146, A.TL));
-            // Days in a row, in a holder so the pill's shadow hides with it: no chip (and no
-            // «0 days» reproach) until the first lesson, or after a day without one.
-            var streak = Node(safe, "Streak", 617, 100, 170, 100, A.TL);
+            s.stars = PillText(Pill(safe, Art("reward_star"), "12", 292, 96, 168, A.TL));
+            s.leaves = PillText(Pill(safe, Art("leaf_green"), "3", 460, 96, 146, A.TL));
+            var streak = Node(safe, "Streak", 617, 96, 170, 100, A.TL);
             s.streakChip = streak.Go;
             s.streak = PillText(Pill(streak, Art("icon_flame"), "2", 85, 50, 146));
 
+            // «Открыть все уроки» in the middle, like «Unlock All Practices» (hidden for subscribers).
+            const float uw = 440, uh = 82;
+            var unlock = Node(safe, "Unlock", 960, 96, uw + 80, uh + 60, A.T);
+            Shadow(unlock, (uw + 80) / 2, (uh + 60) / 2 + 6, uw, uh, 0.16f, 8);
+            Rect(unlock, "Base", Pal.Darker(Pal.LavDeep, 0.75f), (uw + 80) / 2, (uh + 60) / 2 + 7, uw, uh, uh / 2);
+            var uface = Rect(unlock, "Face", Pal.LavDeep, (uw + 80) / 2, (uh + 60) / 2, uw, uh, uh / 2);
+            uface.Go.GetComponent<Image>().raycastTarget = true;
+            s.unlock = uface.Go.AddComponent<Button>();
+            Img(uface, "Lock", Shapes.Lock, 52, uh / 2, 40, 40, A.C, Color.white);
+            Label(AutoFit(Txt(uface, "", FontXB, 32, Color.white, uw / 2 + 24, uh / 2 - 1, uw - 110, uh), 22), "home_unlock");
+            Sparkle(unlock, 40, 26, 34, A.C, Pal.Hex("FFE08A"));
+            Sparkle(unlock, uw + 50, uh + 40, 28, A.C, Pal.Hex("FFE08A"));
+
             const float pw = 384, ph = 84;
-            Shadow(safe, 1700, 100, pw, ph, 0.12f, 8, A.TR);
-            var parents = Rect(safe, "Parents", Color.white, 1700, 100, pw, ph, ph / 2, A.TR);
+            Shadow(safe, 1700, 96, pw, ph, 0.12f, 8, A.TR);
+            var parents = Rect(safe, "Parents", Color.white, 1700, 96, pw, ph, ph / 2, A.TR);
             parents.Go.GetComponent<Image>().raycastTarget = true;
             s.parents = parents.Go.AddComponent<Button>();
             Label(AutoFit(Txt(parents, "", FontXB, 32, Pal.MintDark, 160, ph / 2 - 1, 280, ph), 22), "home_parents");
             Img(parents, "Icon", Art("topic_family"), pw - 52, ph / 2, 64, 64);
 
-            // The lesson of the day, big, with ▶ on its corner.
-            s.day = View(Tile(safe, "LessonOfDay", 540, 610, 780, 700, Pal.Rose, Art("cover_bismillah"), true, A.C, 60,
-                "Бисмиллях", 42, play: true, allBadges: true));
-            var badge = Rect(safe, "DayBadge", Pal.Rose, 350, 262, 260, 70, 35);
-            Label(AutoFit(Txt(badge, "", FontXB, 34, Color.white, 130, 34, 240, 70), 24), "home_lesson_day");
-            Sparkle(safe, 168, 330, 44, A.C, Pal.Hex("FFC94A"));
-            Sparkle(safe, 945, 290, 32, A.C, Pal.Hex("FFC94A"));
-
-            // The sections.
-            s.all = View(Tile(safe, "AllLessons", 1190, 420, 400, 340, TYellow, Art("topic_mosque"), false, A.C, 52, "Все уроки", 30, allBadges: true));
-            s.tales = View(Tile(safe, "Tales", 1630, 420, 400, 340, Pal.Night2, Art("cover_night"), true, A.C, 52, "Сказки", 30, allBadges: true));
-            s.tree = View(Tile(safe, "Tree", 1190, 820, 400, 340, TMint, Art("tree_full"), false, A.C, 52, "Дерево", 30, allBadges: true));
-            s.coloring = View(Tile(safe, "Coloring", 1630, 820, 400, 340, TSky, Art("coloring_tile"), false, A.C, 52, "Раскраски", 30, picScale: 0.8f, allBadges: true));
-
-            // «Ждёт отметки: 1» hanging on the tree tile's top edge, for the parent.
-            const float cw = 330, ch = 64;
-            var chip = Node(safe, "DeedsChip", 1190, 652, cw + 40, ch + 40);
-            Shadow(chip, (cw + 40) / 2, (ch + 40) / 2, cw, ch, 0.16f, 8);
-            var chipFace = Rect(chip, "Face", Pal.Orange, (cw + 40) / 2, (ch + 40) / 2, cw, ch, ch / 2);
-            Circle(chipFace, "LeafRing", Color.white, 34, ch / 2, 52);
-            Img(chipFace, "Leaf", Art("leaf_gold"), 34, ch / 2, 38, 38);
-            s.deedsChipText = AutoFit(Txt(chipFace, "Ждёт отметки: 1", FontXB, 28, Color.white, 70 + (cw - 84) / 2, ch / 2 - 1, cw - 90, ch), 20);
-            s.deedsChip = chip.Go;
-
             BuildAvatarOffer(r, s);
+        }
+
+        /// <summary>
+        /// A row: a title, then cards side by side that scroll sideways (a drag up or down
+        /// goes to the page). Cards go into <paramref name="row"/>; their holders carry a
+        /// <see cref="TileM"/> margin for the corner badges, which the spacing takes back.
+        /// </summary>
+        private static (Box box, ScrollRect scroll) Section(Box content, string name, float cardH, out TMP_Text title, out Box row)
+        {
+            float rowH = cardH + 50, h = TitleH + rowH;
+            var sec = Node(content, name, content.W / 2, h / 2, content.W, h, A.T);
+            title = AutoFit(Txt(sec, "", FontXB, 48, Pal.Ink, Bleed + RowPad + 600, TitleH / 2 + 2, 1200, 70, TA.Left, A.TL), 30);
+
+            var rowView = Node(sec, "Row", content.W / 2, TitleH + rowH / 2, content.W, rowH, A.T);
+            AddImage(rowView, null, new Color(1, 1, 1, 0)).raycastTarget = true;
+            var scroll = rowView.Go.AddComponent<NestedScrollRect>();
+            scroll.vertical = false;
+            scroll.movementType = ScrollRect.MovementType.Elastic;
+
+            var cards = new GameObject("Cards", typeof(RectTransform)).GetComponent<RectTransform>();
+            cards.SetParent(rowView.Rt, false);
+            cards.anchorMin = new Vector2(0, 0);
+            cards.anchorMax = new Vector2(0, 1);
+            cards.pivot = new Vector2(0, 0.5f);
+            cards.anchoredPosition = Vector2.zero;
+            cards.sizeDelta = new Vector2(content.W, 0);
+            var hl = cards.gameObject.AddComponent<HorizontalLayoutGroup>();
+            hl.spacing = Gap - 2 * TileM;
+            hl.padding = new RectOffset((int)(Bleed + RowPad - TileM), (int)(Bleed + RowPad - TileM), 0, 0);
+            hl.childAlignment = TextAnchor.MiddleLeft;
+            hl.childControlWidth = hl.childControlHeight = false;
+            hl.childForceExpandWidth = hl.childForceExpandHeight = false;
+            cards.gameObject.AddComponent<ContentSizeFitter>().horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
+            scroll.viewport = rowView.Rt;
+            scroll.content = cards;
+            row = new Box { Rt = cards, W = content.W, H = rowH };
+            return (sec, scroll);
+        }
+
+        /// <summary>
+        /// The lesson of the day the Speech Blubs way: the child — their own head on the drawn
+        /// body — stands on the card beside the lesson's cover, «Урок дня» on the corner, ▶.
+        /// </summary>
+        private static LessonTileView Hero(Box row, float w, float h)
+        {
+            var t = Tile(row, "LessonOfDay", 0, 0, w, h, Pal.Hex("7CC4F4"), Art("cover_bismillah"), false, A.C, 52,
+                "Бисмиллях", 32, play: true, allBadges: true);
+            Object.DestroyImmediate(t.Picture.gameObject);
+            var face = t.Face;
+            int under = t.LabelPill.GetSiblingIndex();
+
+            Sparkle(face, w * 0.33f, h * 0.18f, 34, A.C, Color.white);
+            Sparkle(face, w * 0.95f, h * 0.12f, 26, A.C, Color.white);
+            var rim = Rect(face, "CoverRim", Color.white, w * 0.66f, h * 0.45f, w * 0.56f + 18, h * 0.72f + 18, 34);
+            rim.Rt.localRotation = Quaternion.Euler(0, 0, -3);
+            var frame = Cover(face, "Cover", Art("cover_bismillah"), w * 0.66f, h * 0.45f, w * 0.56f, h * 0.72f, 28);
+            frame.Rt.localRotation = Quaternion.Euler(0, 0, -3);
+            t.Picture = frame.Rt.Find("Picture").GetComponent<Image>();
+            t.Fit = t.Picture.GetComponent<AspectRatioFitter>();
+            // The child stands at the left, feet cut by the card's edge like a sticker peeking in.
+            var child = AvatarScreenBuilder.Avatar(face, "Child", AvatarPerson.Child, w * 0.19f, h * 0.6f, w * 0.38f, h * 1.1f);
+            foreach (var b in new[] { rim.Rt, frame.Rt, child.transform }) b.SetSiblingIndex(under++);
+
+            var badge = Rect(t.Holder, "DayBadge", Pal.Rose, TileM + 130, TileM + 4, 230, 60, 30);
+            SketchFrame(t.Holder, TileM + 130, TileM + 4, 230, 60, 30);
+            Label(AutoFit(Txt(badge, "", FontXB, 30, Color.white, 115, 29, 210, 60), 20), "home_lesson_day");
+            return View(t);
+        }
+
+        /// <summary>A family member as their avatar on a card (or a drawn stand-in for someone not in the app yet).</summary>
+        private static LessonTileView Person(Box row, string name, Color fill, AvatarPerson person, Sprite drawn, string label)
+        {
+            var t = Tile(row, name, 0, 0, 250, FamilyH, fill, drawn ?? Art("char_girl"), false, A.C, 46, label, 28, allBadges: true);
+            int under = t.LabelPill.GetSiblingIndex();
+            if (drawn == null)
+            {
+                Object.DestroyImmediate(t.Picture.gameObject);
+                var av = AvatarScreenBuilder.Avatar(t.Face, "Avatar", person, 125, FamilyH * 0.47f, 210, FamilyH * 0.86f);
+                av.transform.SetSiblingIndex(under - 1);
+            }
+            else
+            {
+                var pic = t.Picture.rectTransform;
+                pic.sizeDelta = new Vector2(210, FamilyH * 0.86f);
+                pic.anchoredPosition = new Vector2(0, FamilyH * 0.03f);
+                t.Picture.preserveAspect = true;
+            }
+            return View(t);
         }
 
         // ─────────────────────────── avatar offer ───────────────────────────

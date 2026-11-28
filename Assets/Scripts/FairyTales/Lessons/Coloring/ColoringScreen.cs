@@ -37,8 +37,14 @@ namespace FairyTales.Lessons
         public ColoringSwatch[] swatches = new ColoringSwatch[0];
         public ColoringSwatch magic;
 
+        [Header("Trace first («Обведи и раскрась» from the home)")]
+        public TraceSession tracer = new();
+        /// <summary>The tools and crayons: hidden while the child traces.</summary>
+        public CanvasGroup panel;
+
         [Header("Finished")]
         public RectTransform doneBanner;
+        public TMP_Text doneText;
         public RectTransform sparkles;
         public Image sparkleTemplate;
 
@@ -52,6 +58,45 @@ namespace FairyTales.Lessons
         private ColoringSwatch _selected;
         private bool _wasDone;
         private float _openedAt;
+        /// <summary>Opened by the home's «Обведи» card: straight to a page, back goes home.</summary>
+        private static bool _traceNext;
+        private bool _fromHome;
+        private const string TraceIndexKey = "coloring_trace_index";
+
+        /// <summary>Simple shapes first, people last.</summary>
+        private static readonly string[] TraceOrder =
+            { "heart", "moon", "crown", "lantern", "gift", "mosque", "tv", "dua", "meal", "table", "camel", "family", "grandpa" };
+
+        /// <summary>«Обведи»: the next page to trace and colour, one the child hasn't coloured yet if there is one.</summary>
+        public static void OpenTrace(ScreenManager sm)
+        {
+            _traceNext = true;
+            sm.Show<ColoringScreen>();
+        }
+
+        private static ColoringPage NextTracePage()
+        {
+            var pages = new List<ColoringPage>();
+            foreach (var id in TraceOrder)
+            {
+                var p = ColoringPages.Find(id);
+                if (p != null && p.CanTrace) pages.Add(p);
+            }
+            foreach (var p in ColoringPages.All)
+                if (p.CanTrace && !pages.Contains(p)) pages.Add(p);
+            if (pages.Count == 0) return null;
+            int start = PlayerPrefs.GetInt(TraceIndexKey, 0);
+            int pick = -1;
+            for (int k = 0; k < pages.Count && pick < 0; k++)
+            {
+                int i = (start + k) % pages.Count;
+                if (!System.IO.File.Exists(ColoringPages.PicturePath(pages[i].id))) pick = i;
+            }
+            if (pick < 0) pick = start % pages.Count;
+            PlayerPrefs.SetInt(TraceIndexKey, pick + 1);
+            PlayerPrefs.Save();
+            return pages[pick];
+        }
         private string Tween => "coloring_" + GetInstanceID();
 
         private void Awake()
@@ -70,6 +115,8 @@ namespace FairyTales.Lessons
             }
             magic.button.onClick.AddListener(() => Select(magic));
             canvas.Changed += OnPictureChanged;
+            tracer.Bind(this, () => false);
+            tracer.Finished += OnTraced;
             cardTemplate.gameObject.SetActive(false);
             sparkleTemplate.gameObject.SetActive(false);
             doneBanner.gameObject.SetActive(false);
@@ -93,6 +140,13 @@ namespace FairyTales.Lessons
             foreach (var label in GetComponentsInChildren<LessonLabel>(true)) label.Apply();
             board.SetActive(false);
             gallery.SetActive(true);
+            _fromHome = false;
+            if (_traceNext)
+            {
+                _traceNext = false;
+                var page = NextTracePage();
+                if (page != null) { _fromHome = true; OpenBoard(page, trace: true); return; }
+            }
             DrawGallery();
         }
 
@@ -100,6 +154,7 @@ namespace FairyTales.Lessons
 
         protected override void OnHidden()
         {
+            tracer.Stop();
             Save();
             canvas.Close();
             board.SetActive(false);
@@ -151,7 +206,9 @@ namespace FairyTales.Lessons
 
         // ─────────────────────────── the page ───────────────────────────
 
-        private void OpenBoard(ColoringPage page)
+        private void OpenBoard(ColoringPage page) => OpenBoard(page, false);
+
+        private void OpenBoard(ColoringPage page, bool trace)
         {
             if (!canvas.Open(page, ColoringPages.LoadPicture(page.id)))
             {
@@ -167,11 +224,42 @@ namespace FairyTales.Lessons
             _wasDone = canvas.Progress() >= 1f;
             _openedAt = Time.realtimeSinceStartup;
             RefreshUndo();
-            Analytics.Log("coloring_open", ("page", page.id), ("started", !canvas.IsEmpty()));
+            canvas.interactive = true;
+            SetPanel(true, false);
+            if (trace && tracer.Begin(canvas, reveal: false)) SetPanel(false, false);
+            Analytics.Log("coloring_open", ("page", page.id), ("started", !canvas.IsEmpty()), ("trace", trace));
+        }
+
+        private void SetPanel(bool on, bool animate)
+        {
+            panel.DOKill();
+            panel.interactable = panel.blocksRaycasts = on;
+            if (animate) panel.DOFade(on ? 1f : 0f, 0.35f);
+            else panel.alpha = on ? 1f : 0f;
+        }
+
+        // Traced round: «Машаллах! Теперь раскрась» and the crayons come in.
+        private void OnTraced()
+        {
+            Analytics.Log("trace_done", ("lesson", "practice"), ("page", canvas.Page.id), ("seconds", Mathf.RoundToInt(tracer.Seconds)));
+            _voice.PlayBundled(LessonVoice.Correct);
+            ShowBanner(LessonStrings.T("coloring_trace_done"));
+            Sparkles.Burst(sparkles, sparkleTemplate, 18, Tween);
+            canvas.interactive = true;
+            SetPanel(true, true);
         }
 
         private void CloseBoard()
         {
+            tracer.Stop();
+            if (_fromHome)
+            {
+                // Came for «Обведи» from the home: back is back home (the picture is kept).
+                _fromHome = false;
+                Save();
+                _sm.Show<LessonHomeScreen>();
+                return;
+            }
             Save();
             canvas.Close();
             DOTween.Kill(Tween);
@@ -231,7 +319,15 @@ namespace FairyTales.Lessons
         private void Celebrate()
         {
             _voice.PlayBundled(LessonVoice.Correct);
+            ShowBanner(LessonStrings.T("coloring_done"));
+            Sparkles.Burst(sparkles, sparkleTemplate, 22, Tween);
+        }
+
+        // Drops in over the picture, stays a moment, goes.
+        private void ShowBanner(string text)
+        {
             DOTween.Kill(Tween);
+            if (doneText != null) doneText.text = text;
             var b = doneBanner;
             b.gameObject.SetActive(true);
             b.localScale = Vector3.one * 0.6f;
@@ -243,32 +339,6 @@ namespace FairyTales.Lessons
                 .AppendInterval(2.2f)
                 .Append(group.DOFade(0f, 0.35f))
                 .OnComplete(() => b.gameObject.SetActive(false));
-
-            for (int i = sparkles.childCount - 1; i >= 0; i--)
-                if (sparkles.GetChild(i) != sparkleTemplate.transform) Destroy(sparkles.GetChild(i).gameObject);
-            var colors = new[] { new Color(1f, 0.8f, 0.25f), new Color(1f, 0.55f, 0.7f), new Color(0.45f, 0.8f, 1f), new Color(0.6f, 0.9f, 0.5f) };
-            var size = sparkles.rect.size;
-            for (int i = 0; i < 22; i++)
-            {
-                var s = Instantiate(sparkleTemplate, sparkles);
-                s.gameObject.SetActive(true);
-                s.color = colors[i % colors.Length];
-                var rt = s.rectTransform;
-                rt.anchoredPosition = Vector2.zero;
-                float ang = i / 22f * Mathf.PI * 2f + Random.Range(-0.15f, 0.15f);
-                float dist = Random.Range(0.3f, 0.5f) * Mathf.Min(size.x, size.y) + Random.Range(0, 120f);
-                var to = new Vector2(Mathf.Cos(ang) * dist * 1.3f, Mathf.Sin(ang) * dist);
-                float sc = Random.Range(0.6f, 1.3f);
-                rt.localScale = Vector3.zero;
-                float delay = Random.Range(0f, 0.15f);
-                DOTween.Sequence().SetId(Tween)
-                    .AppendInterval(delay)
-                    .Append(rt.DOAnchorPos(to, 0.9f).SetEase(Ease.OutCubic))
-                    .Join(rt.DOScale(sc, 0.35f).SetEase(Ease.OutBack))
-                    .Join(rt.DORotate(new Vector3(0, 0, Random.Range(-180f, 180f)), 0.9f))
-                    .Append(s.DOFade(0f, 0.4f))
-                    .OnComplete(() => { if (s != null) Destroy(s.gameObject); });
-            }
         }
     }
 }
